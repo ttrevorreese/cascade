@@ -101,7 +101,14 @@ echo "  device: $(sh getprop ro.product.manufacturer) $(sh getprop ro.product.mo
 "$ADB" install -r "$APK" >/dev/null && pass "installed $APK"
 (( SDK >= 33 )) && sh pm grant "$PKG" android.permission.POST_NOTIFICATIONS
 (( SDK >= 34 )) && sh appops set "$PKG" USE_FULL_SCREEN_INTENT allow
-sh am start -n "$PKG/.MainActivity" >/dev/null # seeds the M1 alarm and reconciles
+# Seeds the M1 alarm and reconciles. Retried: right after install the package manager may not
+# have registered the activity yet ("Activity class ... does not exist").
+for _ in 1 2 3 4 5; do
+  started=$(sh am start -W -n "$PKG/.MainActivity" 2>&1)
+  grep -q "Error" <<<"$started" || break
+  sleep 2
+done
+grep -q "Error" <<<"$started" && fail "could not launch the app: $started"
 sleep 4
 debug_cmd SET_TIMEOUT --ei minutes 15
 debug_cmd DISABLE
