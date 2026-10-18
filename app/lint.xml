@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<lint>
+    <!-- targetSdk 36 is deliberate: Play requires 36 until Aug 2027; moving to 37 is a planned migration. -->
+    <issue id="OldTargetApi" severity="ignore" />
+    <!-- Below Android 12 backup is already disabled by allowBackup="false". -->
+    <issue id="DataExtractionRules" severity="ignore" />
+    <!-- AAPT rejects <adaptive-icon> outside a -v26 folder even when minSdk is 26. -->
+    <issue id="ObsoleteSdkInt">
+        <ignore path="src/main/res/mipmap-anydpi-v26" />
+    </issue>
+</lint>

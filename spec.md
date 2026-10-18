@@ -1,0 +1,304 @@
+# Cascade — Technical Specification
+
+**An Android alarm app for people who wake up using sequences of alarms.**
+
+App name: Cascade. Package: `com.cascade.alarm` (verify availability on Play before first commit).
+
+---
+
+## 1. Product thesis
+
+Most alarm apps treat multiple alarms as user error. Cascade treats a sequence as the intended unit of use.
+
+The core object is not an alarm. It is an **alarm group** — a named, labeled folder of consecutive alarms that are armed and disarmed together with one toggle. A user builds "Workday Wake" once (6:00, 6:10, 6:20, 6:35) and flips it on Sunday night. They build "Gym Day," "Travel," and "Late Shift" and switch between them.
+
+Layered on top of that is **escalation**: each alarm's position in its sequence determines how hard it is to dismiss. The first alarm is a gentle nudge. The last one makes you scan a QR code taped to the bathroom mirror. No competitor does this well, and it is the feature that justifies the app's existence.
+
+**Design principle:** the app must be more reliable than the stock Clock app. Every architectural decision defers to that. A missed alarm is a catastrophic bug, not a defect.
+
+---
+
+## 2. Scope
+
+### In scope for v1
+- Android phones, API 26 (Oreo) minimum, target current API level
+- Alarm groups with single-toggle arm/disarm
+- Per-position challenge escalation within a group
+- Five dismissal challenge types
+- Local audio alarm sounds with volume ramp
+- Spotify playlist playback (feature-flagged, see §9)
+- Reliability hardening and missed-alarm diagnostics
+
+### Explicitly out of scope for v1
+- iOS (platform constraints make it a separate project; revisit after Android ships)
+- Web app (browsers cannot wake a sleeping device; a web companion is config-only and has no v1 value)
+- Wear OS
+- Sleep tracking, sleep cycle detection, smart wake windows
+- Accounts, cloud sync, social features
+- Subscriptions and billing (architect so they can be added; do not build)
+
+### Deferred to v1.1
+Local backup/restore via JSON export, widget, Tasker integration, additional challenge types.
+
+---
+
+## 3. Technology stack
+
+| Layer | Choice | Rationale |
+|---|---|---|
+| Language | Kotlin | Required for native alarm APIs |
+| UI | Jetpack Compose + Material 3 | Modern, fast to build |
+| Architecture | MVVM, unidirectional data flow | Standard, testable |
+| DI | Hilt | Standard for this stack |
+| Persistence | Room + DataStore (prefs) | Alarms must survive reboot |
+| Async | Coroutines + Flow | Standard |
+| Camera | CameraX | Photo and QR challenges |
+| ML | ML Kit (barcode scanning, image labeling) | On-device, no network dependency |
+| Audio | ExoPlayer (Media3) on `STREAM_ALARM` | Reliable, handles ramping |
+| Navigation | Navigation Compose | Standard |
+| Testing | JUnit5, Turbine, Robolectric, Compose UI test | — |
+
+**Hard rule:** no network call may ever be on the critical path of an alarm firing. The alarm must work in airplane mode with no account.
+
+---
+
+## 4. The alarm engine
+
+This is the heart of the app and the part most likely to be built wrong. Build it first, prove it works, then build everything else around it.
+
+### 4.1 Scheduling
+
+Use `AlarmManager.setAlarmClock()`. Not `setExactAndAllowWhileIdle()`, not `WorkManager`.
+
+`setAlarmClock()` is the only API that is fully exempt from Doze mode restrictions, and it surfaces the system alarm icon in the status bar, which users expect. The tradeoff is that it is the most visible and most scrutinized API, which is correct for an app whose core function is alarms.
+
+**Permissions required:**
+- `USE_EXACT_ALARM` — granted at install for apps whose core function is alarms. Play Store review will verify the app genuinely is an alarm clock. Declare it and be ready to justify it in the Play Console.
+- `SCHEDULE_EXACT_ALARM` — fallback for older API levels; requires a user grant flow.
+- `USE_FULL_SCREEN_INTENT` — Android 14+ restricts this to calling and alarm apps. Same review scrutiny.
+- `RECEIVE_BOOT_COMPLETED` — reschedule everything on boot.
+- `POST_NOTIFICATIONS` — Android 13+.
+- `FOREGROUND_SERVICE` + `FOREGROUND_SERVICE_MEDIA_PLAYBACK`.
+- `ACTIVITY_RECOGNITION` — step challenge only, requested at the point of use.
+- `CAMERA` — photo and QR challenges only, requested at the point of use.
+- `WAKE_LOCK`.
+
+**Scheduling model:** schedule only the *next* occurrence of each enabled alarm, never a batch of future ones. Reschedule on: alarm fired, alarm edited, group toggled, device boot, timezone change, DST transition, app update.
+
+Register receivers for `BOOT_COMPLETED`, `MY_PACKAGE_REPLACED`, `TIMEZONE_CHANGED`, and `TIME_SET`. Each triggers a full reconciliation pass that reads every enabled alarm from Room and rebuilds the schedule from scratch. Idempotent reconciliation is far safer than incremental updates.
+
+### 4.2 Firing
+
+1. `AlarmManager` fires a `PendingIntent` into a `BroadcastReceiver`.
+2. The receiver immediately acquires a wake lock and starts a foreground service. Do no other work in the receiver — it has a hard execution budget.
+3. The foreground service (`type="mediaPlayback"`) owns the alarm's lifetime: audio playback, volume ramp, timeout handling, and the ongoing notification.
+4. The service posts a notification with a **full-screen intent** pointing at `AlarmActivity`.
+5. `AlarmActivity` sets `setShowWhenLocked(true)`, `setTurnScreenOn(true)`, and requests dismissal of the keyguard. It renders over the lock screen.
+
+**Audio:** play on `AudioManager.STREAM_ALARM`. This stream bypasses silent mode and Do Not Disturb by design, which is exactly the intended behavior. Request `AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE`. Implement volume ramp as a gradual increase over a configurable 0–120 second window, starting at a configurable floor.
+
+**Timeout:** if the user does not dismiss within N minutes (default 15, configurable), stop audio, log a `MISSED` event, and release the wake lock. Never let a service run indefinitely.
+
+### 4.3 Reliability hardening
+
+This is where Android alarm apps live or die. Aggressive OEM battery management — Xiaomi, Huawei, Oppo, Vivo, OnePlus, and to a lesser extent Samsung — will kill background apps and silently prevent alarms from firing. See dontkillmyapp.com for current per-OEM behavior.
+
+Build a **Reliability Check** screen, reachable from onboarding and from settings, that:
+1. Detects the device manufacturer.
+2. Checks `isIgnoringBatteryOptimizations()` and prompts for the exemption.
+3. For known-aggressive OEMs, shows manufacturer-specific instructions (autostart permission, protected apps list, "no restrictions" battery setting) with a deep link to the relevant settings screen where an intent exists.
+4. Verifies notification permission, exact alarm permission, and full-screen intent permission.
+5. Shows a clear pass/fail status per item.
+
+Also implement a **missed alarm detector**: on every app foreground, compare the last-fired timestamps in the database against what should have fired. If an alarm should have gone off and no `FIRED` event exists, show a prominent diagnostic card explaining the likely cause and linking to the Reliability Check. This converts a silent catastrophic failure into a recoverable, explainable one.
+
+Add a **Test Alarm** button in settings that schedules an alarm 60 seconds out and runs the full real path. Users should be able to verify the app works before trusting it.
+
+---
+
+## 5. Data model
+
+```kotlin
+@Entity
+data class AlarmGroup(
+    @PrimaryKey val id: String,          // UUID
+    val name: String,                     // "Workday Wake"
+    val colorHex: String,
+    val iconKey: String,
+    val isArmed: Boolean,                 // master toggle for all child alarms
+    val escalationPolicy: EscalationPolicy,
+    val sortOrder: Int,
+    val createdAt: Instant
+)
+
+@Entity
+data class Alarm(
+    @PrimaryKey val id: String,
+    val groupId: String,                  // FK, cascade delete
+    val positionInGroup: Int,             // 0-based; drives escalation
+    val hour: Int,
+    val minute: Int,
+    val daysOfWeek: Set<DayOfWeek>,        // empty = one-shot
+    val label: String?,
+    val isEnabled: Boolean,               // individual toggle, ANDed with group.isArmed
+    val sound: SoundConfig,
+    val challengeOverride: ChallengeConfig?, // null = inherit from group escalation
+    val snoozeConfig: SnoozeConfig,
+    val volumeRampSeconds: Int,
+    val timeoutMinutes: Int
+)
+
+sealed interface SoundConfig {
+    data class BuiltIn(val toneKey: String) : SoundConfig
+    data class DeviceAudio(val uri: String) : SoundConfig
+    data class SpotifyPlaylist(
+        val playlistUri: String,
+        val playlistName: String,
+        val fallback: SoundConfig       // REQUIRED, never null
+    ) : SoundConfig
+}
+
+sealed interface ChallengeConfig {
+    data object None : ChallengeConfig
+    data class Math(val difficulty: Difficulty, val problemCount: Int) : ChallengeConfig
+    data class PhotoMatch(val referencePhotoId: String, val threshold: Float) : ChallengeConfig
+    data class Steps(val count: Int) : ChallengeConfig
+    data class BarcodeScan(val expectedPayload: String, val label: String) : ChallengeConfig
+    data class TypePhrase(val phrase: String) : ChallengeConfig
+    data class Memory(val sequenceLength: Int) : ChallengeConfig
+}
+
+data class EscalationPolicy(
+    val steps: List<ChallengeConfig>   // index maps to positionInGroup, last entry repeats
+)
+
+@Entity
+data class AlarmEvent(                   // append-only audit log
+    @PrimaryKey val id: String,
+    val alarmId: String,
+    val type: EventType,                 // SCHEDULED, FIRED, DISMISSED, SNOOZED, MISSED, CHEAT_DETECTED
+    val timestamp: Instant,
+    val metadata: String?                // JSON
+)
+```
+
+**Effective-enabled rule:** an alarm fires only if `group.isArmed && alarm.isEnabled`. The group toggle does not mutate child `isEnabled` values, so a user who disabled one alarm inside a group keeps that state when re-arming the group. This is the behavior organized users expect and most apps get wrong.
+
+**Escalation resolution:** `alarm.challengeOverride ?: group.escalationPolicy.steps.getOrElse(alarm.positionInGroup) { steps.last() }`.
+
+---
+
+## 6. Dismissal challenges
+
+Each challenge implements a common interface so new types can be added without touching the alarm engine:
+
+```kotlin
+interface Challenge {
+    val config: ChallengeConfig
+    @Composable fun Render(onComplete: () -> Unit, onAbort: () -> Unit)
+    fun canAbort(): Boolean      // whether a "give up" escape hatch is offered
+}
+```
+
+### 6.1 Math
+Generate arithmetic problems at three difficulty tiers (single-digit addition / two-digit mixed operations / multi-step with multiplication). Configurable problem count, 1–10. Generate deterministically from a seed so a problem cannot be dodged by force-quitting and relaunching.
+
+### 6.2 Barcode / QR scan
+**Build this first — it is the most reliable and most effective challenge.** User registers a code during setup (generate a printable QR in-app, or scan any existing barcode such as a shampoo bottle). At alarm time they must scan the matching code. Physically relocating the user is what actually works; the code lives on the bathroom mirror or the coffee machine.
+
+Use ML Kit barcode scanning with CameraX. Store the expected payload string and compare exactly.
+
+### 6.3 Photo match
+User registers a reference photo during setup (their sink, their desk). At alarm time they must take a photo of the same scene.
+
+**Implementation note:** do not attempt object recognition. Use perceptual similarity — compute a perceptual hash (dHash or pHash) of both images, or use ML Kit image labeling and compare label sets with a confidence threshold. Perceptual hashing is simpler, fully offline, and sufficient. Tune the threshold generously and allow retries; a false rejection at 6am is a one-star review.
+
+Store reference photos in app-private internal storage, never in MediaStore.
+
+### 6.4 Steps
+Use `Sensor.TYPE_STEP_COUNTER` (hardware, low power, survives screen-off) rather than Health Connect, which adds a dependency and a permission flow for no benefit here. Requires `ACTIVITY_RECOGNITION`.
+
+Capture the baseline counter value when the challenge starts and require N additional steps. Display live progress. Default 20 steps, configurable 10–200.
+
+### 6.5 Type a phrase
+User-configured phrase, or a generated one. Case-insensitive, whitespace-normalized. Disable clipboard paste in the input field. Lowest-friction challenge; good for position 0 in a sequence.
+
+### 6.6 Memory sequence
+Simon-style color/tone sequence of configurable length. Included because it is fast and engaging without being frustrating.
+
+### 6.7 Anti-circumvention
+
+Scope this carefully — a fight against a determined user is unwinnable and the aggressive approaches get apps removed from Play.
+
+**Do implement:**
+- Hardware volume keys do not silence the alarm while a challenge is active (intercept in `AlarmActivity`).
+- Back gesture and home do not dismiss; re-raise the activity if it loses focus while the alarm is active.
+- Alarm resumes on app relaunch if dismissal never completed.
+- Log a `CHEAT_DETECTED` event when the activity is backgrounded during an active alarm, and surface it in stats.
+
+**Do not implement:** device admin APIs to block uninstall, accessibility service abuse, or overlay permissions to block system UI. These violate Play policy and will get the app rejected or removed.
+
+**Always provide an escape hatch:** a "give up" affordance after a configurable number of failed attempts or a hard 3-minute cap. It should feel bad (confirmation dialog, logged to stats) but it must exist. Trapping a user who genuinely needs to answer a 3am emergency call is unacceptable.
+
+---
+
+## 7. Screens
+
+1. **Home** — list of alarm groups as cards. Each shows name, color, next fire time, child alarm count, and a prominent master toggle. Reordering by drag. FAB to create a group.
+2. **Group detail** — ordered list of alarms in the group, each showing time, resolved challenge type, and individual toggle. Drag to reorder (reordering changes `positionInGroup`, which re-resolves escalation — show this clearly). Edit escalation policy here.
+3. **Alarm editor** — time picker, day-of-week selector, label, sound picker, challenge override, snooze config, volume ramp, timeout.
+4. **Escalation editor** — visual ladder showing position → challenge mapping, with the ability to set each rung. This screen is the product's signature; give it real design attention.
+5. **Alarm firing screen** — full-screen over lock screen. Time, label, challenge UI, snooze button if permitted.
+6. **Reliability Check** — per §4.3.
+7. **Settings** — defaults, test alarm, theme, data export.
+8. **Stats** — dismissal times, snooze counts, challenge failure rates, give-up events. Organized people like data about themselves; this is cheap to build and drives retention.
+
+Material 3 with dynamic color. The firing screen must be legible to someone half-asleep: large type, high contrast, generous touch targets, a dark theme that does not blind at 6am.
+
+---
+
+## 8. Build order
+
+Each milestone should end in a working, installable app.
+
+| # | Milestone | Deliverable |
+|---|---|---|
+| M0 | Skeleton | Project setup, Hilt, Room, Compose nav, CI running tests |
+| M1 | **Alarm engine** | One hardcoded alarm fires reliably, shows full-screen over lock screen, plays audio, dismisses, survives reboot. No UI polish. **Do not proceed until this is bulletproof.** |
+| M2 | CRUD + groups | Create/edit/delete groups and alarms, master toggle, Room persistence, reconciliation on all triggers |
+| M3 | Challenges | Interface + math, type-phrase, barcode. Then steps, photo match, memory |
+| M4 | Escalation | Policy resolution, escalation editor screen, reorder semantics |
+| M5 | Reliability | Reliability Check, missed-alarm detector, test alarm, OEM guidance, event logging |
+| M6 | Audio | Built-in tones, device audio picker, volume ramp, then Spotify behind a feature flag |
+| M7 | Polish | Stats, settings, theming, onboarding, accessibility pass |
+| M8 | Release prep | Play Store listing, permission justifications, privacy policy, closed testing |
+
+**Estimate:** 10–14 weeks of focused solo work to a shipped Play Store release. M1 and M5 together are roughly 40% of the total and are where the difficulty actually lives. The challenge screens look like the bulk of the work but are the easy part.
+
+---
+
+## 9. Spotify integration
+
+**Gate this behind a feature flag and build it last.** Spotify's developer terms require written approval for alarm functionality, obtained via a quota extension request that itself requires a working demo app. The app must be fully shippable without it.
+
+**Design constraints:**
+- `SoundConfig.SpotifyPlaylist` carries a **required** non-null `fallback` of local audio. If the Spotify app is missing, not logged in, the device is offline, or app-remote connection fails for any reason, fall back silently and immediately. The alarm always makes noise.
+- Start the local fallback *first*, attempt the Spotify handoff, and cross-fade only on success. Never start silent and hope.
+- Use the Spotify Android SDK's app-remote, which requires the Spotify app installed. Playback is offloaded to that app.
+- Playlist browsing and search use the Web API with OAuth PKCE; store tokens in `EncryptedSharedPreferences`.
+- Surface a clear setup state in the UI when Spotify is selected but not connected.
+
+---
+
+## 10. Testing
+
+- **Unit:** schedule computation (next occurrence across DST, timezone changes, week boundaries, one-shot vs recurring), escalation resolution, challenge validation, effective-enabled logic.
+- **Instrumented:** Room migrations, boot receiver reconciliation, alarm firing path.
+- **Manual matrix, mandatory before release:** fire an alarm with the device locked, screen off, in Doze (`adb shell dumpsys deviceidle force-idle`), in Do Not Disturb, in silent mode, after reboot, after app update, with battery optimization enabled and disabled, and on at least one Xiaomi or Samsung device in addition to Pixel.
+- Write a scripted end-to-end test for the full alarm path early (M1) and run it on every milestone.
+
+---
+
+## 11. Privacy
+
+No account, no analytics SDK, no network calls except Spotify when explicitly configured. Reference photos and all alarm data stay in app-private storage. Be able to state this plainly in the Play listing — it is a genuine differentiator in a category full of data-harvesting apps.
