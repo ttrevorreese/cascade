@@ -130,11 +130,13 @@ class RingCoordinator(
         val alarmId = state.current.value?.alarmId
             ?: ring?.alarmId
             ?: try { store.activeRing()?.alarmId } catch (e: Exception) { null }
-        state.set(null)
         try {
+            // Clear the persisted ring before telling observers it's over, so "not ringing" in
+            // memory always implies "not ringing" on disk.
             bestEffort { store.clearActiveRing() }
             if (alarmId != null) bestEffort { store.log(alarmId, type, *metadata) }
         } finally {
+            state.set(null)
             finishIdle()
         }
     }

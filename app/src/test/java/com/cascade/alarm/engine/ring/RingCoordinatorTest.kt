@@ -35,6 +35,9 @@ class RingCoordinatorTest {
         var fired = mutableSetOf<Pair<String, Instant>>()
         var failRecordFire = false
         var failWrites = false
+        var state: RingState? = null
+        /** What observers could see at the moment the persisted ring was cleared. */
+        var stateWhenCleared: RingingAlarm? = null
 
         override suspend fun recordFire(alarmId: String, scheduledFor: Instant): FireResult {
             if (failRecordFire) error("db unavailable")
@@ -49,6 +52,7 @@ class RingCoordinatorTest {
         }
         override suspend fun clearActiveRing() {
             if (failWrites) error("db unavailable")
+            stateWhenCleared = state?.current?.value
             active = null
         }
         override suspend fun log(alarmId: String, type: EventType, vararg metadata: Pair<String, Any?>) {
@@ -85,7 +89,7 @@ class RingCoordinatorTest {
         val sound = FakeSound()
         val wakeLock = FakeWakeLock()
         val presenter = FakePresenter()
-        val state = RingState()
+        val state = RingState().also { store.state = it }
         val coordinator = RingCoordinator(
             scope = scope.backgroundScope,
             store = store,
@@ -130,6 +134,15 @@ class RingCoordinatorTest {
         assertNull(store.active)
         assertEquals(EventType.DISMISSED, store.types().last())
         assertEquals(1, presenter.finished)
+    }
+
+    @Test
+    fun `persisted ring is cleared before observers are told nothing is ringing`() = harness {
+        // Otherwise a process death in between resurrects a dismissed alarm on next start.
+        coordinator.onFire("a", scheduled)
+        coordinator.dismiss()
+        assertNotNull(store.stateWhenCleared)
+        assertNull(state.current.value)
     }
 
     @Test
