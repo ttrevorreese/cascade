@@ -14,7 +14,8 @@ jobs:
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
-          java-version: 17
+          # Robolectric's Android 16 (SDK 36) sandbox requires Java 21.
+          java-version: 21
       - uses: gradle/actions/setup-gradle@v6
       - name: Unit tests
         run: ./gradlew testDebugUnitTest --stacktrace
@@ -25,10 +26,17 @@ jobs:
           for f in app/build/test-results/testDebugUnitTest/*.xml; do
             python3 - "$f" <<'EOF'
           import sys, xml.etree.ElementTree as ET
+          # Test output may come from a pull request, so escape workflow-command metacharacters
+          # in every field (https://github.com/actions/toolkit/blob/main/packages/core/src/command.ts).
+          def esc_data(s):
+              return (s or "").replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+          def esc_prop(s):
+              return esc_data(s).replace(":", "%3A").replace(",", "%2C")
           for case in ET.parse(sys.argv[1]).getroot().iter("testcase"):
               for problem in list(case.iter("failure")) + list(case.iter("error")):
-                  text = (problem.get("message") or problem.text or "").strip().replace("\n", " ")[:900]
-                  print(f"::error title={case.get('classname')}.{case.get('name')}::{text}")
+                  text = (problem.get("message") or problem.text or "").strip()[:900]
+                  title = f"{case.get('classname')}.{case.get('name')}"
+                  print(f"::error title={esc_prop(title)}::{esc_data(text)}")
           EOF
           done
       - name: Lint
