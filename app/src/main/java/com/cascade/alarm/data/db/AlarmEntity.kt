@@ -1,23 +1,40 @@
 package com.cascade.alarm.data.db
 
 import androidx.room.Entity
+import androidx.room.ForeignKey
+import androidx.room.Index
 import androidx.room.PrimaryKey
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalTime
 
 /**
- * M1 subset of SPEC §5 `Alarm`; groups, sound, challenge and snooze columns arrive in later
- * milestones. The last three columns are engine bookkeeping, not user configuration.
+ * SPEC §5 `Alarm`; sound, challenge and snooze columns arrive in later milestones. The last three
+ * columns are engine bookkeeping, not user configuration.
  */
-@Entity(tableName = "alarms")
+@Entity(
+    tableName = "alarms",
+    foreignKeys = [
+        ForeignKey(
+            entity = AlarmGroupEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["groupId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+    indices = [Index("groupId")],
+)
 data class AlarmEntity(
     @PrimaryKey val id: String,
+    val groupId: String,
+    /** 0-based order within the group; drives escalation from M4. */
+    val positionInGroup: Int,
     val hour: Int,
     val minute: Int,
     /** Empty = one-shot. */
     val daysOfWeek: Set<DayOfWeek>,
     val label: String?,
+    /** The alarm's own switch. It rings only if this AND its group's isArmed are true. */
     val isEnabled: Boolean,
     val volumeRampSeconds: Int,
     val timeoutMinutes: Int,

@@ -3,10 +3,12 @@ package com.cascade.alarm.engine.schedule
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.cascade.alarm.data.db.AlarmEntity
+import com.cascade.alarm.data.db.AlarmGroupEntity
 import com.cascade.alarm.data.db.CascadeDatabase
 import com.cascade.alarm.data.db.EventType
 import com.cascade.alarm.engine.EventLog
 import com.cascade.alarm.engine.TimeSource
+import com.cascade.alarm.engine.receivers.AlarmFireReceiver
 import com.cascade.alarm.engine.schedule.Reconciler.FireResult
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -63,10 +65,11 @@ class ReconcilerTest {
     fun tearDown() = db.close()
 
     private fun insert(days: Set<DayOfWeek> = DayOfWeek.entries.toSet(), enabled: Boolean = true) = runBlocking {
+        db.alarmGroupDao().upsert(AlarmGroupEntity("g", "Group", "#000000", "default", true, 0, Instant.EPOCH))
         db.alarmDao().upsert(
             AlarmEntity(
-                id = "a", hour = 7, minute = 0, daysOfWeek = days, label = null, isEnabled = enabled,
-                volumeRampSeconds = 30, timeoutMinutes = 15,
+                id = "a", groupId = "g", positionInGroup = 0, hour = 7, minute = 0, daysOfWeek = days,
+                label = null, isEnabled = enabled, volumeRampSeconds = 30, timeoutMinutes = 15,
             ),
         )
     }
@@ -123,8 +126,21 @@ class ReconcilerTest {
     }
 
     @Test
-    fun `fire for an unknown alarm still rings`() = runBlocking {
-        assertEquals(FireResult.Ring(null), reconciler.recordFire("ghost", sevenAm))
+    fun `fire whose alarm id was lost still rings`() = runBlocking {
+        assertEquals(FireResult.Ring(null), reconciler.recordFire(AlarmFireReceiver.UNKNOWN_ALARM, sevenAm))
+    }
+
+    @Test
+    fun `fire for a deleted alarm is reported as deleted`() = runBlocking {
+        assertEquals(FireResult.Deleted, reconciler.recordFire("ghost", sevenAm))
+    }
+
+    @Test
+    fun `deleting an alarm cancels its AlarmManager registration`() = runBlocking {
+        insert()
+        reconciler.reconcileAll("app_start")
+        reconciler.mutate("delete") { it.alarmDao().delete("a") }
+        assertFalse(scheduler.scheduled.containsKey("a"))
     }
 
     @Test
@@ -150,7 +166,7 @@ class ReconcilerTest {
     fun `test ring in 60 seconds works while the regular alarm is off`() = runBlocking {
         insert(enabled = false)
         val inOneMinute = time.now.plusSeconds(60)
-        reconciler.edit("a", "test_ring") { it.copy(oneTimeTriggerAt = inOneMinute) }
+        reconciler.mutate("test_ring") { db -> db.alarmDao().upsert(alarm().copy(oneTimeTriggerAt = inOneMinute)) }
         assertEquals(inOneMinute, scheduler.scheduled["a"])
         time.now = inOneMinute
         reconciler.recordFire("a", inOneMinute)

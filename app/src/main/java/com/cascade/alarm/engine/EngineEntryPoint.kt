@@ -1,5 +1,6 @@
 package com.cascade.alarm.engine
 
+import com.cascade.alarm.data.AlarmRepository
 import com.cascade.alarm.data.db.ActiveRingDao
 import com.cascade.alarm.engine.ring.RingState
 import com.cascade.alarm.engine.schedule.Reconciler
@@ -17,4 +18,5 @@ interface EngineEntryPoint {
     fun reconciler(): Reconciler
     fun activeRingDao(): ActiveRingDao
     fun ringState(): RingState
+    fun alarmRepository(): AlarmRepository
 }

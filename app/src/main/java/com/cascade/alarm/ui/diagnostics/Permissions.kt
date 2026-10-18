@@ -1,4 +1,4 @@
-package com.cascade.alarm.ui.engine
+package com.cascade.alarm.ui.diagnostics
 
 import android.Manifest
 import android.app.AlarmManager
@@ -12,7 +12,7 @@ import android.provider.Settings
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 
-/** One row of the M1 permission checklist. [fixIntent] is null when there is nothing to open. */
+/** One row of the permission checklist (grows into the M5 Reliability Check). [fixIntent] is null when there is nothing to open. */
 data class PermissionCheck(
     val title: String,
     val granted: Boolean,
@@ -21,7 +21,7 @@ data class PermissionCheck(
     val needsRuntimeRequest: Boolean = false,
 )
 
-object EnginePermissions {
+object Permissions {
     fun check(context: Context): List<PermissionCheck> {
         val packageUri = "package:${context.packageName}".toUri()
         val notifications = context.getSystemService(NotificationManager::class.java)

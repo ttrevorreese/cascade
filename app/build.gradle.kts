@@ -44,7 +44,7 @@ android {
             isReturnDefaultValues = true
             all {
                 it.useJUnitPlatform()
-                // Robolectric's SDK 36 sandbox reaches into FileDescriptor internals.
+                // Robolectric's SDK 36 sandbox needs Java 21 and reaches into FileDescriptor internals.
                 it.jvmArgs("--add-opens=java.base/jdk.internal.access=ALL-UNNAMED")
             }
         }
@@ -89,4 +89,11 @@ dependencies {
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.test.core)
     androidTestImplementation(libs.kotlinx.coroutines.test)
+    androidTestImplementation(libs.room.testing)
+
+    constraints {
+        // AndroidX pulls in kotlinx-serialization 1.7.3, room-testing needs 1.8.x, and test APKs are
+        // pinned to the app's versions. Align the app instead of leaving MigrationTest broken.
+        implementation(libs.kotlinx.serialization.core)
+    }
 }

@@ -28,13 +28,14 @@ class ReconcilePlannerTest {
         oneTime: Instant? = null,
         lastFired: Instant? = null,
     ) = AlarmEntity(
-        id = "a", hour = 7, minute = 0, daysOfWeek = days, label = null, isEnabled = enabled,
+        id = "a", groupId = "g", positionInGroup = 0, hour = 7, minute = 0, daysOfWeek = days, label = null,
+        isEnabled = enabled,
         volumeRampSeconds = 30, timeoutMinutes = 15,
         nextTriggerAt = next, oneTimeTriggerAt = oneTime, lastFiredFor = lastFired,
     )
 
-    private fun plan(alarm: AlarmEntity, now: Instant, zone: ZoneId = this.zone) =
-        ReconcilePlanner.plan(alarm, now, zone)
+    private fun plan(alarm: AlarmEntity, now: Instant, zone: ZoneId = this.zone, groupArmed: Boolean = true) =
+        ReconcilePlanner.plan(alarm, groupArmed, now, zone)
 
     @Test
     fun `disabled alarm is cancelled`() {
@@ -58,6 +59,29 @@ class ReconcilePlannerTest {
         val test = sevenAm.minusSeconds(600)
         val p = plan(alarm(enabled = false, next = test, oneTime = test), test.plusSeconds(300))
         assertEquals(Schedule(test), p.action)
+    }
+
+    @Test
+    fun `disarmed group cancels the alarm without touching its own switch`() {
+        val p = plan(alarm(next = sevenAm), sevenAm.minusSeconds(3600), groupArmed = false)
+        assertEquals(Cancel, p.action)
+        assertNull(p.alarm.nextTriggerAt)
+        assertTrue(p.alarm.isEnabled)
+    }
+
+    @Test
+    fun `disarmed group also cancels a pending one-time trigger`() {
+        val soon = sevenAm.minusSeconds(600)
+        val p = plan(alarm(oneTime = soon), sevenAm.minusSeconds(3600), groupArmed = false)
+        assertEquals(Cancel, p.action)
+        assertNull(p.alarm.oneTimeTriggerAt)
+    }
+
+    @Test
+    fun `disarmed group does not catch up a trigger missed while it was armed`() {
+        val p = plan(alarm(next = sevenAm), sevenAm.plusSeconds(300), groupArmed = false)
+        assertEquals(Cancel, p.action)
+        assertNull(p.missed)
     }
 
     @Test

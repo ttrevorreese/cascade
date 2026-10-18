@@ -7,16 +7,19 @@ import com.cascade.alarm.data.db.EventType
 import com.cascade.alarm.engine.EngineLog
 import com.cascade.alarm.engine.EventLog
 import com.cascade.alarm.engine.TimeSource
+import com.cascade.alarm.engine.receivers.AlarmFireReceiver
 import com.cascade.alarm.engine.schedule.ReconcilePlanner.Action
 import com.cascade.alarm.engine.schedule.ReconcilePlanner.Plan
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import java.time.Instant
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Owns every write to alarm scheduling state. Each entry point recomputes from the database and
- * re-issues every AlarmManager registration, so running it again is always safe (SPEC §4.1).
+ * Owns every write to alarm and group state. Each entry point recomputes the whole schedule from
+ * the database and re-issues every AlarmManager registration, so running it again is always safe
+ * (SPEC §4.1). Edits go through [mutate] so they can never race a reconciliation.
  */
 @Singleton
 class Reconciler @Inject constructor(
@@ -31,44 +34,61 @@ class Reconciler @Inject constructor(
         /** Ring. [alarm] is null if it could not be loaded; ring with defaults anyway. */
         data class Ring(val alarm: AlarmEntity?) : FireResult
         data object Duplicate : FireResult
+        /** The alarm was deleted after this trigger was handed to AlarmManager. */
+        data object Deleted : FireResult
     }
 
-    suspend fun reconcileAll(reason: String) = mutex.withLock {
+    suspend fun reconcileAll(reason: String) = mutate(reason) {}
+
+    /**
+     * Runs [block] (database edits) and a full reconciliation in one transaction under the
+     * scheduling lock, then updates AlarmManager, including cancelling alarms [block] deleted.
+     */
+    suspend fun <T> mutate(reason: String, block: suspend (CascadeDatabase) -> T): T = mutex.withLock {
         EngineLog.i("reconcile reason=$reason")
-        val plans = db.withTransaction {
-            db.alarmDao().all().map { alarm -> planAndPersist(alarm, alarm, reason) }
+        val (result, before, plans) = db.withTransaction {
+            val before = db.alarmDao().all().map { it.id }.toSet()
+            val result = block(db)
+            Triple(result, before, planAll(reason))
         }
+        (before - plans.map { it.alarm.id }.toSet()).forEach(scheduler::cancel)
         plans.forEach(::apply)
-    }
-
-    /** Applies a user/debug edit to one alarm and reschedules it. */
-    suspend fun edit(alarmId: String, reason: String, transform: (AlarmEntity) -> AlarmEntity) = mutex.withLock {
-        val plan = db.withTransaction {
-            val before = db.alarmDao().get(alarmId) ?: return@withTransaction null
-            planAndPersist(before, transform(before), reason)
-        }
-        plan?.let(::apply)
+        result
     }
 
     /** Records that the trigger for [scheduledFor] went off and schedules the following one. */
-    suspend fun recordFire(alarmId: String, scheduledFor: java.time.Instant): FireResult = mutex.withLock {
+    suspend fun recordFire(alarmId: String, scheduledFor: Instant): FireResult = mutex.withLock {
         var result: FireResult = FireResult.Ring(null)
         val plan = db.withTransaction {
-            val alarm = db.alarmDao().get(alarmId) ?: return@withTransaction null
+            val alarm = db.alarmDao().get(alarmId)
+            if (alarm == null) {
+                // A readable database without the row means the alarm was deleted. Only a fire
+                // whose id was lost entirely still rings blind.
+                if (alarmId != AlarmFireReceiver.UNKNOWN_ALARM) result = FireResult.Deleted
+                return@withTransaction null
+            }
             if (alarm.lastFiredFor == scheduledFor) {
                 result = FireResult.Duplicate
                 return@withTransaction null
             }
             result = FireResult.Ring(alarm)
             events.record(alarmId, EventType.FIRED, "scheduledFor" to scheduledFor)
-            planAndPersist(alarm, ReconcilePlanner.afterFiring(alarm, scheduledFor), "fired")
+            val armed = db.alarmGroupDao().get(alarm.groupId)?.isArmed ?: true
+            planAndPersist(alarm, ReconcilePlanner.afterFiring(alarm, scheduledFor), armed, "fired")
         }
         plan?.let(::apply)
         result
     }
 
-    private suspend fun planAndPersist(before: AlarmEntity, edited: AlarmEntity, reason: String): Plan {
-        val plan = ReconcilePlanner.plan(edited, time.now(), time.zone())
+    private suspend fun planAll(reason: String): List<Plan> {
+        val armed = db.alarmGroupDao().all().associate { it.id to it.isArmed }
+        return db.alarmDao().all().map { alarm ->
+            planAndPersist(alarm, alarm, armed[alarm.groupId] ?: false, reason)
+        }
+    }
+
+    private suspend fun planAndPersist(before: AlarmEntity, edited: AlarmEntity, groupArmed: Boolean, reason: String): Plan {
+        val plan = ReconcilePlanner.plan(edited, groupArmed, time.now(), time.zone())
         if (plan.alarm != before) db.alarmDao().upsert(plan.alarm)
         plan.missed?.let {
             events.record(before.id, EventType.MISSED, "scheduledFor" to it, "reason" to "not_fired")

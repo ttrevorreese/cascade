@@ -3,7 +3,6 @@ package com.cascade.alarm.debug
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import com.cascade.alarm.data.HardcodedAlarm
 import com.cascade.alarm.engine.EngineEntryPoint
 import com.cascade.alarm.engine.EngineLog
 import com.cascade.alarm.engine.ring.AlarmRingService
@@ -12,15 +11,14 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.time.DayOfWeek
-import java.time.Instant
 
 /**
- * adb hooks for scripts/e2e-alarm.sh, e.g.
+ * adb hooks for scripts/e2e-alarm.sh, acting on the hidden system test alarm, e.g.
  *   adb shell am broadcast -a com.cascade.alarm.debug.RING_IN --ei seconds 45 -p com.cascade.alarm
  */
 class DebugCommandReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        val reconciler = EntryPointAccessors.fromApplication(context, EngineEntryPoint::class.java).reconciler()
+        val repository = EntryPointAccessors.fromApplication(context, EngineEntryPoint::class.java).alarmRepository()
         val action = intent.action?.substringAfterLast('.') ?: return
         EngineLog.i("debug command $action")
         if (action == "DISMISS") {
@@ -30,20 +28,21 @@ class DebugCommandReceiver : BroadcastReceiver() {
         val pending = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                reconciler.edit(HardcodedAlarm.ID, "debug_$action") { alarm ->
-                    when (action) {
-                        "RING_IN" -> alarm.copy(
-                            oneTimeTriggerAt = Instant.now().plusSeconds(intent.getIntExtra("seconds", 60).toLong()),
-                        )
-                        "SET_TIMEOUT" -> alarm.copy(timeoutMinutes = intent.getIntExtra("minutes", 15))
-                        "SET_DAILY" -> alarm.copy(
-                            hour = intent.getIntExtra("hour", alarm.hour),
-                            minute = intent.getIntExtra("minute", alarm.minute),
+                when (action) {
+                    "RING_IN" -> repository.ringTestAlarmIn(intent.getIntExtra("seconds", 60).toLong())
+                    "SET_TIMEOUT" -> repository.editTestAlarm("debug_timeout") {
+                        it.copy(timeoutMinutes = intent.getIntExtra("minutes", 15))
+                    }
+                    "SET_DAILY" -> repository.editTestAlarm("debug_daily") {
+                        it.copy(
+                            hour = intent.getIntExtra("hour", it.hour),
+                            minute = intent.getIntExtra("minute", it.minute),
                             daysOfWeek = DayOfWeek.entries.toSet(),
                             isEnabled = true,
                         )
-                        "DISABLE" -> alarm.copy(isEnabled = false, oneTimeTriggerAt = null)
-                        else -> alarm
+                    }
+                    "DISABLE" -> repository.editTestAlarm("debug_disable") {
+                        it.copy(isEnabled = false, oneTimeTriggerAt = null)
                     }
                 }
             } finally {

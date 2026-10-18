@@ -27,10 +27,16 @@ object ReconcilePlanner {
     data class Plan(val alarm: AlarmEntity, val action: Action, val missed: Instant? = null)
 
     /**
+     * The regular schedule rings only if [groupArmed] and [AlarmEntity.isEnabled] (SPEC §5).
+     *
      * The one-time trigger rings regardless of [AlarmEntity.isEnabled]: a one-shot alarm disables
-     * itself when it rings, yet its snooze must still fire. Edits that should cancel it clear it.
+     * itself when it rings, yet its snooze must still fire. Disarming the group cancels everything
+     * in it, one-time triggers included.
      */
-    fun plan(alarm: AlarmEntity, now: Instant, zone: ZoneId): Plan {
+    fun plan(alarm: AlarmEntity, groupArmed: Boolean, now: Instant, zone: ZoneId): Plan {
+        if (!groupArmed) {
+            return Plan(alarm.copy(nextTriggerAt = null, oneTimeTriggerAt = null), Action.Cancel)
+        }
         var current = alarm
         var missed: Instant? = null
         val pending = alarm.nextTriggerAt

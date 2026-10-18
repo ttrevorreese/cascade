@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.cascade.alarm.data.SystemTestAlarm
 import com.cascade.alarm.data.db.CascadeDatabase
 import com.cascade.alarm.engine.EngineEntryPoint
 import com.cascade.alarm.engine.receivers.AlarmFireReceiver
@@ -59,14 +60,15 @@ class EngineInstrumentedTest {
     @Test
     fun firePathRingsAndDismissStopsIt() = runBlocking {
         val ringState = engine.ringState()
+        engine.alarmRepository().editTestAlarm("instrumented_test") { it } // ensures the row exists
         val fire: Intent = Intent(context, AlarmFireReceiver::class.java)
             .setAction(AlarmFireReceiver.ACTION_FIRE)
-            .putExtra(AlarmFireReceiver.EXTRA_ALARM_ID, "instrumented-test")
+            .putExtra(AlarmFireReceiver.EXTRA_ALARM_ID, SystemTestAlarm.ALARM_ID)
             .putExtra(AlarmFireReceiver.EXTRA_SCHEDULED_FOR, System.currentTimeMillis())
         context.sendBroadcast(fire)
 
         val ringing = withTimeout(10_000) { ringState.current.first { it != null } }
-        assertEquals("instrumented-test", ringing?.alarmId)
+        assertEquals(SystemTestAlarm.ALARM_ID, ringing?.alarmId)
         assertTrue(engine.activeRingDao().get() != null)
 
         context.startService(AlarmRingService.dismissIntent(context))

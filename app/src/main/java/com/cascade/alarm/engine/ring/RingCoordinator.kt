@@ -44,8 +44,8 @@ class RingCoordinator(
             FireResult.Ring(null)
         }
         val current = state.current.value
-        if (result is FireResult.Duplicate) {
-            EngineLog.i("duplicate fire ignored alarm=$alarmId scheduledFor=$scheduledFor")
+        if (result is FireResult.Duplicate || result is FireResult.Deleted) {
+            EngineLog.i("fire ignored ($result) alarm=$alarmId scheduledFor=$scheduledFor")
             if (current == null) finishIdle()
             return@withLock
         }

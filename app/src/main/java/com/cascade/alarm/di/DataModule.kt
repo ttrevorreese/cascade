@@ -4,6 +4,7 @@ import android.content.Context
 import com.cascade.alarm.data.db.ActiveRingDao
 import com.cascade.alarm.data.db.AlarmDao
 import com.cascade.alarm.data.db.AlarmEventDao
+import com.cascade.alarm.data.db.AlarmGroupDao
 import com.cascade.alarm.data.db.CascadeDatabase
 import dagger.Module
 import dagger.Provides
@@ -21,6 +22,9 @@ object DataModule {
 
     @Provides
     fun alarmDao(db: CascadeDatabase): AlarmDao = db.alarmDao()
+
+    @Provides
+    fun alarmGroupDao(db: CascadeDatabase): AlarmGroupDao = db.alarmGroupDao()
 
     @Provides
     fun activeRingDao(db: CascadeDatabase): ActiveRingDao = db.activeRingDao()

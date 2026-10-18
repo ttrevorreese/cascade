@@ -24,7 +24,8 @@ class RingCoordinatorTest {
     private val scheduled = epoch
 
     private fun alarm(id: String = "a", timeout: Int = 15, ramp: Int = 30) = AlarmEntity(
-        id = id, hour = 7, minute = 0, daysOfWeek = emptySet(), label = "Wake", isEnabled = true,
+        id = id, groupId = "g", positionInGroup = 0, hour = 7, minute = 0, daysOfWeek = emptySet(),
+        label = "Wake", isEnabled = true,
         volumeRampSeconds = ramp, timeoutMinutes = timeout,
     )
 
@@ -33,6 +34,7 @@ class RingCoordinatorTest {
         var active: ActiveRingEntity? = null
         val events = mutableListOf<Pair<EventType, Map<String, Any?>>>()
         var fired = mutableSetOf<Pair<String, Instant>>()
+        val deleted = mutableSetOf<String>()
         var failRecordFire = false
         var failWrites = false
         var state: RingState? = null
@@ -41,6 +43,7 @@ class RingCoordinatorTest {
 
         override suspend fun recordFire(alarmId: String, scheduledFor: Instant): FireResult {
             if (failRecordFire) error("db unavailable")
+            if (alarmId in deleted) return FireResult.Deleted
             if (!fired.add(alarmId to scheduledFor)) return FireResult.Duplicate
             return FireResult.Ring(alarms[alarmId])
         }
@@ -221,6 +224,14 @@ class RingCoordinatorTest {
         coordinator.onFire("ghost", scheduled)
         assertRinging()
         assertEquals(RingDefaults.RAMP_SECONDS, sound.lastRamp)
+    }
+
+    @Test
+    fun `fire for a deleted alarm is ignored`() = harness {
+        store.deleted += "a"
+        coordinator.onFire("a", scheduled)
+        assertStopped()
+        assertEquals(0, sound.starts)
     }
 
     @Test

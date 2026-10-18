@@ -101,7 +101,7 @@ echo "  device: $(sh getprop ro.product.manufacturer) $(sh getprop ro.product.mo
 "$ADB" install -r "$APK" >/dev/null && pass "installed $APK"
 (( SDK >= 33 )) && sh pm grant "$PKG" android.permission.POST_NOTIFICATIONS
 (( SDK >= 34 )) && sh appops set "$PKG" USE_FULL_SCREEN_INTENT allow
-# Seeds the M1 alarm and reconciles. Retried: right after install the package manager may not
+# Reconciles on start. Retried: right after install the package manager may not
 # have registered the activity yet ("Activity class ... does not exist").
 for _ in 1 2 3 4 5; do
   started=$(sh am start -W -n "$PKG/.MainActivity" 2>&1)
@@ -118,10 +118,10 @@ info "Ring: locked, screen off, Doze"
 "$ADB" logcat -c
 debug_cmd RING_IN --ei seconds 40
 sleep 2
-check "scheduled with setAlarmClock" "setAlarmClock alarm=m1-hardcoded"
+check "scheduled with setAlarmClock" "setAlarmClock alarm=system-test-alarm"
 screen_off_and_doze
-if wait_for_log "ringing alarm=m1-hardcoded" 75; then pass "alarm rang in Doze"; else fail "alarm did not ring within 75s"; fi
-check "receiver fired" "fire received alarm=m1-hardcoded"
+if wait_for_log "ringing alarm=system-test-alarm" 75; then pass "alarm rang in Doze"; else fail "alarm did not ring within 75s"; fi
+check "receiver fired" "fire received alarm=system-test-alarm"
 check "audio started on the alarm stream" "audio started"
 if log_has "systemExempted refused"; then fail "systemExempted FGS type refused (fell back to mediaPlayback)"; else pass "systemExempted foreground service"; fi
 sleep 3
@@ -146,7 +146,7 @@ if (( RUN_TIMEOUT )); then
   debug_cmd SET_TIMEOUT --ei minutes 1
   debug_cmd RING_IN --ei seconds 15
   sh input keyevent KEYCODE_SLEEP
-  wait_for_log "ringing alarm=m1-hardcoded" 45 && pass "rang" || fail "did not ring"
+  wait_for_log "ringing alarm=system-test-alarm" 45 && pass "rang" || fail "did not ring"
   if wait_for_log "\"reason\":\"timeout\"" 90; then pass "timed out and logged MISSED"; else fail "no timeout within 90s"; fi
   assert_released
   debug_cmd SET_TIMEOUT --ei minutes 15
@@ -161,7 +161,7 @@ if (( RUN_REBOOT )); then
   wait_for_boot
   pass "device back up (still locked)"
   check "schedule rebuilt at LOCKED_BOOT_COMPLETED" "reconcile reason=LOCKED_BOOT_COMPLETED"
-  if wait_for_log "ringing alarm=m1-hardcoded" 180; then pass "alarm rang after reboot, before unlock"; else fail "alarm did not ring after reboot"; fi
+  if wait_for_log "ringing alarm=system-test-alarm" 180; then pass "alarm rang after reboot, before unlock"; else fail "alarm did not ring after reboot"; fi
   sleep 3
   if screen_awake && alarm_activity_in_front; then pass "alarm screen shown after reboot"; else fail "alarm screen not shown after reboot"; fi
   debug_cmd DISMISS
@@ -174,11 +174,11 @@ if (( RUN_POWER_OFF )); then
   info "Power-off during a ring: the ring must resume after boot"
   "$ADB" logcat -c
   debug_cmd RING_IN --ei seconds 15
-  wait_for_log "ringing alarm=m1-hardcoded" 45 && pass "rang" || fail "did not ring"
+  wait_for_log "ringing alarm=system-test-alarm" 45 && pass "rang" || fail "did not ring"
   "$ADB" reboot
   wait_for_boot
   if wait_for_log "event CHEAT_DETECTED" 60; then pass "CHEAT_DETECTED logged"; else fail "no CHEAT_DETECTED after boot"; fi
-  if wait_for_log "ringing alarm=m1-hardcoded" 30; then pass "ring resumed before unlock"; else fail "ring did not resume"; fi
+  if wait_for_log "ringing alarm=system-test-alarm" 30; then pass "ring resumed before unlock"; else fail "ring did not resume"; fi
   sleep 3
   if screen_awake && alarm_activity_in_front; then pass "alarm screen shown after power-off"; else fail "alarm screen not shown after power-off"; fi
   debug_cmd DISMISS
