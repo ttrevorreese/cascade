@@ -37,7 +37,19 @@ fail() { echo "  FAIL  $*"; FAILURES=$((FAILURES + 1)); }
 info() { echo; echo "== $*"; }
 sh() { "$ADB" shell "$@" | tr -d '\r'; }
 debug_cmd() { sh am broadcast -a "com.cascade.alarm.debug.$1" -p "$PKG" "${@:2}" >/dev/null; }
-log_has() { "$ADB" logcat -d -s CascadeEngine:I | tr -d '\r' | grep -q -- "$1"; }
+# Capture output before grepping: `producer | grep -q` under pipefail fails at random when grep
+# exits early and the producer gets SIGPIPE.
+log_has() { local out; out=$("$ADB" logcat -d -s CascadeEngine:I | tr -d '\r'); grep -q -- "$1" <<<"$out"; }
+# Only the live "Wake Locks:" table; dumpsys power also prints a history of released locks.
+ring_lock_held() {
+  local out; out=$(sh dumpsys power)
+  sed -n '/^Wake Locks: size/,/^$/p' <<<"$out" | grep -q "'cascade:ringing'"
+}
+screen_awake() { local out; out=$(sh dumpsys power); grep -q "mWakefulness=Awake" <<<"$out"; }
+alarm_activity_in_front() {
+  local out; out=$(sh dumpsys activity activities)
+  grep -E "topResumedActivity|ResumedActivity" <<<"$out" | grep -q "AlarmActivity"
+}
 
 wait_for_log() { # pattern, timeout seconds
   local deadline=$((SECONDS + $2))
@@ -51,8 +63,9 @@ check() { # description, pattern-in-logcat
 
 assert_released() {
   sleep 3
-  if sh dumpsys power | grep -q "cascade:ringing"; then fail "ringing wake lock still held"; else pass "wake lock released"; fi
-  if sh dumpsys activity services "$PKG" | grep -q "AlarmRingService"; then
+  if ring_lock_held; then fail "ringing wake lock still held"; else pass "wake lock released"; fi
+  local services; services=$(sh dumpsys activity services "$PKG")
+  if grep -q "AlarmRingService" <<<"$services"; then
     fail "ring service still running"
   else
     pass "ring service stopped"
@@ -105,13 +118,15 @@ check "receiver fired" "fire received alarm=m1-hardcoded"
 check "audio started on the alarm stream" "audio started"
 if log_has "systemExempted refused"; then fail "systemExempted FGS type refused (fell back to mediaPlayback)"; else pass "systemExempted foreground service"; fi
 sleep 3
-if sh dumpsys power | grep -q "mWakefulness=Awake"; then pass "screen turned on"; else fail "screen did not turn on"; fi
-if sh dumpsys activity activities | grep -E "topResumedActivity|mResumedActivity|ResumedActivity" | grep -q "AlarmActivity"; then
-  pass "AlarmActivity shown over the lock screen"
+if screen_awake; then pass "screen turned on"; else fail "screen did not turn on"; fi
+if alarm_activity_in_front; then pass "AlarmActivity shown over the lock screen"; else fail "AlarmActivity not in front"; fi
+WINDOWS=$(sh dumpsys window)
+if grep -q "isKeyguardShowing=true" <<<"$WINDOWS"; then
+  pass "keyguard still locked underneath (no PIN prompt forced)"
 else
-  fail "AlarmActivity not in front"
+  fail "keyguard is not showing under the alarm"
 fi
-if sh dumpsys power | grep -q "cascade:ringing"; then pass "wake lock held while ringing"; else fail "no wake lock while ringing"; fi
+if ring_lock_held; then pass "wake lock held while ringing"; else fail "no wake lock while ringing"; fi
 debug_cmd DISMISS
 wait_for_log "event DISMISSED" 10 && pass "dismissed" || fail "dismiss not logged"
 assert_released
@@ -140,6 +155,8 @@ if (( RUN_REBOOT )); then
   pass "device back up (still locked)"
   check "schedule rebuilt at LOCKED_BOOT_COMPLETED" "reconcile reason=LOCKED_BOOT_COMPLETED"
   if wait_for_log "ringing alarm=m1-hardcoded" 180; then pass "alarm rang after reboot, before unlock"; else fail "alarm did not ring after reboot"; fi
+  sleep 3
+  if screen_awake && alarm_activity_in_front; then pass "alarm screen shown after reboot"; else fail "alarm screen not shown after reboot"; fi
   debug_cmd DISMISS
   wait_for_log "event DISMISSED" 10 && pass "dismissed" || fail "dismiss not logged"
   assert_released
@@ -155,6 +172,8 @@ if (( RUN_POWER_OFF )); then
   wait_for_boot
   if wait_for_log "event CHEAT_DETECTED" 60; then pass "CHEAT_DETECTED logged"; else fail "no CHEAT_DETECTED after boot"; fi
   if wait_for_log "ringing alarm=m1-hardcoded" 30; then pass "ring resumed before unlock"; else fail "ring did not resume"; fi
+  sleep 3
+  if screen_awake && alarm_activity_in_front; then pass "alarm screen shown after power-off"; else fail "alarm screen not shown after power-off"; fi
   debug_cmd DISMISS
   wait_for_log "event DISMISSED" 10 && pass "dismissed" || fail "dismiss not logged"
   assert_released

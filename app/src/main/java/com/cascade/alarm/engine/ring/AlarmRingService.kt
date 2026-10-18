@@ -37,6 +37,7 @@ class AlarmRingService : Service(), RingPresenter {
     )
     private lateinit var notifications: RingNotifications
     private lateinit var wakeLock: AndroidRingWakeLock
+    private lateinit var screenWaker: ScreenWaker
     private lateinit var sound: ExoAlarmSoundPlayer
     private lateinit var coordinator: RingCoordinator
 
@@ -47,6 +48,7 @@ class AlarmRingService : Service(), RingPresenter {
         super.onCreate()
         notifications = RingNotifications(this)
         wakeLock = AndroidRingWakeLock(this)
+        screenWaker = ScreenWaker(this)
         sound = ExoAlarmSoundPlayer(this, scope)
         coordinator = RingCoordinator(scope, store, time::now, sound, wakeLock, this, ringState)
     }
@@ -58,6 +60,8 @@ class AlarmRingService : Service(), RingPresenter {
         val action = intent?.action ?: ACTION_RESUME
         EngineLog.i("service command $action")
         if (action != ACTION_DISMISS) {
+            // Wake the display before posting the full-screen notification, like Google's Clock.
+            screenWaker.wake()
             // Must happen synchronously: startForegroundService() gives us only a few seconds.
             promoteToForeground()
             wakeLock.acquire(RingDefaults.INITIAL_WAKE_LOCK)
@@ -93,6 +97,7 @@ class AlarmRingService : Service(), RingPresenter {
     }
 
     override fun finish() {
+        screenWaker.release()
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         stopIfIdle()
     }
@@ -101,6 +106,7 @@ class AlarmRingService : Service(), RingPresenter {
         EngineLog.i("service destroyed")
         sound.stop()
         wakeLock.release()
+        screenWaker.release()
         scope.cancel()
         super.onDestroy()
     }

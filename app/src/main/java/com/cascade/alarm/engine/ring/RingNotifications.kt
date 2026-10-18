@@ -34,7 +34,9 @@ class RingNotifications(private val context: Context) {
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setOngoing(true)
-            .setSilent(true) // the service plays the sound itself on the alarm stream
+            // Do NOT setSilent(true): a silent notification is non-alerting, and the system never
+            // launches a non-alerting notification's full-screen intent. Silence comes from the
+            // channel (no sound, no vibration); the service plays the alarm itself.
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .setFullScreenIntent(activityPendingIntent(null), true)
             .setContentIntent(activityPendingIntent(null))

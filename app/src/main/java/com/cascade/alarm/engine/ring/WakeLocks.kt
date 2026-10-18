@@ -28,6 +28,32 @@ object WakeLocks {
     }
 }
 
+/**
+ * Turns the display on when a ring starts. On Android 16 the alarm activity's turnScreenOn flag
+ * alone did not wake the device (verified on an API 36 emulator); Google's Clock wakes it with an
+ * ACQUIRE_CAUSES_WAKEUP wake lock, which the system allows for alarm apps. Held briefly: once
+ * AlarmActivity is showing, its FLAG_KEEP_SCREEN_ON keeps the display on.
+ */
+class ScreenWaker(context: Context) {
+    @Suppress("DEPRECATION") // SCREEN_BRIGHT_WAKE_LOCK has no non-deprecated equivalent for this.
+    private val lock = context.getSystemService(PowerManager::class.java)
+        .newWakeLock(
+            PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
+            "cascade:screen-on",
+        )
+        .apply { setReferenceCounted(false) }
+
+    fun wake() = lock.acquire(SCREEN_ON_HOLD.toMillis())
+
+    fun release() {
+        if (lock.isHeld) lock.release()
+    }
+
+    private companion object {
+        val SCREEN_ON_HOLD: Duration = Duration.ofSeconds(30)
+    }
+}
+
 class AndroidRingWakeLock(context: Context) : RingWakeLock {
     private val lock = context.getSystemService(PowerManager::class.java)
         .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "cascade:ringing")
