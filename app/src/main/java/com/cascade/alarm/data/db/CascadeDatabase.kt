@@ -7,12 +7,15 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 
 @Database(
-    entities = [AlarmEventEntity::class],
+    entities = [AlarmEntity::class, ActiveRingEntity::class, AlarmEventEntity::class],
+    // Stays at 1 until the first release; after that every schema change needs a migration.
     version = 1,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
 abstract class CascadeDatabase : RoomDatabase() {
+    abstract fun alarmDao(): AlarmDao
+    abstract fun activeRingDao(): ActiveRingDao
     abstract fun alarmEventDao(): AlarmEventDao
 
     companion object {
