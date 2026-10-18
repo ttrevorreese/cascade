@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.core.content.ContextCompat
+import androidx.core.net.toUri
 import com.cascade.alarm.engine.EngineLog
 import com.cascade.alarm.engine.ring.AlarmRingService
 import com.cascade.alarm.engine.ring.RingNotifications
@@ -47,7 +48,7 @@ class AlarmFireReceiver : BroadcastReceiver() {
         fun pendingIntent(context: Context, alarmId: String, scheduledFor: Instant): PendingIntent {
             val intent = Intent(context, AlarmFireReceiver::class.java)
                 .setAction(ACTION_FIRE)
-                .setData(Uri.parse("cascade://alarm/${Uri.encode(alarmId)}"))
+                .setData("cascade://alarm/${Uri.encode(alarmId)}".toUri())
                 .putExtra(EXTRA_ALARM_ID, alarmId)
                 .putExtra(EXTRA_SCHEDULED_FOR, scheduledFor.toEpochMilli())
             return PendingIntent.getBroadcast(

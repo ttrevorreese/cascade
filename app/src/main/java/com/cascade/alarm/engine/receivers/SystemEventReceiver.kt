@@ -1,5 +1,6 @@
 package com.cascade.alarm.engine.receivers
 
+import android.annotation.SuppressLint
 import android.app.AlarmManager
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -42,6 +43,8 @@ class SystemEventReceiver : BroadcastReceiver() {
     }
 
     companion object {
+        // Action strings are compile-time constants; older releases simply never send the newer ones.
+        @SuppressLint("InlinedApi")
         val HANDLED_ACTIONS = setOf(
             Intent.ACTION_LOCKED_BOOT_COMPLETED,
             Intent.ACTION_BOOT_COMPLETED,

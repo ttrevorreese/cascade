@@ -19,6 +19,7 @@ import com.cascade.alarm.engine.ring.RingState
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import java.time.Instant
 import javax.inject.Inject
 
@@ -57,15 +58,18 @@ class AlarmActivity : ComponentActivity() {
     }
 
     private suspend fun finishWhenNothingRings() {
-        if (ringState.current.value == null && !intent.hasExtra(EXTRA_FALLBACK_ALARM_ID)) {
+        // The full-screen intent can launch us before the service has started the ring, so give it
+        // a moment before concluding that nothing is ringing.
+        val appeared = withTimeoutOrNull(STARTUP_GRACE_MILLIS) { ringState.current.first { it != null } }
+        if (appeared == null) {
             // Opened from a stale notification, or the process restarted: resume if a ring is persisted.
             if (activeRingDao.get() == null) {
                 finish()
                 return
             }
             ContextCompat.startForegroundService(this, AlarmRingService.resumeIntent(this, afterBoot = false))
+            ringState.current.first { it != null }
         }
-        ringState.current.first { it != null }
         ringState.current.first { it == null }
         finish()
     }
@@ -91,6 +95,7 @@ class AlarmActivity : ComponentActivity() {
     }
 
     companion object {
+        private const val STARTUP_GRACE_MILLIS = 5_000L
         private const val EXTRA_FALLBACK_ALARM_ID = "fallbackAlarmId"
         private const val EXTRA_FALLBACK_SCHEDULED_FOR = "fallbackScheduledFor"
 

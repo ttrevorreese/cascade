@@ -1,6 +1,7 @@
 package com.cascade.alarm.engine
 
 import com.cascade.alarm.data.db.ActiveRingDao
+import com.cascade.alarm.engine.ring.RingState
 import com.cascade.alarm.engine.schedule.Reconciler
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
@@ -15,4 +16,5 @@ import dagger.hilt.components.SingletonComponent
 interface EngineEntryPoint {
     fun reconciler(): Reconciler
     fun activeRingDao(): ActiveRingDao
+    fun ringState(): RingState
 }

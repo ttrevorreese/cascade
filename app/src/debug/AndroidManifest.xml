@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <!-- Debug builds only. DUMP is held by the adb shell, not by third-party apps. -->
+        <receiver
+            android:name=".debug.DebugCommandReceiver"
+            android:directBootAware="true"
+            android:exported="true"
+            android:permission="android.permission.DUMP">
+            <intent-filter>
+                <action android:name="com.cascade.alarm.debug.RING_IN" />
+                <action android:name="com.cascade.alarm.debug.SET_TIMEOUT" />
+                <action android:name="com.cascade.alarm.debug.SET_DAILY" />
+                <action android:name="com.cascade.alarm.debug.DISABLE" />
+                <action android:name="com.cascade.alarm.debug.DISMISS" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

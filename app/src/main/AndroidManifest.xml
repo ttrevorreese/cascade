@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Exact alarms. USE_EXACT_ALARM (13+) is auto-granted to alarm-clock apps and cannot be
          revoked; Play reviews it. SCHEDULE_EXACT_ALARM covers 12/12L, where it is pre-granted. -->
@@ -45,7 +46,8 @@
             android:showWhenLocked="true"
             android:taskAffinity="com.cascade.alarm.ring"
             android:theme="@style/Theme.Cascade.Ring"
-            android:turnScreenOn="true" />
+            android:turnScreenOn="true"
+            tools:targetApi="27" />
 
         <service
             android:name=".engine.ring.AlarmRingService"
