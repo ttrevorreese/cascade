@@ -148,7 +148,10 @@ fun AlarmEditorContent(
                     val selected = day in draft.daysOfWeek
                     FilterChip(
                         selected = selected,
-                        onClick = { onEdit { it.copy(daysOfWeek = if (selected) it.daysOfWeek - day else it.daysOfWeek + day) } },
+                        // Toggle against the current draft rather than the value captured at composition.
+                        onClick = {
+                            onEdit { it.copy(daysOfWeek = if (day in it.daysOfWeek) it.daysOfWeek - day else it.daysOfWeek + day) }
+                        },
                         label = { Text(day.getDisplayName(TextStyle.SHORT, locale)) },
                         modifier = Modifier.testTag("day-$day"),
                     )

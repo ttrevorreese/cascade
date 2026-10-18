@@ -1,0 +1,137 @@
+package com.cascade.alarm.ui
+
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextInput
+import com.cascade.alarm.data.GroupSummary
+import com.cascade.alarm.data.db.AlarmEntity
+import com.cascade.alarm.data.db.AlarmGroupEntity
+import com.cascade.alarm.ui.alarm.AlarmEditorContent
+import com.cascade.alarm.ui.group.GroupContent
+import com.cascade.alarm.ui.home.HomeContent
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import java.time.DayOfWeek
+import java.time.Instant
+
+@RunWith(RobolectricTestRunner::class)
+class ScreensTest {
+    @get:Rule
+    val compose = createComposeRule()
+
+    private val group = AlarmGroupEntity("g", "Workday Wake", "#000000", "default", true, 0, Instant.EPOCH)
+
+    private fun alarm(id: String, position: Int, hour: Int, enabled: Boolean = true) = AlarmEntity(
+        id = id, groupId = "g", positionInGroup = position, hour = hour, minute = 0,
+        daysOfWeek = DayOfWeek.entries.take(5).toSet(), label = null, isEnabled = enabled,
+        volumeRampSeconds = 30, timeoutMinutes = 15,
+    )
+
+    @Test
+    fun homeShowsEmptyStateThenGroups() {
+        var groups by mutableStateOf<List<GroupSummary>?>(emptyList())
+        compose.setContent { HomeContent(groups, {}, {}, { _, _ -> }, { _, _ -> }, {}) }
+        compose.onNodeWithText("No groups yet", substring = true).assertExists()
+
+        groups = listOf(GroupSummary(group.copy(isArmed = false), alarmCount = 2, enabledCount = 2, nextRing = null))
+        compose.onNodeWithText("Workday Wake").assertExists()
+        compose.onNodeWithText("2 alarms · off").assertExists()
+        compose.onNodeWithTag("armed-g").assertIsOff()
+    }
+
+    @Test
+    fun homeMasterSwitchReportsTheNewState() {
+        val toggles = mutableListOf<Pair<String, Boolean>>()
+        val summary = GroupSummary(group, 1, 1, null)
+        compose.setContent { HomeContent(listOf(summary), {}, {}, { id, on -> toggles += id to on }, { _, _ -> }, {}) }
+        compose.onNodeWithTag("armed-g").assertIsOn().performClick()
+        assertEquals(listOf("g" to false), toggles)
+    }
+
+    @Test
+    fun homeCreatesANamedGroup() {
+        val created = mutableListOf<String>()
+        compose.setContent { HomeContent(emptyList(), {}, {}, { _, _ -> }, { _, _ -> }, { created += it }) }
+        compose.onNodeWithText("New group").performClick()
+        compose.onNodeWithText("Name").performTextInput("Gym Day")
+        compose.onNodeWithText("Save").performClick()
+        assertEquals(listOf("Gym Day"), created)
+    }
+
+    @Test
+    fun groupListsAlarmsInOrderAndExplainsADisarmedGroup() {
+        compose.setContent {
+            GroupContent(
+                group = group.copy(isArmed = false),
+                alarms = listOf(alarm("a", 0, 6), alarm("b", 1, 6, enabled = false)),
+                onBack = {}, onOpenAlarm = {}, onArmedChange = {}, onRename = {}, onDelete = {},
+                onAlarmEnabledChange = { _, _ -> }, onMoveAlarm = { _, _ -> },
+            )
+        }
+        compose.onNodeWithText("1.").assertExists()
+        compose.onNodeWithText("2.").assertExists()
+        compose.onNodeWithTag("group-armed").assertIsOff()
+        // Own switches are shown as they are, even while the group is off.
+        compose.onNodeWithTag("alarm-enabled-a").assertIsOn()
+        compose.onNodeWithTag("alarm-enabled-b").assertIsOff()
+        compose.onNodeWithText("Group is off").assertExists()
+    }
+
+    @Test
+    fun deletingAGroupNeedsConfirmation() {
+        var deleted = 0
+        compose.setContent {
+            GroupContent(
+                group, emptyList(), {}, {}, {}, {}, onDelete = { deleted++ },
+                onAlarmEnabledChange = { _, _ -> }, onMoveAlarm = { _, _ -> },
+            )
+        }
+        compose.onNodeWithText("Delete").performClick()
+        assertEquals(0, deleted)
+        compose.onNodeWithText("Delete Workday Wake?").assertExists()
+        compose.onNodeWithText("Cancel").performClick()
+        assertEquals(0, deleted)
+    }
+
+    @Test
+    fun editorTogglesDaysAndSaves() {
+        var saved = 0
+        lateinit var latest: AlarmEntity
+        compose.setContent {
+            var draft by remember { mutableStateOf(alarm("a", 0, 6).copy(daysOfWeek = emptySet())) }
+            latest = draft
+            AlarmEditorContent(
+                draft = draft, isNew = true,
+                onEdit = { transform -> draft = transform(draft) },
+                onSave = { saved++ }, onDelete = {}, onCancel = {},
+            )
+        }
+        // performClick doesn't wait for recomposition; `latest` is a plain variable, so sync first.
+        fun tap(day: DayOfWeek): Set<DayOfWeek> {
+            compose.onNodeWithTag("day-$day").performClick()
+            compose.waitForIdle()
+            return latest.daysOfWeek
+        }
+        assertEquals(setOf(DayOfWeek.MONDAY), tap(DayOfWeek.MONDAY))
+        assertEquals(setOf(DayOfWeek.MONDAY, DayOfWeek.FRIDAY), tap(DayOfWeek.FRIDAY))
+        assertEquals(setOf(DayOfWeek.FRIDAY), tap(DayOfWeek.MONDAY))
+        compose.onNodeWithTag("save").performClick()
+        assertEquals(1, saved)
+        assertTrue("new alarms have nothing to delete", compose.onAllNodesWithTextCount("Delete alarm") == 0)
+    }
+
+    private fun androidx.compose.ui.test.junit4.ComposeContentTestRule.onAllNodesWithTextCount(text: String) =
+        onAllNodes(androidx.compose.ui.test.hasText(text)).fetchSemanticsNodes().size
+}
