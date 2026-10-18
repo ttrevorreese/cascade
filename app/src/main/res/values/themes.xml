@@ -1,4 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <style name="Theme.Cascade" parent="android:Theme.Material.NoActionBar" />
+
+    <!-- Black from the first frame so the screen never flashes white at 6am. -->
+    <style name="Theme.Cascade.Ring" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:statusBarColor">@android:color/black</item>
+        <item name="android:navigationBarColor">@android:color/black</item>
+    </style>
 </resources>

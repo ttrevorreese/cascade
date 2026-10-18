@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Cascade</string>
+
+    <string name="ring_channel_name">Ringing alarms</string>
+    <string name="ring_title_default">Alarm</string>
+    <string name="ring_action_dismiss">Dismiss</string>
 </resources>

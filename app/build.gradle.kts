@@ -40,6 +40,8 @@ android {
     testOptions {
         unitTests {
             isIncludeAndroidResources = true
+            // Lets engine logic that logs via android.util.Log run in plain JVM tests.
+            isReturnDefaultValues = true
             all {
                 it.useJUnitPlatform()
                 // Robolectric's SDK 36 sandbox reaches into FileDescriptor internals.
