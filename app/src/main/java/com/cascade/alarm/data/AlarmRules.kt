@@ -7,6 +7,7 @@ import com.cascade.alarm.engine.ring.RingDefaults
 import com.cascade.alarm.engine.ring.VolumeRamp
 import java.time.DayOfWeek
 import java.time.Instant
+import java.time.LocalTime
 import java.time.format.TextStyle
 import java.util.Locale
 
@@ -23,6 +24,7 @@ object AlarmRules {
     const val MIN_TIMEOUT_MINUTES = 1
     const val MAX_TIMEOUT_MINUTES = 60
     private const val SEQUENCE_STEP_MINUTES = 10L
+    private const val MINUTES_PER_DAY = 24 * 60
 
     /**
      * A new alarm appended to a group. Groups are sequences, so it defaults to the next step:
@@ -50,6 +52,27 @@ object AlarmRules {
         val target = index + delta
         if (index !in list.indices || target !in list.indices) return list
         return list.toMutableList().apply { add(target, removeAt(index)) }
+    }
+
+    /**
+     * [alarm] moved by [minutes]. An alarm pushed across midnight takes its repeat days with it,
+     * so "Mon 23:50" moved 20 minutes later rings at 00:10 on Tuesday, not a day early on Monday.
+     */
+    fun shifted(alarm: AlarmEntity, minutes: Long): AlarmEntity {
+        val total = alarm.hour * 60L + alarm.minute + minutes
+        val dayShift = Math.floorDiv(total, MINUTES_PER_DAY.toLong())
+        val time = alarm.time.plusMinutes(minutes)
+        return alarm.copy(
+            hour = time.hour,
+            minute = time.minute,
+            daysOfWeek = alarm.daysOfWeek.mapTo(mutableSetOf()) { it.plus(dayShift) },
+        )
+    }
+
+    /** Minutes from [from] to [to] the short way round the clock: 23:50 → 00:10 is +20, not −1420. */
+    fun shiftMinutes(from: LocalTime, to: LocalTime): Long {
+        val diff = Math.floorMod(to.toSecondOfDay() / 60 - from.toSecondOfDay() / 60, MINUTES_PER_DAY)
+        return (if (diff > MINUTES_PER_DAY / 2) diff - MINUTES_PER_DAY else diff).toLong()
     }
 
     fun normalizeLabel(label: String?): String? = label?.trim()?.takeIf { it.isNotEmpty() }

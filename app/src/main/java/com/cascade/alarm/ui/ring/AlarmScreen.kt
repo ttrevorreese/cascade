@@ -28,6 +28,8 @@ import androidx.compose.ui.unit.sp
 import com.cascade.alarm.R
 import com.cascade.alarm.engine.ring.RingingAlarm
 import kotlinx.coroutines.delay
+import java.time.Duration
+import java.time.Instant
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -36,12 +38,15 @@ import java.time.format.FormatStyle
 @Composable
 fun AlarmScreen(ringing: RingingAlarm?, onDismiss: () -> Unit) {
     var now by remember { mutableStateOf(LocalTime.now()) }
+    var instant by remember { mutableStateOf(Instant.now()) }
     LaunchedEffect(Unit) {
         while (true) {
             now = LocalTime.now()
+            instant = Instant.now()
             delay(1_000)
         }
     }
+    val wakeCheck = ringing?.isWakeCheck == true
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -58,10 +63,19 @@ fun AlarmScreen(ringing: RingingAlarm?, onDismiss: () -> Unit) {
             fontWeight = FontWeight.Light,
         )
         Text(
-            text = ringing?.label ?: stringResource(R.string.ring_title_default),
+            text = if (wakeCheck) stringResource(R.string.wake_check_title) else ringing?.label ?: stringResource(R.string.ring_title_default),
             color = Color(0xFFFCA311),
             fontSize = 28.sp,
         )
+        if (wakeCheck) {
+            val seconds = Duration.between(instant, ringing!!.deadline).seconds.coerceAtLeast(0)
+            Text(
+                text = stringResource(R.string.wake_check_countdown, seconds),
+                color = Color.White,
+                fontSize = 22.sp,
+                modifier = Modifier.padding(top = 16.dp),
+            )
+        }
         Spacer(Modifier.height(96.dp))
         Button(
             onClick = onDismiss,
@@ -69,7 +83,11 @@ fun AlarmScreen(ringing: RingingAlarm?, onDismiss: () -> Unit) {
             modifier = Modifier.fillMaxWidth().height(96.dp),
             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFCA311), contentColor = Color.Black),
         ) {
-            Text(stringResource(R.string.ring_action_dismiss), fontSize = 32.sp, fontWeight = FontWeight.Bold)
+            Text(
+                stringResource(if (wakeCheck) R.string.wake_check_action else R.string.ring_action_dismiss),
+                fontSize = 32.sp,
+                fontWeight = FontWeight.Bold,
+            )
         }
     }
 }

@@ -3,6 +3,7 @@ package com.cascade.alarm.debug
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import com.cascade.alarm.data.SystemTestAlarm
 import com.cascade.alarm.engine.EngineEntryPoint
 import com.cascade.alarm.engine.EngineLog
 import com.cascade.alarm.engine.ring.AlarmRingService
@@ -43,6 +44,14 @@ class DebugCommandReceiver : BroadcastReceiver() {
                     }
                     "DISABLE" -> repository.editTestAlarm("debug_disable") {
                         it.copy(isEnabled = false, oneTimeTriggerAt = null)
+                    }
+                    "SET_WAKE_CHECK" -> {
+                        repository.editTestAlarm("debug_wake_check_rows") { it }
+                        repository.setWakeCheck(
+                            SystemTestAlarm.GROUP_ID,
+                            enabled = intent.getBooleanExtra("enabled", true),
+                            delayMinutes = intent.getIntExtra("minutes", 1),
+                        )
                     }
                 }
             } finally {

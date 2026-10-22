@@ -13,6 +13,7 @@
                 <action android:name="com.cascade.alarm.debug.SET_DAILY" />
                 <action android:name="com.cascade.alarm.debug.DISABLE" />
                 <action android:name="com.cascade.alarm.debug.DISMISS" />
+                <action android:name="com.cascade.alarm.debug.SET_WAKE_CHECK" />
             </intent-filter>
         </receiver>
     </application>

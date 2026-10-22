@@ -16,6 +16,8 @@ Layered on top of that is **escalation**: each alarm's position in its sequence 
 
 **Design principle:** the app must be more reliable than the stock Clock app. Every architectural decision defers to that. A missed alarm is a catastrophic bug, not a defect.
 
+**Visual design lives in `design/DESIGN.md`**, with colour values in `design/assets/themes.json` and icon assets in `design/assets/icons/`. Read it before writing any UI. Two things from it affect architecture rather than styling, so they are repeated here: the app ships **twenty themes** (Forest default, Night free, eighteen behind one non-consumable purchase, none tied to the system dark-mode setting), generated from the JSON rather than hand-transcribed; and an alarm's position in its sequence maps to a five-stop colour ramp through a single shared function that needs unit tests. The launcher icon is fixed and does not vary by theme.
+
 ---
 
 ## 2. Scope
@@ -35,7 +37,8 @@ Layered on top of that is **escalation**: each alarm's position in its sequence 
 - Wear OS
 - Sleep tracking, sleep cycle detection, smart wake windows
 - Accounts, cloud sync, social features
-- Subscriptions and billing (architect so they can be added; do not build)
+- Subscriptions. Billing is limited to **one non-consumable in-app purchase** unlocking the eighteen pack themes (`design/DESIGN.md` §11). Build it at M7, not before, and never gate alarm behaviour behind it.
+- A user-switchable launcher icon. Considered and dropped; `design/DESIGN.md` §11.1 says why, so it does not get reinvented.
 
 ### Deferred to v1.1
 Local backup/restore via JSON export, widget, Tasker integration, additional challenge types.
@@ -114,6 +117,12 @@ Also implement a **missed alarm detector**: on every app foreground, compare the
 
 Add a **Test Alarm** button in settings that schedules an alarm 60 seconds out and runs the full real path. Users should be able to verify the app works before trusting it.
 
+### 4.4 Wake-up check (added 2026-10-21)
+
+Per group, off by default. When the user dismisses the group's **last** alarm (no enabled alarm later in the group), schedule a check 1–5 minutes later (per group, default 3). The check rides the same AlarmManager path as the alarm itself (`Alarm.wakeCheckAt`, treated like a one-time trigger), so it survives reboots and Doze.
+
+The check is a full-screen "Are you awake?" prompt that only vibrates, with one "I'm awake" button and a 60-second countdown. Answering logs `WAKE_CHECK_PASSED` and ends the sequence. Missing it logs `WAKE_CHECK_FAILED` and rings the last alarm again with its full timeout. Dismissing that repeat ring schedules another check. Powering off during a check counts as a failed check (`CHEAT_DETECTED`), and the alarm rings after boot. A check that comes due while another alarm is ringing is skipped. Disarming the group, switching off the alarm or turning the check off cancels a pending check.
+
 ---
 
 ## 5. Data model
@@ -184,6 +193,8 @@ data class AlarmEvent(                   // append-only audit log
 
 **Effective-enabled rule:** an alarm fires only if `group.isArmed && alarm.isEnabled`. The group toggle does not mutate child `isEnabled` values, so a user who disabled one alarm inside a group keeps that state when re-arming the group. This is the behavior organized users expect and most apps get wrong.
 
+**Shift with first (added 2026-10-21):** `AlarmGroup.shiftWithFirst` (default on). Changing the time of the alarm at position 0 moves every other alarm in the group by the same amount, taking the short way round the clock (23:50 → 00:10 is +20 min). An alarm moved across midnight takes its repeat days with it. Editing any other alarm moves only that alarm. The group screen also has −5 / +5 min buttons that shift the whole group.
+
 **Escalation resolution:** `alarm.challengeOverride ?: group.escalationPolicy.steps.getOrElse(alarm.positionInGroup) { steps.last() }`.
 
 ---
@@ -253,7 +264,7 @@ Scope this carefully — a fight against a determined user is unwinnable and the
 7. **Settings** — defaults, test alarm, theme, data export.
 8. **Stats** — dismissal times, snooze counts, challenge failure rates, give-up events. Organized people like data about themselves; this is cheap to build and drives retention.
 
-Material 3 with dynamic color. The firing screen must be legible to someone half-asleep: large type, high contrast, generous touch targets, a dark theme that does not blind at 6am.
+Material 3 components, but **not** Material You dynamic colour — it would override the difficulty ramp, which is the one thing the design is doing. Colours, type and spacing all come from `design/DESIGN.md`. The firing screen must be legible to someone half-asleep: large type, high contrast, generous touch targets, and a first-alarm screen that does not blind at 6am.
 
 ---
 
@@ -266,14 +277,15 @@ Each milestone should end in a working, installable app.
 | M0 | Skeleton | Project setup, Hilt, Room, Compose nav, CI running tests |
 | M1 | **Alarm engine** | One hardcoded alarm fires reliably, shows full-screen over lock screen, plays audio, dismisses, survives reboot. No UI polish. **Do not proceed until this is bulletproof.** |
 | M2 | CRUD + groups | Create/edit/delete groups and alarms, master toggle, Room persistence, reconciliation on all triggers |
+| M2.5 | Design system | Added 2026-10-21, after M2 shipped on stock Material. Retrofit `design/DESIGN.md` before M3 adds more screens: theme tokens for all twenty generated from `themes.json` at build time (Forest applied; the picker and Night wait for M7), Sora type scale, `rampStopFor`, flat chrome, re-skinned home / group (spine) / editor / firing screens, launcher and notification icons, voice pass |
 | M3 | Challenges | Interface + math, type-phrase, barcode. Then steps, photo match, memory |
 | M4 | Escalation | Policy resolution, escalation editor screen, reorder semantics |
 | M5 | Reliability | Reliability Check, missed-alarm detector, test alarm, OEM guidance, event logging |
 | M6 | Audio | Built-in tones, device audio picker, volume ramp, then Spotify behind a feature flag |
-| M7 | Polish | Stats, settings, theming, onboarding, accessibility pass |
+| M7 | Polish | Stats, settings, all twenty themes generated from `design/assets/themes.json`, the Appearance screen, the theme-pack purchase, onboarding, accessibility pass |
 | M8 | Release prep | Play Store listing, permission justifications, privacy policy, closed testing |
 
-**Estimate:** 10–14 weeks of focused solo work to a shipped Play Store release. M1 and M5 together are roughly 40% of the total and are where the difficulty actually lives. The challenge screens look like the bulk of the work but are the easy part.
+**Estimate:** 11–14 weeks of focused solo work to a shipped Play Store release. M1 and M5 together are roughly 40% of the total and are where the difficulty actually lives. The challenge screens look like the bulk of the work but are the easy part. Twenty themes cost almost nothing beyond the first two if the token system is built properly at M2 and generated from `design/assets/themes.json`; the single in-app purchase at M7 is a few days.
 
 ---
 

@@ -50,7 +50,24 @@ object Migrations {
         }
     }
 
-    val ALL = arrayOf(MIGRATION_1_2)
+    /** v2 → v3: per-group "move the rest with the first alarm", on for existing groups. */
+    val MIGRATION_2_3 = object : Migration(2, 3) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE `alarm_groups` ADD COLUMN `shiftWithFirst` INTEGER NOT NULL DEFAULT 1")
+        }
+    }
+
+    /** v3 → v4: wake-up check, off for existing groups. */
+    val MIGRATION_3_4 = object : Migration(3, 4) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE `alarm_groups` ADD COLUMN `wakeCheckEnabled` INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE `alarm_groups` ADD COLUMN `wakeCheckDelayMinutes` INTEGER NOT NULL DEFAULT 3")
+            db.execSQL("ALTER TABLE `alarms` ADD COLUMN `wakeCheckAt` INTEGER")
+            db.execSQL("ALTER TABLE `active_ring` ADD COLUMN `isWakeCheck` INTEGER NOT NULL DEFAULT 0")
+        }
+    }
+
+    val ALL = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
 }
 
 object AlarmGroupDefaults {

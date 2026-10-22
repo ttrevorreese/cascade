@@ -5,6 +5,7 @@ import com.cascade.alarm.data.db.AlarmEntity
 import com.cascade.alarm.data.db.EventType
 import com.cascade.alarm.engine.EngineLog
 import com.cascade.alarm.engine.schedule.Reconciler.FireResult
+import com.cascade.alarm.engine.schedule.WakeCheck
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -22,6 +23,8 @@ import java.time.Instant
  * - Every exit path (dismiss, timeout, duplicate, nothing to resume) stops sound and releases the
  *   wake lock, even if writing to the database fails.
  * - A ring interrupted by power-off resumes on boot with a fresh timeout and a CHEAT_DETECTED event.
+ * - A wake-up check is a quiet prompt with a short deadline. Answering it ends the sequence;
+ *   missing it (or powering off during it) rings the alarm again, whose dismissal checks again.
  */
 class RingCoordinator(
     private val scope: CoroutineScope,
@@ -49,12 +52,18 @@ class RingCoordinator(
             if (current == null) finishIdle()
             return@withLock
         }
+        val ringResult = result as FireResult.Ring
+        if (ringResult.wakeCheck && current != null && !current.isWakeCheck) {
+            // Someone is up and handling an alarm; don't interrupt it with "are you awake?".
+            EngineLog.i("wake check skipped while alarm=${current.alarmId} rings")
+            return@withLock
+        }
         if (current != null && (current.alarmId != alarmId || current.scheduledFor != scheduledFor)) {
             bestEffort { store.log(current.alarmId, EventType.MISSED, "reason" to "superseded", "by" to alarmId) }
         }
-        val ring = ActiveRingEntity(alarmId = alarmId, scheduledFor = scheduledFor, startedAt = now())
+        val ring = ActiveRingEntity(alarmId = alarmId, scheduledFor = scheduledFor, startedAt = now(), isWakeCheck = ringResult.wakeCheck)
         bestEffort { store.setActiveRing(ring) }
-        begin(ring, (result as FireResult.Ring).alarm)
+        begin(ring, ringResult.alarm)
     }
 
     /** Called after boot, on a sticky restart, or when the app opens while a ring is persisted. */
@@ -85,37 +94,69 @@ class RingCoordinator(
         } catch (e: Exception) {
             null
         }
+        if (afterBoot && ring.isWakeCheck) {
+            failWakeCheck(ring.alarmId, alarm, "power_off")
+            return@withLock
+        }
         begin(ring, alarm)
     }
 
+    /** The user answered: dismisses an alarm, or passes a wake-up check. */
     suspend fun dismiss() = mutex.withLock {
+        val active = state.current.value?.let { it.alarmId to it.isWakeCheck }
+            ?: try { store.activeRing()?.let { it.alarmId to it.isWakeCheck } } catch (e: Exception) { null }
+        if (active?.second == true) {
+            finish(EventType.WAKE_CHECK_PASSED, "reason" to "user")
+            return@withLock
+        }
         finish(EventType.DISMISSED, "reason" to "user")
+        if (active != null) bestEffort { store.afterDismiss(active.first) }
     }
 
     private suspend fun begin(ring: ActiveRingEntity, alarm: AlarmEntity?) {
-        val timeout = Duration.ofMinutes((alarm?.timeoutMinutes ?: RingDefaults.TIMEOUT_MINUTES).toLong())
+        val timeout = if (ring.isWakeCheck) {
+            WakeCheck.ANSWER_WINDOW
+        } else {
+            Duration.ofMinutes((alarm?.timeoutMinutes ?: RingDefaults.TIMEOUT_MINUTES).toLong())
+        }
         val deadline = ring.startedAt.plus(timeout)
         val remaining = Duration.between(now(), deadline)
         if (remaining <= Duration.ZERO) {
-            EngineLog.i("ring already past its deadline alarm=${ring.alarmId}")
-            finish(EventType.MISSED, "reason" to "timeout", ring = ring)
+            EngineLog.i("ring already past its deadline alarm=${ring.alarmId} wakeCheck=${ring.isWakeCheck}")
+            if (ring.isWakeCheck) {
+                failWakeCheck(ring.alarmId, alarm, "timeout")
+            } else {
+                finish(EventType.MISSED, "reason" to "timeout", ring = ring)
+            }
             return
         }
         wakeLock.acquire(remaining.plus(RingDefaults.WAKE_LOCK_MARGIN))
-        val ringing = RingingAlarm(ring.alarmId, alarm?.label, ring.scheduledFor, deadline)
+        val ringing = RingingAlarm(ring.alarmId, alarm?.label, ring.scheduledFor, deadline, ring.isWakeCheck)
         state.set(ringing)
         presenter.show(ringing)
         sound.stop()
-        sound.start(alarm?.volumeRampSeconds ?: RingDefaults.RAMP_SECONDS)
-        EngineLog.i("ringing alarm=${ring.alarmId} deadline=$deadline")
+        if (ring.isWakeCheck) sound.startWakeCheck() else sound.start(alarm?.volumeRampSeconds ?: RingDefaults.RAMP_SECONDS)
+        EngineLog.i("ringing alarm=${ring.alarmId} deadline=$deadline wakeCheck=${ring.isWakeCheck}")
 
         timeoutJob?.cancel()
         timeoutJob = scope.launch {
             delay(remaining.toMillis())
             mutex.withLock {
-                if (state.current.value == ringing) finish(EventType.MISSED, "reason" to "timeout")
+                if (state.current.value != ringing) return@withLock
+                // This job is ending; keep begin() in failWakeCheck from cancelling it mid-way.
+                timeoutJob = null
+                if (ring.isWakeCheck) failWakeCheck(ring.alarmId, alarm, "timeout") else finish(EventType.MISSED, "reason" to "timeout")
             }
         }
+    }
+
+    /** A missed wake-up check rings [alarmId] again, as a new ring with the alarm's full timeout. */
+    private suspend fun failWakeCheck(alarmId: String, alarm: AlarmEntity?, reason: String) {
+        bestEffort { store.log(alarmId, EventType.WAKE_CHECK_FAILED, "reason" to reason) }
+        val again = ActiveRingEntity(alarmId = alarmId, scheduledFor = now(), startedAt = now())
+        bestEffort { store.setActiveRing(again) }
+        bestEffort { store.log(alarmId, EventType.FIRED, "reason" to "wake_check_failed") }
+        begin(again, alarm)
     }
 
     /** Stops everything. Sound and wake lock are released even if the database writes fail. */

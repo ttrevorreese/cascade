@@ -3,6 +3,8 @@ package com.cascade.alarm.ui.group
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,7 +16,9 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -39,6 +43,7 @@ import com.cascade.alarm.data.AlarmRepository
 import com.cascade.alarm.data.DaysFormat
 import com.cascade.alarm.data.db.AlarmEntity
 import com.cascade.alarm.data.db.AlarmGroupEntity
+import com.cascade.alarm.engine.schedule.WakeCheck
 import com.cascade.alarm.ui.TimeText
 import com.cascade.alarm.ui.currentLocale
 import com.cascade.alarm.ui.home.NameDialog
@@ -50,6 +55,8 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+private const val SHIFT_STEP_MINUTES = 5L
 
 data class GroupUiState(val loaded: Boolean = false, val group: AlarmGroupEntity? = null, val alarms: List<AlarmEntity> = emptyList())
 
@@ -70,6 +77,9 @@ class GroupViewModel @Inject constructor(
     fun delete() = launch { repository.deleteGroup(groupId) }
     fun setAlarmEnabled(alarmId: String, enabled: Boolean) = launch { repository.setAlarmEnabled(alarmId, enabled) }
     fun moveAlarm(alarmId: String, delta: Int) = launch { repository.moveAlarm(alarmId, delta) }
+    fun setShiftWithFirst(enabled: Boolean) = launch { repository.setShiftWithFirst(groupId, enabled) }
+    fun shift(minutes: Long) = launch { repository.shiftGroup(groupId, minutes) }
+    fun setWakeCheck(enabled: Boolean, delayMinutes: Int) = launch { repository.setWakeCheck(groupId, enabled, delayMinutes) }
 
     private fun launch(block: suspend () -> Unit) {
         viewModelScope.launch { block() }
@@ -96,7 +106,46 @@ fun GroupScreen(
         onDelete = viewModel::delete,
         onAlarmEnabledChange = viewModel::setAlarmEnabled,
         onMoveAlarm = viewModel::moveAlarm,
+        onShiftWithFirstChange = viewModel::setShiftWithFirst,
+        onShift = viewModel::shift,
+        onWakeCheckChange = viewModel::setWakeCheck,
     )
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun WakeCheckSetting(group: AlarmGroupEntity, onChange: (enabled: Boolean, delayMinutes: Int) -> Unit) {
+    Column(Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Wake-up check", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    if (group.wakeCheckEnabled) {
+                        "${group.wakeCheckDelayMinutes} min after the last alarm, tap \"I'm awake\" within a minute or it rings again"
+                    } else {
+                        "No check after the last alarm"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            Switch(
+                checked = group.wakeCheckEnabled,
+                onCheckedChange = { onChange(it, group.wakeCheckDelayMinutes) },
+                modifier = Modifier.testTag("group-wake-check"),
+            )
+        }
+        if (group.wakeCheckEnabled) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                (WakeCheck.MIN_DELAY_MINUTES..WakeCheck.MAX_DELAY_MINUTES).forEach { minutes ->
+                    FilterChip(
+                        selected = group.wakeCheckDelayMinutes == minutes,
+                        onClick = { onChange(true, minutes) },
+                        label = { Text("$minutes min") },
+                    )
+                }
+            }
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -111,6 +160,9 @@ fun GroupContent(
     onDelete: () -> Unit,
     onAlarmEnabledChange: (String, Boolean) -> Unit,
     onMoveAlarm: (String, Int) -> Unit,
+    onShiftWithFirstChange: (Boolean) -> Unit,
+    onShift: (minutes: Long) -> Unit,
+    onWakeCheckChange: (enabled: Boolean, delayMinutes: Int) -> Unit,
 ) {
     var renaming by remember { mutableStateOf(false) }
     var confirmingDelete by remember { mutableStateOf(false) }
@@ -144,6 +196,19 @@ fun GroupContent(
                     Switch(checked = group.isArmed, onCheckedChange = onArmedChange, modifier = Modifier.testTag("group-armed"))
                 }
             }
+            if (alarms.isNotEmpty()) {
+                item {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text("Shift all", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                        OutlinedButton(onClick = { onShift(-SHIFT_STEP_MINUTES) }) { Text("−$SHIFT_STEP_MINUTES min") }
+                        OutlinedButton(onClick = { onShift(SHIFT_STEP_MINUTES) }) { Text("+$SHIFT_STEP_MINUTES min") }
+                    }
+                }
+            }
             if (alarms.isEmpty()) item { Text("No alarms yet.", Modifier.padding(vertical = 16.dp)) }
             itemsIndexed(alarms, key = { _, it -> it.id }) { index, alarm ->
                 AlarmRow(
@@ -155,6 +220,27 @@ fun GroupContent(
                     onEnabledChange = { onAlarmEnabledChange(alarm.id, it) },
                     onMove = { onMoveAlarm(alarm.id, it) },
                 )
+            }
+            // Settings go below the alarms so the sequence itself stays on screen.
+            if (alarms.isNotEmpty()) {
+                item {
+                    Row(Modifier.fillMaxWidth().padding(top = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Move the rest with the first alarm", style = MaterialTheme.typography.titleMedium)
+                            Text(
+                                if (group.shiftWithFirst) "Changing alarm 1's time shifts the others by the same amount"
+                                else "Each alarm keeps its own time",
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                        Switch(
+                            checked = group.shiftWithFirst,
+                            onCheckedChange = onShiftWithFirstChange,
+                            modifier = Modifier.testTag("group-shift-with-first"),
+                        )
+                    }
+                }
+                item { WakeCheckSetting(group, onWakeCheckChange) }
             }
         }
     }

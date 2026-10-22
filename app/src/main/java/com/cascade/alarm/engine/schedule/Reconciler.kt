@@ -31,8 +31,11 @@ class Reconciler @Inject constructor(
     private val mutex = Mutex()
 
     sealed interface FireResult {
-        /** Ring. [alarm] is null if it could not be loaded; ring with defaults anyway. */
-        data class Ring(val alarm: AlarmEntity?) : FireResult
+        /**
+         * Ring. [alarm] is null if it could not be loaded; ring with defaults anyway. [wakeCheck]
+         * means this trigger is the alarm's wake-up check, not the alarm itself.
+         */
+        data class Ring(val alarm: AlarmEntity?, val wakeCheck: Boolean = false) : FireResult
         data object Duplicate : FireResult
         /** The alarm was deleted after this trigger was handed to AlarmManager. */
         data object Deleted : FireResult
@@ -71,13 +74,22 @@ class Reconciler @Inject constructor(
                 result = FireResult.Duplicate
                 return@withTransaction null
             }
-            result = FireResult.Ring(alarm)
-            events.record(alarmId, EventType.FIRED, "scheduledFor" to scheduledFor)
+            val wakeCheck = scheduledFor == alarm.wakeCheckAt
+            result = FireResult.Ring(alarm, wakeCheck)
+            events.record(alarmId, EventType.FIRED, "scheduledFor" to scheduledFor, "wakeCheck" to wakeCheck)
             val armed = db.alarmGroupDao().get(alarm.groupId)?.isArmed ?: true
             planAndPersist(alarm, ReconcilePlanner.afterFiring(alarm, scheduledFor), armed, "fired")
         }
         plan?.let(::apply)
         result
+    }
+
+    /** Called when the user dismisses [alarmId]: schedules a wake-up check if it was the group's last. */
+    suspend fun scheduleWakeCheck(alarmId: String) = mutate("wake_check") { db ->
+        val alarm = db.alarmDao().get(alarmId) ?: return@mutate
+        val group = db.alarmGroupDao().get(alarm.groupId) ?: return@mutate
+        val at = WakeCheck.checkAt(alarm, group, db.alarmDao().inGroup(alarm.groupId), time.now()) ?: return@mutate
+        db.alarmDao().upsert(alarm.copy(wakeCheckAt = at))
     }
 
     private suspend fun planAll(reason: String): List<Plan> {

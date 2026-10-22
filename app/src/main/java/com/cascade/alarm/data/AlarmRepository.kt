@@ -4,7 +4,9 @@ import com.cascade.alarm.data.db.AlarmEntity
 import com.cascade.alarm.data.db.AlarmGroupDefaults
 import com.cascade.alarm.data.db.AlarmGroupEntity
 import com.cascade.alarm.data.db.CascadeDatabase
+import com.cascade.alarm.data.db.time
 import com.cascade.alarm.engine.TimeSource
+import com.cascade.alarm.engine.schedule.WakeCheck
 import com.cascade.alarm.engine.schedule.Reconciler
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -70,6 +72,22 @@ class AlarmRepository @Inject constructor(
         groups.get(id)?.let { groups.upsert(it.copy(isArmed = armed)) }
     }
 
+    suspend fun setShiftWithFirst(id: String, enabled: Boolean) = reconciler.mutate("group_shift_setting") {
+        groups.get(id)?.let { groups.upsert(it.copy(shiftWithFirst = enabled)) }
+    }
+
+    /** Turning the wake-up check off also cancels one already pending in the group. */
+    suspend fun setWakeCheck(id: String, enabled: Boolean, delayMinutes: Int) = reconciler.mutate("group_wake_check_$enabled") {
+        val group = groups.get(id) ?: return@mutate
+        groups.upsert(group.copy(wakeCheckEnabled = enabled, wakeCheckDelayMinutes = WakeCheck.clampDelay(delayMinutes)))
+        if (!enabled) alarms.upsertAll(alarms.inGroup(id).map { it.copy(wakeCheckAt = null) })
+    }
+
+    /** Moves every alarm in the group by [minutes] (the group screen's −5 / +5 buttons). */
+    suspend fun shiftGroup(id: String, minutes: Long) = reconciler.mutate("group_shift") {
+        alarms.upsertAll(alarms.inGroup(id).map { AlarmRules.shifted(it, minutes) })
+    }
+
     suspend fun deleteGroup(id: String) = reconciler.mutate("group_delete") {
         // Explicit as well as the foreign-key cascade, so it cannot depend on PRAGMA foreign_keys.
         alarms.deleteInGroup(id)
@@ -84,7 +102,10 @@ class AlarmRepository @Inject constructor(
 
     // --- Alarms ---
 
-    /** Creates or updates an alarm. Only user-editable fields are taken from [alarm]. */
+    /**
+     * Creates or updates an alarm. Only user-editable fields are taken from [alarm]. A new time on
+     * the group's first alarm moves the others by the same amount, unless the group opts out.
+     */
     suspend fun saveAlarm(alarm: AlarmEntity) = reconciler.mutate("alarm_save") {
         val existing = alarms.get(alarm.id)
         val base = existing ?: alarm.copy(
@@ -93,23 +114,30 @@ class AlarmRepository @Inject constructor(
             oneTimeTriggerAt = null,
             lastFiredFor = null,
         )
-        alarms.upsert(
-            base.copy(
-                hour = alarm.hour.coerceIn(0, 23),
-                minute = alarm.minute.coerceIn(0, 59),
-                daysOfWeek = alarm.daysOfWeek,
-                label = AlarmRules.normalizeLabel(alarm.label),
-                isEnabled = alarm.isEnabled,
-                volumeRampSeconds = AlarmRules.clampRamp(alarm.volumeRampSeconds),
-                timeoutMinutes = AlarmRules.clampTimeout(alarm.timeoutMinutes),
-            ),
+        val saved = base.copy(
+            hour = alarm.hour.coerceIn(0, 23),
+            minute = alarm.minute.coerceIn(0, 59),
+            daysOfWeek = alarm.daysOfWeek,
+            label = AlarmRules.normalizeLabel(alarm.label),
+            isEnabled = alarm.isEnabled,
+            volumeRampSeconds = AlarmRules.clampRamp(alarm.volumeRampSeconds),
+            timeoutMinutes = AlarmRules.clampTimeout(alarm.timeoutMinutes),
         )
+        alarms.upsert(saved)
+        if (existing != null && existing.positionInGroup == 0 && groups.get(saved.groupId)?.shiftWithFirst == true) {
+            val minutes = AlarmRules.shiftMinutes(existing.time, saved.time)
+            if (minutes != 0L) {
+                alarms.upsertAll(alarms.inGroup(saved.groupId).filter { it.id != saved.id }.map { AlarmRules.shifted(it, minutes) })
+            }
+        }
     }
 
-    /** Turning an alarm off also cancels a pending snooze or test ring for it. */
+    /** Turning an alarm off also cancels a pending snooze, test ring or wake-up check for it. */
     suspend fun setAlarmEnabled(id: String, enabled: Boolean) = reconciler.mutate("alarm_enabled_$enabled") {
         alarms.get(id)?.let {
-            alarms.upsert(it.copy(isEnabled = enabled, oneTimeTriggerAt = if (enabled) it.oneTimeTriggerAt else null))
+            alarms.upsert(
+                if (enabled) it.copy(isEnabled = true) else it.copy(isEnabled = false, oneTimeTriggerAt = null, wakeCheckAt = null),
+            )
         }
     }
 

@@ -35,6 +35,9 @@ class RingCoordinatorTest {
         val events = mutableListOf<Pair<EventType, Map<String, Any?>>>()
         var fired = mutableSetOf<Pair<String, Instant>>()
         val deleted = mutableSetOf<String>()
+        /** Triggers that are wake-up checks rather than the alarm itself. */
+        val wakeChecks = mutableSetOf<Pair<String, Instant>>()
+        val dismissed = mutableListOf<String>()
         var failRecordFire = false
         var failWrites = false
         var state: RingState? = null
@@ -45,7 +48,7 @@ class RingCoordinatorTest {
             if (failRecordFire) error("db unavailable")
             if (alarmId in deleted) return FireResult.Deleted
             if (!fired.add(alarmId to scheduledFor)) return FireResult.Duplicate
-            return FireResult.Ring(alarms[alarmId])
+            return FireResult.Ring(alarms[alarmId], wakeCheck = (alarmId to scheduledFor) in wakeChecks)
         }
         override suspend fun alarm(alarmId: String) = alarms[alarmId]
         override suspend fun activeRing() = active
@@ -62,6 +65,10 @@ class RingCoordinatorTest {
             if (failWrites) error("db unavailable")
             events += type to metadata.toMap()
         }
+        override suspend fun afterDismiss(alarmId: String) {
+            if (failWrites) error("db unavailable")
+            dismissed += alarmId
+        }
         fun types() = events.map { it.first }
     }
 
@@ -69,8 +76,10 @@ class RingCoordinatorTest {
         var playing = false
         var lastRamp: Int? = null
         var starts = 0
+        var checking = false
         override fun start(rampSeconds: Int) { playing = true; lastRamp = rampSeconds; starts++ }
-        override fun stop() { playing = false }
+        override fun startWakeCheck() { checking = true }
+        override fun stop() { playing = false; checking = false }
     }
 
     private class FakeWakeLock : RingWakeLock {
@@ -307,5 +316,99 @@ class RingCoordinatorTest {
         assertNull(store.active)
         assertEquals(EventType.DISMISSED, store.types().single())
         assertStopped()
+    }
+
+    // --- Wake-up check ---
+
+    private val checkAt = scheduled.plusSeconds(180)
+
+    private suspend fun Harness.fireCheck() {
+        store.wakeChecks += "a" to checkAt
+        coordinator.onFire("a", checkAt)
+    }
+
+    @Test
+    fun `dismissing an alarm lets the store decide on a wake-up check`() = harness {
+        coordinator.onFire("a", scheduled)
+        coordinator.dismiss()
+        assertEquals(listOf("a"), store.dismissed)
+    }
+
+    @Test
+    fun `an alarm that times out unanswered gets no wake-up check`() = harness {
+        coordinator.onFire("a", scheduled)
+        scope.advanceTimeBy(Duration.ofMinutes(16).toMillis())
+        scope.runCurrent()
+        assertTrue(store.dismissed.isEmpty())
+    }
+
+    @Test
+    fun `a wake-up check prompts quietly for a minute`() = harness {
+        fireCheck()
+        val ringing = state.current.value!!
+        assertTrue(ringing.isWakeCheck)
+        assertEquals(epoch.plusSeconds(60), ringing.deadline)
+        assertTrue(sound.checking)
+        assertEquals(0, sound.starts) // no alarm sound
+        assertTrue(wakeLock.held)
+        assertEquals(true, store.active?.isWakeCheck)
+    }
+
+    @Test
+    fun `answering the check ends it without scheduling another`() = harness {
+        fireCheck()
+        coordinator.dismiss()
+        assertStopped()
+        assertNull(store.active)
+        assertEquals(EventType.WAKE_CHECK_PASSED, store.types().last())
+        assertTrue(store.dismissed.isEmpty())
+        scope.advanceTimeBy(Duration.ofMinutes(5).toMillis())
+        scope.runCurrent()
+        assertEquals(0, sound.starts)
+    }
+
+    @Test
+    fun `an unanswered check rings the alarm again, and dismissing that checks again`() = harness {
+        fireCheck()
+        scope.advanceTimeBy(Duration.ofSeconds(60).toMillis() + 1)
+        scope.runCurrent()
+        assertRinging()
+        assertEquals(1, sound.starts)
+        assertFalse(state.current.value!!.isWakeCheck)
+        assertEquals(false, store.active?.isWakeCheck)
+        assertTrue(store.types().containsAll(listOf(EventType.WAKE_CHECK_FAILED, EventType.FIRED)))
+        // The repeat ring has the alarm's full timeout.
+        scope.advanceTimeBy(Duration.ofMinutes(14).toMillis())
+        scope.runCurrent()
+        assertRinging()
+        coordinator.dismiss()
+        assertEquals(listOf("a"), store.dismissed)
+    }
+
+    @Test
+    fun `a check that comes due while an alarm is ringing is skipped`() = harness {
+        store.alarms["b"] = alarm(id = "b")
+        coordinator.onFire("b", scheduled)
+        fireCheck()
+        assertEquals("b", state.current.value?.alarmId)
+        assertFalse(state.current.value!!.isWakeCheck)
+        assertFalse(store.types().contains(EventType.MISSED))
+    }
+
+    @Test
+    fun `power-off during a check rings the alarm after boot`() = harness {
+        store.active = ActiveRingEntity(alarmId = "a", scheduledFor = checkAt, startedAt = epoch.minusSeconds(30), isWakeCheck = true)
+        coordinator.onResume(afterBoot = true)
+        assertRinging()
+        assertEquals(1, sound.starts)
+        assertTrue(store.types().containsAll(listOf(EventType.CHEAT_DETECTED, EventType.WAKE_CHECK_FAILED)))
+    }
+
+    @Test
+    fun `a check resumed after its minute ran out rings the alarm`() = harness {
+        store.active = ActiveRingEntity(alarmId = "a", scheduledFor = checkAt, startedAt = epoch.minusSeconds(90), isWakeCheck = true)
+        coordinator.onResume(afterBoot = false)
+        assertRinging()
+        assertEquals(EventType.WAKE_CHECK_FAILED, store.types().first())
     }
 }

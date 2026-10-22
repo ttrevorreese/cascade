@@ -9,7 +9,7 @@ import androidx.room.TypeConverters
 @Database(
     entities = [AlarmGroupEntity::class, AlarmEntity::class, ActiveRingEntity::class, AlarmEventEntity::class],
     // Every version bump needs an entry in Migrations.ALL and a MigrationTest case.
-    version = 2,
+    version = 4,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)

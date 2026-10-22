@@ -9,9 +9,12 @@ import java.time.DayOfWeek.FRIDAY
 import java.time.DayOfWeek.MONDAY
 import java.time.DayOfWeek.SATURDAY
 import java.time.DayOfWeek.SUNDAY
+import java.time.DayOfWeek.THURSDAY
+import java.time.DayOfWeek.TUESDAY
 import java.time.DayOfWeek.WEDNESDAY
 import java.time.DayOfWeek
 import java.time.Instant
+import java.time.LocalTime
 import java.util.Locale
 
 class AlarmRulesTest {
@@ -99,6 +102,43 @@ class AlarmRulesTest {
     fun `disarmed group has no next ring`() {
         val s = AlarmRules.summarize(group.copy(isArmed = false), listOf(alarm("a", 0, next = Instant.EPOCH)))
         assertNull(s.nextRing)
+    }
+
+    @Test
+    fun `shifting moves the time and keeps the days`() {
+        val a = AlarmRules.shifted(alarm("a", 0, 6, 50), 15)
+        assertEquals(7 to 5, a.hour to a.minute)
+        assertEquals(weekdays, a.daysOfWeek)
+        val b = AlarmRules.shifted(alarm("b", 0, 6, 5), -10)
+        assertEquals(5 to 55, b.hour to b.minute)
+    }
+
+    @Test
+    fun `shifting past midnight moves the days with it`() {
+        val late = alarm("a", 0, 23, 50).copy(daysOfWeek = setOf(MONDAY, FRIDAY, SUNDAY))
+        val later = AlarmRules.shifted(late, 20)
+        assertEquals(0 to 10, later.hour to later.minute)
+        assertEquals(setOf(TUESDAY, SATURDAY, MONDAY), later.daysOfWeek)
+
+        val early = alarm("b", 0, 0, 5).copy(daysOfWeek = setOf(TUESDAY, THURSDAY))
+        val earlier = AlarmRules.shifted(early, -10)
+        assertEquals(23 to 55, earlier.hour to earlier.minute)
+        assertEquals(setOf(MONDAY, WEDNESDAY), earlier.daysOfWeek)
+    }
+
+    @Test
+    fun `one-shot alarms stay one-shot when shifted past midnight`() {
+        val once = alarm("a", 0, 23, 55).copy(daysOfWeek = emptySet())
+        assertEquals(emptySet<DayOfWeek>(), AlarmRules.shifted(once, 10).daysOfWeek)
+    }
+
+    @Test
+    fun `shift between two times takes the short way round midnight`() {
+        assertEquals(15L, AlarmRules.shiftMinutes(LocalTime.of(6, 0), LocalTime.of(6, 15)))
+        assertEquals(-30L, AlarmRules.shiftMinutes(LocalTime.of(6, 0), LocalTime.of(5, 30)))
+        assertEquals(20L, AlarmRules.shiftMinutes(LocalTime.of(23, 50), LocalTime.of(0, 10)))
+        assertEquals(-20L, AlarmRules.shiftMinutes(LocalTime.of(0, 10), LocalTime.of(23, 50)))
+        assertEquals(0L, AlarmRules.shiftMinutes(LocalTime.of(6, 0), LocalTime.of(6, 0)))
     }
 
     @Test

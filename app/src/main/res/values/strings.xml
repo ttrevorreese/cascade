@@ -5,4 +5,8 @@
     <string name="ring_channel_name">Ringing alarms</string>
     <string name="ring_title_default">Alarm</string>
     <string name="ring_action_dismiss">Dismiss</string>
+    <string name="wake_check_title">Are you awake?</string>
+    <string name="wake_check_text">Answer within a minute or the alarm rings again</string>
+    <string name="wake_check_action">I\'m awake</string>
+    <string name="wake_check_countdown">Alarm rings again in %1$d s</string>
 </resources>

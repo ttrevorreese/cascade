@@ -71,4 +71,42 @@ class MigrationTest {
             }
         }
     }
+
+    @Test
+    fun v2GroupsGetShiftWithFirstTurnedOn() {
+        helper.createDatabase(db, 2).use { v2 ->
+            v2.execSQL(
+                "INSERT INTO alarm_groups (id, name, colorHex, iconKey, isArmed, sortOrder, createdAt) " +
+                    "VALUES ('g', 'Workday', '#000000', 'default', 1, 0, 0)",
+            )
+        }
+        helper.runMigrationsAndValidate(db, 3, true, Migrations.MIGRATION_2_3).use { v3 ->
+            v3.query("SELECT shiftWithFirst FROM alarm_groups WHERE id = 'g'").use { c ->
+                c.moveToFirst()
+                assertEquals(1, c.getInt(0))
+            }
+        }
+    }
+
+    @Test
+    fun v3GetsWakeCheckColumnsWithTheCheckOff() {
+        helper.createDatabase(db, 3).use { v3 ->
+            v3.execSQL(
+                "INSERT INTO alarm_groups (id, name, colorHex, iconKey, isArmed, sortOrder, createdAt, shiftWithFirst) " +
+                    "VALUES ('g', 'Workday', '#000000', 'default', 1, 0, 0, 1)",
+            )
+            v3.execSQL("INSERT INTO active_ring (slot, alarmId, scheduledFor, startedAt) VALUES (0, 'a', 1000, 1000)")
+        }
+        helper.runMigrationsAndValidate(db, 4, true, Migrations.MIGRATION_3_4).use { v4 ->
+            v4.query("SELECT wakeCheckEnabled, wakeCheckDelayMinutes FROM alarm_groups WHERE id = 'g'").use { c ->
+                c.moveToFirst()
+                assertEquals(0, c.getInt(0))
+                assertEquals(3, c.getInt(1))
+            }
+            v4.query("SELECT isWakeCheck FROM active_ring").use { c ->
+                c.moveToFirst()
+                assertEquals(0, c.getInt(0))
+            }
+        }
+    }
 }

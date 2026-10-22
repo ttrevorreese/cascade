@@ -22,4 +22,5 @@ class RoomRingStore @Inject constructor(
     override suspend fun clearActiveRing() = activeRingDao.clear()
     override suspend fun log(alarmId: String, type: EventType, vararg metadata: Pair<String, Any?>) =
         events.record(alarmId, type, *metadata)
+    override suspend fun afterDismiss(alarmId: String) = reconciler.scheduleWakeCheck(alarmId)
 }

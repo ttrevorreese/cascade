@@ -5,7 +5,8 @@
 #   scripts/e2e-alarm.sh --timeout        also: an undismissed ring times out and releases everything
 #   scripts/e2e-alarm.sh --reboot         also: an alarm due while rebooting rings before unlock
 #   scripts/e2e-alarm.sh --power-off      also: rebooting mid-ring resumes the ring (CHEAT_DETECTED)
-#   scripts/e2e-alarm.sh --all            everything (about 10 minutes)
+#   scripts/e2e-alarm.sh --wake-check     also: wake-up check after dismissal; missing it rings again
+#   scripts/e2e-alarm.sh --all            everything (about 14 minutes)
 #
 # Requirements: a debug build (./gradlew assembleDebug), USB debugging on, a secure lock screen,
 # and for the reboot tests: do NOT unlock the phone until the script says so.
@@ -20,13 +21,14 @@ if [[ -z "${ADB:-}" ]]; then
   else ADB="$HOME/Android/Sdk/platform-tools/adb"; fi
 fi
 
-RUN_TIMEOUT=0; RUN_REBOOT=0; RUN_POWER_OFF=0
+RUN_TIMEOUT=0; RUN_REBOOT=0; RUN_POWER_OFF=0; RUN_WAKE_CHECK=0
 for arg in "$@"; do
   case "$arg" in
     --timeout) RUN_TIMEOUT=1 ;;
     --reboot) RUN_REBOOT=1 ;;
     --power-off) RUN_POWER_OFF=1 ;;
-    --all) RUN_TIMEOUT=1; RUN_REBOOT=1; RUN_POWER_OFF=1 ;;
+    --wake-check) RUN_WAKE_CHECK=1 ;;
+    --all) RUN_TIMEOUT=1; RUN_REBOOT=1; RUN_POWER_OFF=1; RUN_WAKE_CHECK=1 ;;
     *) echo "unknown option $arg"; exit 2 ;;
   esac
 done
@@ -112,6 +114,7 @@ grep -q "Error" <<<"$started" && fail "could not launch the app: $started"
 sleep 4
 debug_cmd SET_TIMEOUT --ei minutes 15
 debug_cmd DISABLE
+debug_cmd SET_WAKE_CHECK --ez enabled false
 
 # ---------------------------------------------------------------------------------------------
 info "Ring: locked, screen off, Doze"
@@ -184,6 +187,37 @@ if (( RUN_POWER_OFF )); then
   debug_cmd DISMISS
   wait_for_log "event DISMISSED" 10 && pass "dismissed" || fail "dismiss not logged"
   assert_released
+fi
+
+# ---------------------------------------------------------------------------------------------
+if (( RUN_WAKE_CHECK )); then
+  info "Wake-up check: 1 min after dismissal; the first check is ignored, the second answered"
+  "$ADB" logcat -c
+  debug_cmd SET_WAKE_CHECK --ez enabled true --ei minutes 1
+  debug_cmd RING_IN --ei seconds 15
+  wait_for_log "ringing alarm=system-test-alarm deadline=.* wakeCheck=false" 45 && pass "rang" || fail "did not ring"
+  debug_cmd DISMISS
+  wait_for_log "event DISMISSED" 10 && pass "dismissed" || fail "dismiss not logged"
+  check "check scheduled after the last alarm" "\"reason\":\"wake_check\""
+  sh input keyevent KEYCODE_SLEEP
+  if wait_for_log "wakeCheck=true" 90; then pass "check appeared about a minute later"; else fail "no wake-up check within 90s"; fi
+  check "check only vibrates" "wake check vibration started"
+  sleep 3
+  if screen_awake && alarm_activity_in_front; then pass "check shown over the lock screen"; else fail "check screen not shown"; fi
+  "$ADB" logcat -c
+  if wait_for_log "event WAKE_CHECK_FAILED" 75; then pass "unanswered check failed after a minute"; else fail "check did not time out"; fi
+  if wait_for_log "audio started" 10; then pass "alarm rang again with sound"; else fail "alarm did not ring again"; fi
+  debug_cmd DISMISS
+  wait_for_log "event DISMISSED" 10 && pass "repeat ring dismissed" || fail "repeat dismiss not logged"
+  "$ADB" logcat -c
+  if wait_for_log "wakeCheck=true" 90; then pass "another check followed the repeat ring"; else fail "no second check"; fi
+  debug_cmd DISMISS
+  wait_for_log "event WAKE_CHECK_PASSED" 10 && pass "answered check passed" || fail "pass not logged"
+  assert_released
+  "$ADB" logcat -c
+  sleep 70
+  if log_has "ringing alarm="; then fail "something rang after the check was passed"; else pass "nothing rang after passing"; fi
+  debug_cmd SET_WAKE_CHECK --ez enabled false
 fi
 
 echo

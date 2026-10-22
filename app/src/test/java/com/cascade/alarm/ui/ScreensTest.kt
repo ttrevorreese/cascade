@@ -6,10 +6,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.hasScrollAction
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
 import com.cascade.alarm.data.GroupSummary
 import com.cascade.alarm.data.db.AlarmEntity
@@ -78,6 +84,7 @@ class ScreensTest {
                 alarms = listOf(alarm("a", 0, 6), alarm("b", 1, 6, enabled = false)),
                 onBack = {}, onOpenAlarm = {}, onArmedChange = {}, onRename = {}, onDelete = {},
                 onAlarmEnabledChange = { _, _ -> }, onMoveAlarm = { _, _ -> },
+                onShiftWithFirstChange = {}, onShift = {}, onWakeCheckChange = { _, _ -> },
             )
         }
         compose.onNodeWithText("1.").assertExists()
@@ -90,12 +97,59 @@ class ScreensTest {
     }
 
     @Test
+    fun groupShiftControlsReportTheirChanges() {
+        val shifts = mutableListOf<Long>()
+        var shiftWithFirst: Boolean? = null
+        compose.setContent {
+            GroupContent(
+                group = group, alarms = listOf(alarm("a", 0, 6)),
+                onBack = {}, onOpenAlarm = {}, onArmedChange = {}, onRename = {}, onDelete = {},
+                onAlarmEnabledChange = { _, _ -> }, onMoveAlarm = { _, _ -> },
+                onShiftWithFirstChange = { shiftWithFirst = it }, onShift = { shifts += it }, onWakeCheckChange = { _, _ -> },
+            )
+        }
+        compose.onNode(hasScrollAction()).performScrollToNode(hasTestTag("group-shift-with-first"))
+        compose.onNodeWithTag("group-shift-with-first").assertIsOn().performClick()
+        assertEquals(false, shiftWithFirst)
+        compose.onNodeWithText("+5 min").performClick()
+        compose.onNodeWithText("−5 min").performClick()
+        assertEquals(listOf(5L, -5L), shifts)
+    }
+
+    @Test
+    fun wakeCheckSettingTurnsOnAndPicksADelay() {
+        val changes = mutableListOf<Pair<Boolean, Int>>()
+        compose.setContent {
+            var current by remember { mutableStateOf(group) }
+            GroupContent(
+                group = current, alarms = listOf(alarm("a", 0, 6)),
+                onBack = {}, onOpenAlarm = {}, onArmedChange = {}, onRename = {}, onDelete = {},
+                onAlarmEnabledChange = { _, _ -> }, onMoveAlarm = { _, _ -> },
+                onShiftWithFirstChange = {}, onShift = {},
+                onWakeCheckChange = { enabled, delay ->
+                    changes += enabled to delay
+                    current = current.copy(wakeCheckEnabled = enabled, wakeCheckDelayMinutes = delay)
+                },
+            )
+        }
+        val list = compose.onNode(hasScrollAction())
+        list.performScrollToNode(hasTestTag("group-wake-check"))
+        compose.onNodeWithText("No check after the last alarm").assertExists()
+        // The tiny Robolectric window leaves these at the scroll edge, so invoke their clicks directly.
+        compose.onNodeWithTag("group-wake-check").assertIsOff().performSemanticsAction(SemanticsActions.OnClick)
+        list.performScrollToNode(hasText("5 min"))
+        compose.onNodeWithText("5 min").performSemanticsAction(SemanticsActions.OnClick)
+        assertEquals(listOf(true to 3, true to 5), changes)
+    }
+
+    @Test
     fun deletingAGroupNeedsConfirmation() {
         var deleted = 0
         compose.setContent {
             GroupContent(
                 group, emptyList(), {}, {}, {}, {}, onDelete = { deleted++ },
                 onAlarmEnabledChange = { _, _ -> }, onMoveAlarm = { _, _ -> },
+                onShiftWithFirstChange = {}, onShift = {}, onWakeCheckChange = { _, _ -> },
             )
         }
         compose.onNodeWithText("Delete").performClick()

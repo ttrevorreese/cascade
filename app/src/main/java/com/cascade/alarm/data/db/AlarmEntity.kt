@@ -9,7 +9,7 @@ import java.time.Instant
 import java.time.LocalTime
 
 /**
- * SPEC §5 `Alarm`; sound, challenge and snooze columns arrive in later milestones. The last three
+ * SPEC §5 `Alarm`; sound, challenge and snooze columns arrive in later milestones. The last four
  * columns are engine bookkeeping, not user configuration.
  */
 @Entity(
@@ -44,6 +44,8 @@ data class AlarmEntity(
     val oneTimeTriggerAt: Instant? = null,
     /** The scheduled instant of the most recent ring; makes a repeated fire for it a no-op. */
     val lastFiredFor: Instant? = null,
+    /** A pending wake-up check after this alarm was dismissed as the group's last. */
+    val wakeCheckAt: Instant? = null,
 )
 
 val AlarmEntity.time: LocalTime get() = LocalTime.of(hour, minute)

@@ -8,6 +8,7 @@ import com.cascade.alarm.engine.EventLog
 import com.cascade.alarm.engine.TimeSource
 import com.cascade.alarm.engine.schedule.AlarmScheduler
 import com.cascade.alarm.engine.schedule.Reconciler
+import com.cascade.alarm.engine.schedule.Reconciler.FireResult
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -44,6 +45,7 @@ class AlarmRepositoryTest {
     private lateinit var scheduler: FakeScheduler
     private lateinit var time: FakeTime
     private lateinit var repo: AlarmRepository
+    private lateinit var reconciler: Reconciler
 
     @Before
     fun setUp() {
@@ -52,7 +54,8 @@ class AlarmRepositoryTest {
             .build()
         scheduler = FakeScheduler()
         time = FakeTime(now)
-        repo = AlarmRepository(db, Reconciler(db, scheduler, time, EventLog(db.alarmEventDao(), time)), time)
+        reconciler = Reconciler(db, scheduler, time, EventLog(db.alarmEventDao(), time))
+        repo = AlarmRepository(db, reconciler, time)
     }
 
     @After
@@ -192,6 +195,113 @@ class AlarmRepositoryTest {
         repo.ringTestAlarmIn(60)
         assertEquals(now.plusSeconds(60), scheduler.scheduled[SystemTestAlarm.ALARM_ID])
         assertFalse(repo.alarm(SystemTestAlarm.ALARM_ID)!!.isEnabled)
+    }
+
+    private fun times(groupId: String) = alarms(groupId).map { it.hour to it.minute }
+
+    @Test
+    fun `changing the first alarm's time moves the rest of the group by the same amount`() = runBlocking {
+        val (groupId, ids) = sequence("Workday", 6 to 0, 6 to 10, 6 to 25)
+        repo.setAlarmEnabled(ids[2], false)
+        repo.saveAlarm(repo.alarm(ids[0])!!.copy(hour = 6, minute = 15))
+        assertEquals(listOf(6 to 15, 6 to 25, 6 to 40), times(groupId))
+        assertEquals(Instant.parse("2026-10-19T10:25:00Z"), scheduler.scheduled[ids[1]])
+        // Disabled alarms move too, so the spacing holds when they are switched back on.
+        assertFalse(repo.alarm(ids[2])!!.isEnabled)
+    }
+
+    @Test
+    fun `changing a later alarm moves only that alarm`() = runBlocking {
+        val (groupId, ids) = sequence("Workday", 6 to 0, 6 to 10, 6 to 25)
+        repo.saveAlarm(repo.alarm(ids[1])!!.copy(minute = 5))
+        assertEquals(listOf(6 to 0, 6 to 5, 6 to 25), times(groupId))
+    }
+
+    @Test
+    fun `the first alarm moves alone when the group's shift setting is off`() = runBlocking {
+        val (groupId, ids) = sequence("Workday", 6 to 0, 6 to 10)
+        assertTrue(db.alarmGroupDao().get(groupId)!!.shiftWithFirst)
+        repo.setShiftWithFirst(groupId, false)
+        repo.saveAlarm(repo.alarm(ids[0])!!.copy(minute = 30))
+        assertEquals(listOf(6 to 30, 6 to 10), times(groupId))
+    }
+
+    @Test
+    fun `editing the first alarm without changing its time leaves the rest alone`() = runBlocking {
+        val (groupId, ids) = sequence("Workday", 6 to 0, 6 to 10)
+        repo.saveAlarm(repo.alarm(ids[0])!!.copy(label = "Up"))
+        assertEquals(listOf(6 to 0, 6 to 10), times(groupId))
+    }
+
+    @Test
+    fun `followers that cross midnight take their days with them`() = runBlocking {
+        val (groupId, ids) = sequence("Late", 23 to 40, 23 to 55)
+        db.alarmDao().upsert(repo.alarm(ids[1])!!.copy(daysOfWeek = setOf(DayOfWeek.MONDAY)))
+        repo.saveAlarm(repo.alarm(ids[0])!!.copy(minute = 50))
+        val follower = repo.alarm(ids[1])!!
+        assertEquals(0 to 5, follower.hour to follower.minute)
+        assertEquals(setOf(DayOfWeek.TUESDAY), follower.daysOfWeek)
+    }
+
+    @Test
+    fun `shifting a group moves every alarm and reschedules`() = runBlocking {
+        val (groupId, ids) = sequence("Workday", 6 to 0, 6 to 10)
+        repo.shiftGroup(groupId, 5)
+        assertEquals(listOf(6 to 5, 6 to 15), times(groupId))
+        assertEquals(Instant.parse("2026-10-19T10:05:00Z"), scheduler.scheduled[ids[0]])
+        repo.shiftGroup(groupId, -10)
+        assertEquals(listOf(5 to 55, 6 to 5), times(groupId))
+    }
+
+    @Test
+    fun `dismissing the last alarm schedules a wake-up check that fires as one`() = runBlocking {
+        val (groupId, ids) = sequence("Workday", 6 to 0, 6 to 10)
+        repo.setWakeCheck(groupId, enabled = true, delayMinutes = 2)
+        val sixTen = Instant.parse("2026-10-19T10:10:00Z")
+        time.now = sixTen
+        reconciler.recordFire(ids[1], sixTen)
+        time.now = sixTen.plusSeconds(30)
+
+        reconciler.scheduleWakeCheck(ids[0]) // not the last alarm: nothing
+        assertNull(repo.alarm(ids[0])!!.wakeCheckAt)
+        reconciler.scheduleWakeCheck(ids[1])
+        val check = sixTen.plusSeconds(150)
+        assertEquals(check, repo.alarm(ids[1])!!.wakeCheckAt)
+        assertEquals(check, scheduler.scheduled[ids[1]])
+
+        time.now = check
+        assertEquals(true, (reconciler.recordFire(ids[1], check) as FireResult.Ring).wakeCheck)
+        assertNull(repo.alarm(ids[1])!!.wakeCheckAt)
+        assertEquals(Instant.parse("2026-10-20T10:10:00Z"), scheduler.scheduled[ids[1]])
+    }
+
+    @Test
+    fun `no wake-up check unless the group turns it on`() = runBlocking {
+        val (_, ids) = sequence("Workday", 6 to 0)
+        reconciler.scheduleWakeCheck(ids[0])
+        assertNull(repo.alarm(ids[0])!!.wakeCheckAt)
+    }
+
+    @Test
+    fun `turning the wake-up check off cancels a pending one`() = runBlocking {
+        val (groupId, ids) = sequence("Workday", 6 to 0)
+        repo.setWakeCheck(groupId, enabled = true, delayMinutes = 9)
+        assertEquals(5, db.alarmGroupDao().get(groupId)!!.wakeCheckDelayMinutes)
+        reconciler.scheduleWakeCheck(ids[0])
+        assertEquals(now.plusSeconds(300), scheduler.scheduled[ids[0]])
+        repo.setWakeCheck(groupId, enabled = false, delayMinutes = 5)
+        assertNull(repo.alarm(ids[0])!!.wakeCheckAt)
+        assertEquals(Instant.parse("2026-10-19T10:00:00Z"), scheduler.scheduled[ids[0]])
+    }
+
+    @Test
+    fun `turning the alarm off cancels its pending wake-up check`() = runBlocking {
+        val (groupId, ids) = sequence("Workday", 6 to 0)
+        repo.setWakeCheck(groupId, enabled = true, delayMinutes = 3)
+        reconciler.scheduleWakeCheck(ids[0])
+        repo.setAlarmEnabled(ids[0], false)
+        assertNull(repo.alarm(ids[0])!!.wakeCheckAt)
+        assertFalse(ids[0] in scheduler.scheduled)
     }
 
     @Test

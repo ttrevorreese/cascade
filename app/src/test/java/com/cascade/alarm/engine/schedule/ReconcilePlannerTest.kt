@@ -27,11 +27,12 @@ class ReconcilePlannerTest {
         next: Instant? = null,
         oneTime: Instant? = null,
         lastFired: Instant? = null,
+        wakeCheck: Instant? = null,
     ) = AlarmEntity(
         id = "a", groupId = "g", positionInGroup = 0, hour = 7, minute = 0, daysOfWeek = days, label = null,
         isEnabled = enabled,
         volumeRampSeconds = 30, timeoutMinutes = 15,
-        nextTriggerAt = next, oneTimeTriggerAt = oneTime, lastFiredFor = lastFired,
+        nextTriggerAt = next, oneTimeTriggerAt = oneTime, lastFiredFor = lastFired, wakeCheckAt = wakeCheck,
     )
 
     private fun plan(alarm: AlarmEntity, now: Instant, zone: ZoneId = this.zone, groupArmed: Boolean = true) =
@@ -203,5 +204,46 @@ class ReconcilePlannerTest {
         assertEquals(first.action, second.action)
         assertEquals(first.alarm, second.alarm)
         assertNull(second.missed) // the miss is reported once, not on every pass
+    }
+
+    @Test
+    fun `pending wake check is scheduled ahead of the next regular ring`() {
+        val check = sevenAm.plusSeconds(180)
+        val p = plan(alarm(next = sevenAmTomorrow, lastFired = sevenAm, wakeCheck = check), sevenAm.plusSeconds(60))
+        assertEquals(Schedule(check), p.action)
+        assertEquals(check, p.alarm.nextTriggerAt)
+    }
+
+    @Test
+    fun `wake check rings even though a one-shot alarm disabled itself`() {
+        val check = sevenAm.plusSeconds(180)
+        val p = plan(alarm(days = emptySet(), enabled = false, lastFired = sevenAm, wakeCheck = check), sevenAm.plusSeconds(60))
+        assertEquals(Schedule(check), p.action)
+    }
+
+    @Test
+    fun `disarming the group cancels a pending wake check`() {
+        val p = plan(alarm(wakeCheck = sevenAm.plusSeconds(180)), sevenAm, groupArmed = false)
+        assertEquals(Cancel, p.action)
+        assertNull(p.alarm.wakeCheckAt)
+    }
+
+    @Test
+    fun `wake check missed for too long is dropped without disabling the alarm`() {
+        val check = sevenAm.plusSeconds(180)
+        val p = plan(alarm(days = emptySet(), next = check, lastFired = sevenAm, wakeCheck = check), check.plus(Duration.ofHours(1)))
+        assertEquals(check, p.missed)
+        assertNull(p.alarm.wakeCheckAt)
+        assertTrue(p.alarm.isEnabled)
+    }
+
+    @Test
+    fun `firing the wake check clears it and keeps the regular schedule`() {
+        val check = sevenAm.plusSeconds(180)
+        val fired = ReconcilePlanner.afterFiring(alarm(next = check, lastFired = sevenAm, wakeCheck = check), check)
+        assertNull(fired.wakeCheckAt)
+        assertEquals(check, fired.lastFiredFor)
+        assertTrue(fired.isEnabled)
+        assertEquals(Schedule(sevenAmTomorrow), plan(fired, check).action)
     }
 }

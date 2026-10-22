@@ -94,6 +94,11 @@ class ExoAlarmSoundPlayer(
         startRamp(rampSeconds)
     }
 
+    override fun startWakeCheck() {
+        startVibration()
+        EngineLog.i("wake check vibration started")
+    }
+
     override fun stop() {
         rampJob?.cancel()
         rampJob = null

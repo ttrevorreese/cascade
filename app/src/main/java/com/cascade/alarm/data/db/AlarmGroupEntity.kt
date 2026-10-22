@@ -1,5 +1,6 @@
 package com.cascade.alarm.data.db
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import java.time.Instant
@@ -17,4 +18,13 @@ data class AlarmGroupEntity(
     val isArmed: Boolean,
     val sortOrder: Int,
     val createdAt: Instant,
+    /** Changing the first alarm's time moves every other alarm in the group by the same amount. */
+    @ColumnInfo(defaultValue = "1")
+    val shiftWithFirst: Boolean = true,
+    /** After the last alarm is dismissed, ask "are you awake?" and ring it again if unanswered. */
+    @ColumnInfo(defaultValue = "0")
+    val wakeCheckEnabled: Boolean = false,
+    /** Minutes between dismissing the last alarm and the check (1–5). */
+    @ColumnInfo(defaultValue = "3")
+    val wakeCheckDelayMinutes: Int = 3,
 )

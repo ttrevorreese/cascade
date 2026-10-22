@@ -24,8 +24,10 @@ class RingNotifications(private val context: Context) {
 
     fun build(ringing: RingingAlarm?): Notification {
         ensureChannel()
-        val title = ringing?.label ?: context.getString(R.string.ring_title_default)
-        val text = ringing?.let { formatTime(it.scheduledFor) }
+        val check = ringing?.isWakeCheck == true
+        val title = if (check) context.getString(R.string.wake_check_title) else ringing?.label ?: context.getString(R.string.ring_title_default)
+        val text = if (check) context.getString(R.string.wake_check_text) else ringing?.let { formatTime(it.scheduledFor) }
+        val action = context.getString(if (check) R.string.wake_check_action else R.string.ring_action_dismiss)
         return NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_alarm)
             .setContentTitle(title)
@@ -40,7 +42,7 @@ class RingNotifications(private val context: Context) {
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .setFullScreenIntent(activityPendingIntent(null), true)
             .setContentIntent(activityPendingIntent(null))
-            .addAction(0, context.getString(R.string.ring_action_dismiss), dismissPendingIntent())
+            .addAction(0, action, dismissPendingIntent())
             .build()
     }
 

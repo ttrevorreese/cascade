@@ -31,11 +31,11 @@ object ReconcilePlanner {
      *
      * The one-time trigger rings regardless of [AlarmEntity.isEnabled]: a one-shot alarm disables
      * itself when it rings, yet its snooze must still fire. Disarming the group cancels everything
-     * in it, one-time triggers included.
+     * in it, one-time triggers included. A pending wake-up check works the same way.
      */
     fun plan(alarm: AlarmEntity, groupArmed: Boolean, now: Instant, zone: ZoneId): Plan {
         if (!groupArmed) {
-            return Plan(alarm.copy(nextTriggerAt = null, oneTimeTriggerAt = null), Action.Cancel)
+            return Plan(alarm.copy(nextTriggerAt = null, oneTimeTriggerAt = null, wakeCheckAt = null), Action.Cancel)
         }
         var current = alarm
         var missed: Instant? = null
@@ -49,21 +49,25 @@ object ReconcilePlanner {
             current = current.copy(lastFiredFor = pending)
             if (pending == alarm.oneTimeTriggerAt) {
                 current = current.copy(oneTimeTriggerAt = null)
+            } else if (pending == alarm.wakeCheckAt) {
+                current = current.copy(wakeCheckAt = null)
             } else if (alarm.daysOfWeek.isEmpty()) {
                 current = current.copy(isEnabled = false)
             }
         }
 
         val oneTime = current.oneTimeTriggerAt?.takeIf { it.isAfter(now) }
+        val wakeCheck = current.wakeCheckAt?.takeIf { it.isAfter(now) }
         val regular = if (current.isEnabled) NextOccurrence.after(current.time, current.daysOfWeek, now, zone) else null
-        val next = listOfNotNull(oneTime, regular).minOrNull()
+        val next = listOfNotNull(oneTime, wakeCheck, regular).minOrNull()
         val action = if (next != null) Action.Schedule(next) else Action.Cancel
-        return Plan(current.copy(nextTriggerAt = next, oneTimeTriggerAt = oneTime), action, missed)
+        return Plan(current.copy(nextTriggerAt = next, oneTimeTriggerAt = oneTime, wakeCheckAt = wakeCheck), action, missed)
     }
 
     /** Bookkeeping when the trigger for [scheduledFor] rings. Follow with [plan] to schedule the next. */
     fun afterFiring(alarm: AlarmEntity, scheduledFor: Instant): AlarmEntity = when {
         scheduledFor == alarm.oneTimeTriggerAt -> alarm.copy(lastFiredFor = scheduledFor, oneTimeTriggerAt = null)
+        scheduledFor == alarm.wakeCheckAt -> alarm.copy(lastFiredFor = scheduledFor, wakeCheckAt = null)
         alarm.daysOfWeek.isEmpty() -> alarm.copy(lastFiredFor = scheduledFor, isEnabled = false)
         else -> alarm.copy(lastFiredFor = scheduledFor)
     }

@@ -17,6 +17,8 @@ data class RingingAlarm(
     val label: String?,
     val scheduledFor: Instant,
     val deadline: Instant,
+    /** A quiet "are you awake?" prompt; [deadline] is when the alarm rings again. */
+    val isWakeCheck: Boolean = false,
 )
 
 /** What is ringing right now, observed by [com.cascade.alarm.ui.ring.AlarmActivity]. */
@@ -38,10 +40,16 @@ interface RingStore {
     suspend fun setActiveRing(ring: ActiveRingEntity)
     suspend fun clearActiveRing()
     suspend fun log(alarmId: String, type: EventType, vararg metadata: Pair<String, Any?>)
+
+    /** The user dismissed [alarmId]; schedules its wake-up check if it was the group's last. */
+    suspend fun afterDismiss(alarmId: String)
 }
 
 interface AlarmSoundPlayer {
     fun start(rampSeconds: Int)
+
+    /** The wake-up check's prompt: vibration only, no alarm sound. */
+    fun startWakeCheck()
     fun stop()
 }
 
