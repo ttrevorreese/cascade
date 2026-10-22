@@ -6,6 +6,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
@@ -20,7 +23,9 @@ import androidx.compose.ui.test.performTextInput
 import com.cascade.alarm.data.GroupSummary
 import com.cascade.alarm.data.db.AlarmEntity
 import com.cascade.alarm.data.db.AlarmGroupEntity
+import com.cascade.alarm.engine.ring.RingingAlarm
 import com.cascade.alarm.ui.alarm.AlarmEditorContent
+import com.cascade.alarm.ui.ring.AlarmScreen
 import com.cascade.alarm.ui.group.GroupContent
 import com.cascade.alarm.ui.home.HomeContent
 import org.junit.Assert.assertEquals
@@ -31,6 +36,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import java.time.DayOfWeek
 import java.time.Instant
+import java.time.LocalTime
 
 @RunWith(RobolectricTestRunner::class)
 class ScreensTest {
@@ -53,8 +59,25 @@ class ScreensTest {
 
         groups = listOf(GroupSummary(group.copy(isArmed = false), alarmCount = 2, enabledCount = 2, nextRing = null))
         compose.onNodeWithText("Workday Wake").assertExists()
-        compose.onNodeWithText("2 alarms · off").assertExists()
+        compose.onNodeWithText("Off · 2 alarms").assertExists()
         compose.onNodeWithTag("armed-g").assertIsOff()
+        // A disarmed group loses its ramp preview.
+        compose.onNodeWithText("2 steps").assertDoesNotExist()
+        compose.onNodeWithText("Nothing scheduled").assertExists()
+    }
+
+    @Test
+    fun homeShowsTheArmedGroupsScheduleRampAndNextAlarm() {
+        val next = Instant.parse("2026-10-19T10:00:00Z")
+        val summary = GroupSummary(
+            group, alarmCount = 3, enabledCount = 3, nextRing = next,
+            firstTime = LocalTime.of(6, 0), lastTime = LocalTime.of(6, 35), days = DayOfWeek.entries.take(5).toSet(),
+        )
+        compose.setContent { HomeContent(listOf(summary), {}, {}, { _, _ -> }, { _, _ -> }, {}) }
+        compose.onNodeWithText("Next alarm").assertExists()
+        compose.onNodeWithText("6:00 AM – 6:35 AM · Weekdays").assertExists()
+        compose.onNodeWithText("3 steps").assertExists()
+        compose.onNodeWithContentDescription("Move Workday Wake up").assertIsNotEnabled()
     }
 
     @Test
@@ -72,7 +95,7 @@ class ScreensTest {
         compose.setContent { HomeContent(emptyList(), {}, {}, { _, _ -> }, { _, _ -> }, { created += it }) }
         compose.onNodeWithText("New group").performClick()
         compose.onNodeWithText("Name").performTextInput("Gym Day")
-        compose.onNodeWithText("Save").performClick()
+        compose.onNodeWithText("Create group").performClick()
         assertEquals(listOf("Gym Day"), created)
     }
 
@@ -87,8 +110,9 @@ class ScreensTest {
                 onShiftWithFirstChange = {}, onShift = {}, onWakeCheckChange = { _, _ -> },
             )
         }
-        compose.onNodeWithText("1.").assertExists()
-        compose.onNodeWithText("2.").assertExists()
+        compose.onNodeWithText("1 of 2 · Weekdays").assertExists()
+        compose.onNodeWithText("2 of 2 · Weekdays").assertExists()
+        compose.onNodeWithContentDescription("Move alarm 1 earlier in the sequence").assertIsNotEnabled()
         compose.onNodeWithTag("group-armed").assertIsOff()
         // Own switches are shown as they are, even while the group is off.
         compose.onNodeWithTag("alarm-enabled-a").assertIsOn()
@@ -109,7 +133,7 @@ class ScreensTest {
             )
         }
         compose.onNode(hasScrollAction()).performScrollToNode(hasTestTag("group-shift-with-first"))
-        compose.onNodeWithTag("group-shift-with-first").assertIsOn().performClick()
+        compose.onNodeWithTag("group-shift-with-first").assertIsOn().performSemanticsAction(SemanticsActions.OnClick)
         assertEquals(false, shiftWithFirst)
         compose.onNodeWithText("+5 min").performClick()
         compose.onNodeWithText("−5 min").performClick()
@@ -184,6 +208,31 @@ class ScreensTest {
         compose.onNodeWithTag("save").performClick()
         assertEquals(1, saved)
         assertTrue("new alarms have nothing to delete", compose.onAllNodesWithTextCount("Delete alarm") == 0)
+    }
+
+    private fun ringing(position: Int, total: Int, wakeCheck: Boolean = false) = RingingAlarm(
+        alarmId = "a", label = "Gym bag", scheduledFor = Instant.EPOCH, deadline = Instant.now().plusSeconds(60),
+        isWakeCheck = wakeCheck, position = position, total = total,
+    )
+
+    @Test
+    fun firingScreenSaysWhereInTheSequenceItIs() {
+        var current by mutableStateOf(ringing(0, 4))
+        compose.setContent { AlarmScreen(current, onDismiss = {}) }
+        compose.onNodeWithText("Alarm 1 of 4. More to come.").assertExists()
+        compose.onNodeWithContentDescription("Alarm 1 of 4").assertExists()
+        compose.onNodeWithText("Gym bag").assertExists()
+        current = ringing(3, 4)
+        compose.onNodeWithText("Last one.").assertExists()
+        compose.onNodeWithText("Dismiss").assertIsEnabled()
+    }
+
+    @Test
+    fun firingScreenAsksTheWakeUpCheck() {
+        compose.setContent { AlarmScreen(ringing(2, 3, wakeCheck = true), onDismiss = {}) }
+        compose.onNodeWithText("Are you awake?").assertExists()
+        compose.onNodeWithText("I'm awake").assertExists()
+        compose.onNodeWithText("Alarm rings again in", substring = true).assertExists()
     }
 
     private fun androidx.compose.ui.test.junit4.ComposeContentTestRule.onAllNodesWithTextCount(text: String) =

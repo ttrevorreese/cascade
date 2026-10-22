@@ -16,6 +16,7 @@ import com.cascade.alarm.data.db.ActiveRingDao
 import com.cascade.alarm.engine.EngineLog
 import com.cascade.alarm.engine.ring.AlarmRingService
 import com.cascade.alarm.engine.ring.RingState
+import com.cascade.alarm.ui.theme.CascadeTheme
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -44,7 +45,9 @@ class AlarmActivity : ComponentActivity() {
 
         setContent {
             val ringing by ringState.current.collectAsStateWithLifecycle()
-            AlarmScreen(ringing = ringing, onDismiss = ::dismiss)
+            CascadeTheme {
+                AlarmScreen(ringing = ringing, onDismiss = ::dismiss)
+            }
         }
     }
 

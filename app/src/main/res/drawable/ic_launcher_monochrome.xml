@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Themed-icon layer: the same steps as a single-colour silhouette; the launcher tints it. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group android:translateX="24" android:translateY="24" android:scaleX="1.5" android:scaleY="1.5">
+        <path android:fillColor="#FFFFFFFF" android:pathData="M5,9a4,4 0,1 0,8 0a4,4 0,1 0,-8 0z" />
+        <path android:fillColor="#FFFFFFFF" android:pathData="M14.8,20a5.2,5.2 0,1 0,10.4 0a5.2,5.2 0,1 0,-10.4 0z" />
+        <path android:fillColor="#FFFFFFFF" android:pathData="M25.4,32a6.6,6.6 0,1 0,13.2 0a6.6,6.6 0,1 0,-13.2 0z" />
+    </group>
+</vector>

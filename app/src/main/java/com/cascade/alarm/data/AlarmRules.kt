@@ -17,6 +17,11 @@ data class GroupSummary(
     val enabledCount: Int,
     /** Earliest scheduled ring, or null if the group is disarmed or nothing is scheduled. */
     val nextRing: Instant?,
+    /** Times of the first and last alarm in sequence order, for the card's schedule line. */
+    val firstTime: LocalTime? = null,
+    val lastTime: LocalTime? = null,
+    /** The first alarm's repeat days. */
+    val days: Set<DayOfWeek> = emptySet(),
 )
 
 /** Pure rules behind the alarm and group CRUD screens. */
@@ -81,12 +86,18 @@ object AlarmRules {
 
     fun clampTimeout(minutes: Int): Int = minutes.coerceIn(MIN_TIMEOUT_MINUTES, MAX_TIMEOUT_MINUTES)
 
-    fun summarize(group: AlarmGroupEntity, alarms: List<AlarmEntity>): GroupSummary = GroupSummary(
-        group = group,
-        alarmCount = alarms.size,
-        enabledCount = alarms.count { it.isEnabled },
-        nextRing = if (group.isArmed) alarms.mapNotNull { it.nextTriggerAt }.minOrNull() else null,
-    )
+    fun summarize(group: AlarmGroupEntity, alarms: List<AlarmEntity>): GroupSummary {
+        val ordered = alarms.sortedBy { it.positionInGroup }
+        return GroupSummary(
+            group = group,
+            alarmCount = alarms.size,
+            enabledCount = alarms.count { it.isEnabled },
+            nextRing = if (group.isArmed) alarms.mapNotNull { it.nextTriggerAt }.minOrNull() else null,
+            firstTime = ordered.firstOrNull()?.time,
+            lastTime = ordered.lastOrNull()?.time,
+            days = ordered.firstOrNull()?.daysOfWeek.orEmpty(),
+        )
+    }
 }
 
 object DaysFormat {

@@ -69,6 +69,12 @@ class RingCoordinatorTest {
             if (failWrites) error("db unavailable")
             dismissed += alarmId
         }
+        var sequence = SequencePosition(0, 1)
+        var failSequence = false
+        override suspend fun sequencePosition(alarm: AlarmEntity): SequencePosition {
+            if (failSequence) error("db unavailable")
+            return sequence
+        }
         fun types() = events.map { it.first }
     }
 
@@ -410,5 +416,21 @@ class RingCoordinatorTest {
         coordinator.onResume(afterBoot = false)
         assertRinging()
         assertEquals(EventType.WAKE_CHECK_FAILED, store.types().first())
+    }
+
+    @Test
+    fun `the ringing alarm carries its place in the sequence`() = harness {
+        store.sequence = SequencePosition(2, 4)
+        coordinator.onFire("a", scheduled)
+        assertEquals(2, state.current.value?.position)
+        assertEquals(4, state.current.value?.total)
+    }
+
+    @Test
+    fun `failing to read the sequence still rings`() = harness {
+        store.failSequence = true
+        coordinator.onFire("a", scheduled)
+        assertRinging()
+        assertEquals(1, state.current.value?.total)
     }
 }

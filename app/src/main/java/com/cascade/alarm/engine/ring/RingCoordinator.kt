@@ -131,7 +131,14 @@ class RingCoordinator(
             return
         }
         wakeLock.acquire(remaining.plus(RingDefaults.WAKE_LOCK_MARGIN))
-        val ringing = RingingAlarm(ring.alarmId, alarm?.label, ring.scheduledFor, deadline, ring.isWakeCheck)
+        // Only shapes the screen; ringing must never wait on or fail because of it.
+        val sequence = alarm?.let {
+            try { store.sequencePosition(it) } catch (e: Exception) { null }
+        } ?: SequencePosition(0, 1)
+        val ringing = RingingAlarm(
+            ring.alarmId, alarm?.label, ring.scheduledFor, deadline, ring.isWakeCheck,
+            position = sequence.position, total = sequence.total,
+        )
         state.set(ringing)
         presenter.show(ringing)
         sound.stop()

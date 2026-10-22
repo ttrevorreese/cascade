@@ -5,6 +5,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import java.time.Instant
+import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -19,6 +20,14 @@ object TimeText {
 
     fun nextRing(instant: Instant, is24Hour: Boolean, zone: ZoneId = ZoneId.systemDefault()): String =
         instant.atZone(zone).format(DateTimeFormatter.ofPattern("EEE " + pattern(is24Hour)))
+
+    /** "Today", "Tomorrow", or the weekday, for the home screen's next alarm. */
+    fun day(instant: Instant, zone: ZoneId = ZoneId.systemDefault(), today: LocalDate = LocalDate.now(zone)): String =
+        when (val date = instant.atZone(zone).toLocalDate()) {
+            today -> "Today"
+            today.plusDays(1) -> "Tomorrow"
+            else -> date.format(DateTimeFormatter.ofPattern("EEEE"))
+        }
 }
 
 @Composable

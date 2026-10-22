@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="40" height="40" role="img" aria-label="Cascade">
+  <title>Cascade — Rungs, left aligned</title>
+  <!-- Wordmark lockup only. The 31-unit bar crosses a circular mask boundary.
+       For an app icon use cascade-rungs-icon.svg instead.
+       Forest ramp. Night: #3D5BD9, #7B4FD8, #C044B0, #FFB03B -->
+  <rect x="7" y="7" width="13" height="5" rx="2.5" fill="#2E8C72"/>
+  <rect x="7" y="16" width="19" height="5" rx="2.5" fill="#4FA95C"/>
+  <rect x="7" y="25" width="25" height="5" rx="2.5" fill="#93C13C"/>
+  <rect x="7" y="34" width="31" height="5" rx="2.5" fill="#FFC94A"/>
+</svg>

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="40" height="40" fill="none" role="img" aria-label="Cascade">
+  <title>Cascade — Eyes, mono</title>
+  <!-- Single-colour silhouette for Notification.Builder#setSmallIcon and the status bar.
+       Same two-eye layout as cascade-eyes-small.svg. Android tints this asset and
+       discards colour, so everything is currentColor and the pupil is a true cut-out
+       (fill-rule evenodd), not a coloured disc. Do not substitute a multi-colour
+       drawable here: every ramp stop would collapse to one flat shape. -->
+  <path d="M3 18q7.5 6.5 15 0" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+  <path fill="currentColor" fill-rule="evenodd" d="M29 12a8 8 0 1 1 0 16 8 8 0 0 1 0-16zm0 4.6a3.4 3.4 0 1 0 0 6.8 3.4 3.4 0 0 0 0-6.8z"/>
+</svg>

@@ -1,7 +1,9 @@
 package com.cascade.alarm
 
+import android.graphics.Color
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.core.content.ContextCompat
@@ -12,6 +14,7 @@ import com.cascade.alarm.engine.ring.RingState
 import com.cascade.alarm.engine.schedule.Reconciler
 import com.cascade.alarm.ui.CascadeNavHost
 import com.cascade.alarm.ui.theme.CascadeTheme
+import com.cascade.alarm.ui.theme.CascadeThemes
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -24,7 +27,13 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        // Bar icons follow the theme, not the system dark-mode setting (DESIGN.md §2.1).
+        val bars = if (CascadeThemes.default.colors.isLight) {
+            SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
+        } else {
+            SystemBarStyle.dark(Color.TRANSPARENT)
+        }
+        enableEdgeToEdge(statusBarStyle = bars, navigationBarStyle = bars)
         if (savedInstanceState == null) onAppOpened()
         setContent {
             CascadeTheme {

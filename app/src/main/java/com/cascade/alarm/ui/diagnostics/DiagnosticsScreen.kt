@@ -5,6 +5,7 @@ import android.content.Intent
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,16 +15,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -33,7 +29,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
@@ -45,7 +40,14 @@ import com.cascade.alarm.data.AlarmRepository
 import com.cascade.alarm.data.db.ActiveRingDao
 import com.cascade.alarm.data.db.AlarmEventDao
 import com.cascade.alarm.data.db.AlarmEventEntity
+import com.cascade.alarm.ui.components.CascadeTopBar
+import com.cascade.alarm.ui.components.PrimaryButton
+import com.cascade.alarm.ui.components.SecondaryButton
 import com.cascade.alarm.ui.ring.AlarmActivity
+import com.cascade.alarm.ui.theme.CascadeShapes
+import com.cascade.alarm.ui.theme.CascadeSpace
+import com.cascade.alarm.ui.theme.CascadeType
+import com.cascade.alarm.ui.theme.cascadeColors
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -91,29 +93,27 @@ fun DiagnosticsScreen(onBack: () -> Unit, viewModel: DiagnosticsViewModel = hilt
     val notificationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { refresh++ }
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Diagnostics") },
-                navigationIcon = { TextButton(onClick = onBack) { Text("Back") } },
-            )
-        },
+        containerColor = cascadeColors.ground,
+        topBar = { CascadeTopBar("Diagnostics", onBack = onBack) },
     ) { padding ->
         LazyColumn(
-            modifier = Modifier.padding(padding).padding(horizontal = 16.dp),
+            modifier = Modifier.padding(padding).padding(horizontal = CascadeSpace.gutter),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             if (state.ringing) {
                 item {
-                    Button(
+                    PrimaryButton(
+                        "An alarm is ringing. Open it",
                         onClick = {
                             context.startActivity(Intent(context, AlarmActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                         },
                         modifier = Modifier.fillMaxWidth(),
-                    ) { Text("An alarm is ringing — open it") }
+                    )
                 }
             }
             item { SectionTitle("Permissions") }
-            items(permissions) { check ->
+            // Problems first; passes below as a quiet checklist (DESIGN.md §6).
+            items(permissions.sortedBy { it.granted }) { check ->
                 PermissionRow(check) {
                     if (check.needsRuntimeRequest && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                         notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
@@ -123,11 +123,7 @@ fun DiagnosticsScreen(onBack: () -> Unit, viewModel: DiagnosticsViewModel = hilt
                 }
             }
             item { SectionTitle("Test") }
-            item {
-                OutlinedButton(onClick = viewModel::ringInOneMinute, modifier = Modifier.fillMaxWidth()) {
-                    Text("Ring a test alarm in 1 minute")
-                }
-            }
+            item { SecondaryButton("Ring a test alarm in 1 minute", viewModel::ringInOneMinute, Modifier.fillMaxWidth()) }
             item { SectionTitle("Event log") }
             items(state.events, key = { it.id }) { EventRow(it) }
             item { Spacer(Modifier.padding(bottom = 24.dp)) }
@@ -137,22 +133,30 @@ fun DiagnosticsScreen(onBack: () -> Unit, viewModel: DiagnosticsViewModel = hilt
 
 @Composable
 private fun SectionTitle(text: String) {
-    Text(text, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 8.dp))
+    Text(text, style = CascadeType.cardTitle, color = cascadeColors.textPrimary, modifier = Modifier.padding(top = 8.dp))
 }
 
 @Composable
 private fun PermissionRow(check: PermissionCheck, onFix: () -> Unit) {
-    val colors = if (check.granted) CardDefaults.cardColors() else
-        CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
-    Card(colors = colors, modifier = Modifier.fillMaxWidth()) {
-        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+    val c = cascadeColors
+    if (check.granted) {
+        Text("✓  ${check.title}", style = CascadeType.body, color = c.textSecondary)
+        return
+    }
+    Surface(
+        shape = CascadeShapes.medium,
+        color = c.surface,
+        border = BorderStroke(1.5.dp, c.status.warn),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("${if (check.granted) "✓" else "✗"}  ${check.title}", fontWeight = FontWeight.SemiBold)
-                if (!check.granted) Text(check.consequence, style = MaterialTheme.typography.bodySmall)
+                Text(check.title, style = CascadeType.rowLabel, color = c.textPrimary)
+                Text(check.consequence, style = CascadeType.body, color = c.textSecondary)
             }
-            if (!check.granted && (check.fixIntent != null || check.needsRuntimeRequest)) {
+            if (check.fixIntent != null || check.needsRuntimeRequest) {
                 Spacer(Modifier.width(8.dp))
-                TextButton(onClick = onFix) { Text("Fix") }
+                SecondaryButton("Fix this", onFix, small = true)
             }
         }
     }

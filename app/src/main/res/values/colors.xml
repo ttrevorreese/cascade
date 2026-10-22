@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#FF14213D</color>
+    <!-- Forest ground (design/assets/themes.json). The launcher icon is Forest for everyone (DESIGN.md §11.1). -->
+    <color name="ic_launcher_background">#FF123524</color>
+    <!-- First frame before Compose draws; matches the default theme's ground. -->
+    <color name="window_background">#FF123524</color>
 </resources>

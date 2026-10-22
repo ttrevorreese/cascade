@@ -99,6 +99,14 @@ class AlarmRulesTest {
     }
 
     @Test
+    fun `summary spans the sequence from first to last alarm`() {
+        val s = AlarmRules.summarize(group, listOf(alarm("b", 1, 6, 35), alarm("a", 0, 6, 0)))
+        assertEquals(LocalTime.of(6, 0), s.firstTime)
+        assertEquals(LocalTime.of(6, 35), s.lastTime)
+        assertEquals(weekdays, s.days)
+    }
+
+    @Test
     fun `disarmed group has no next ring`() {
         val s = AlarmRules.summarize(group.copy(isArmed = false), listOf(alarm("a", 0, next = Instant.EPOCH)))
         assertNull(s.nextRing)

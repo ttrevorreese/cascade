@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="40" height="40" fill="none" role="img" aria-label="Cascade">
+  <title>Cascade — Eyes</title>
+  <!-- Four eyes, one per alarm, opening further each step: shut, squinting, half, wide.
+       Use at 64px and above. Below that use cascade-eyes-small.svg.
+       The pupil must be filled with the ground colour behind the mark:
+       forest #123524, night #171C33.
+       Forest ramp. Night: #3D5BD9, #7B4FD8, #C044B0, #FFB03B -->
+  <path d="M5 13q6 4.5 12 0" stroke="#2E8C72" stroke-width="3" stroke-linecap="round"/>
+  <path d="M23 12q6-2.5 12 0q-6 4.5-12 0" fill="#4FA95C"/>
+  <path d="M5 30q6-8 12 0z" fill="#93C13C"/>
+  <circle cx="29" cy="28" r="7" fill="#FFC94A"/>
+  <circle cx="29" cy="28" r="2.8" fill="#123524"/>
+</svg>

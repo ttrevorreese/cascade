@@ -2,26 +2,24 @@ package com.cascade.alarm.ui.alarm
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -42,6 +40,13 @@ import com.cascade.alarm.data.AlarmRules
 import com.cascade.alarm.data.db.AlarmEntity
 import com.cascade.alarm.engine.ring.VolumeRamp
 import com.cascade.alarm.ui.TimeText
+import com.cascade.alarm.ui.components.CascadeSwitch
+import com.cascade.alarm.ui.components.CascadeTopBar
+import com.cascade.alarm.ui.components.PrimaryButton
+import com.cascade.alarm.ui.components.SecondaryButton
+import com.cascade.alarm.ui.theme.CascadeSpace
+import com.cascade.alarm.ui.theme.CascadeType
+import com.cascade.alarm.ui.theme.cascadeColors
 import com.cascade.alarm.ui.currentLocale
 import com.cascade.alarm.ui.is24HourClock
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -111,7 +116,7 @@ fun AlarmEditorScreen(onDone: () -> Unit, viewModel: AlarmEditorViewModel = hilt
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun AlarmEditorContent(
     draft: AlarmEntity,
@@ -121,28 +126,28 @@ fun AlarmEditorContent(
     onDelete: () -> Unit,
     onCancel: () -> Unit,
 ) {
+    val c = cascadeColors
     val is24Hour = is24HourClock()
     val locale = currentLocale()
     var pickingTime by remember { mutableStateOf(false) }
     var confirmingDelete by remember { mutableStateOf(false) }
     Scaffold(
+        containerColor = c.ground,
         topBar = {
-            TopAppBar(
-                title = { Text(if (isNew) "New alarm" else "Edit alarm") },
-                navigationIcon = { TextButton(onClick = onCancel) { Text("Cancel") } },
-                actions = { TextButton(onClick = onSave, modifier = Modifier.testTag("save")) { Text("Save") } },
-            )
+            CascadeTopBar(if (isNew) "New alarm" else "Edit alarm", onBack = onCancel) {
+                TextButton(onClick = onSave, modifier = Modifier.testTag("save")) { Text("Save alarm") }
+            }
         },
     ) { padding ->
         Column(
-            Modifier.padding(padding).padding(16.dp).verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            Modifier.padding(padding).padding(horizontal = CascadeSpace.gutter).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(CascadeSpace.l),
         ) {
             TextButton(onClick = { pickingTime = true }, modifier = Modifier.testTag("time")) {
-                Text(TimeText.time(draft.hour, draft.minute, is24Hour), style = MaterialTheme.typography.displayMedium)
+                Text(TimeText.time(draft.hour, draft.minute, is24Hour), style = CascadeType.homeNextAlarm, color = c.textPrimary)
             }
 
-            Text("Repeat (none = ring once)", style = MaterialTheme.typography.titleSmall)
+            Text("Repeat (none = ring once)", style = CascadeType.rowLabel, color = c.textPrimary)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 DayOfWeek.entries.forEach { day ->
                     val selected = day in draft.daysOfWeek
@@ -166,7 +171,7 @@ fun AlarmEditorContent(
                 modifier = Modifier.fillMaxWidth(),
             )
 
-            Text("Volume ramp: ${draft.volumeRampSeconds} s", style = MaterialTheme.typography.titleSmall)
+            Text("Volume ramp: ${draft.volumeRampSeconds} s", style = CascadeType.rowLabel, color = c.textPrimary)
             Slider(
                 value = draft.volumeRampSeconds.toFloat(),
                 onValueChange = { v -> onEdit { it.copy(volumeRampSeconds = v.toInt()) } },
@@ -174,7 +179,7 @@ fun AlarmEditorContent(
                 steps = VolumeRamp.MAX_RAMP_SECONDS / 5 - 1,
             )
 
-            Text("Stop if not dismissed after: ${draft.timeoutMinutes} min", style = MaterialTheme.typography.titleSmall)
+            Text("Stop if not dismissed after: ${draft.timeoutMinutes} min", style = CascadeType.rowLabel, color = c.textPrimary)
             Slider(
                 value = draft.timeoutMinutes.toFloat(),
                 onValueChange = { v -> onEdit { it.copy(timeoutMinutes = v.toInt()) } },
@@ -182,16 +187,15 @@ fun AlarmEditorContent(
             )
 
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Alarm on", Modifier.weight(1f))
-                Switch(checked = draft.isEnabled, onCheckedChange = { on -> onEdit { it.copy(isEnabled = on) } })
+                Text("Alarm on", style = CascadeType.rowLabel, color = c.textPrimary, modifier = Modifier.weight(1f))
+                CascadeSwitch(draft.isEnabled, { on -> onEdit { it.copy(isEnabled = on) } })
             }
 
-            Button(onClick = onSave, modifier = Modifier.fillMaxWidth()) { Text("Save") }
+            PrimaryButton("Save alarm", onSave, Modifier.fillMaxWidth())
             if (!isNew) {
-                OutlinedButton(onClick = { confirmingDelete = true }, modifier = Modifier.fillMaxWidth()) {
-                    Text("Delete alarm")
-                }
+                SecondaryButton("Delete alarm", { confirmingDelete = true }, Modifier.fillMaxWidth())
             }
+            Spacer(Modifier.height(CascadeSpace.xxl))
         }
     }
 
@@ -199,11 +203,12 @@ fun AlarmEditorContent(
         val pickerState = rememberTimePickerState(draft.hour, draft.minute, is24Hour)
         AlertDialog(
             onDismissRequest = { pickingTime = false },
+            containerColor = c.surface,
             confirmButton = {
                 TextButton(onClick = {
                     onEdit { it.copy(hour = pickerState.hour, minute = pickerState.minute) }
                     pickingTime = false
-                }) { Text("Set") }
+                }) { Text("Set time") }
             },
             dismissButton = { TextButton(onClick = { pickingTime = false }) { Text("Cancel") } },
             text = { TimePicker(pickerState) },
@@ -212,8 +217,9 @@ fun AlarmEditorContent(
     if (confirmingDelete) {
         AlertDialog(
             onDismissRequest = { confirmingDelete = false },
-            title = { Text("Delete this alarm?") },
-            confirmButton = { TextButton(onClick = { confirmingDelete = false; onDelete() }) { Text("Delete") } },
+            containerColor = c.surface,
+            title = { Text("Delete this alarm?", style = CascadeType.screenTitle) },
+            confirmButton = { TextButton(onClick = { confirmingDelete = false; onDelete() }) { Text("Delete alarm") } },
             dismissButton = { TextButton(onClick = { confirmingDelete = false }) { Text("Cancel") } },
         )
     }

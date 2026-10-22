@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="40" height="40" role="img" aria-label="Cascade">
+  <title>Cascade — Rungs, mask safe</title>
+  <!-- Centred and lifted so the longest bar clears a circular launcher mask.
+       Every point sits inside radius 20 from centre (20,20).
+       Forest ramp. Night: #3D5BD9, #7B4FD8, #C044B0, #FFB03B -->
+  <rect x="15" y="9" width="10" height="4.5" rx="2.25" fill="#2E8C72"/>
+  <rect x="12.5" y="16" width="15" height="4.5" rx="2.25" fill="#4FA95C"/>
+  <rect x="10" y="23" width="20" height="4.5" rx="2.25" fill="#93C13C"/>
+  <rect x="7.5" y="30" width="25" height="4.5" rx="2.25" fill="#FFC94A"/>
+</svg>

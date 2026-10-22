@@ -3,6 +3,7 @@ package com.cascade.alarm.engine.ring
 import com.cascade.alarm.data.db.ActiveRingDao
 import com.cascade.alarm.data.db.ActiveRingEntity
 import com.cascade.alarm.data.db.AlarmDao
+import com.cascade.alarm.data.db.AlarmEntity
 import com.cascade.alarm.data.db.EventType
 import com.cascade.alarm.engine.EventLog
 import com.cascade.alarm.engine.schedule.Reconciler
@@ -23,4 +24,9 @@ class RoomRingStore @Inject constructor(
     override suspend fun log(alarmId: String, type: EventType, vararg metadata: Pair<String, Any?>) =
         events.record(alarmId, type, *metadata)
     override suspend fun afterDismiss(alarmId: String) = reconciler.scheduleWakeCheck(alarmId)
+    override suspend fun sequencePosition(alarm: AlarmEntity): SequencePosition {
+        // A one-shot alarm switches itself off when it rings, so it still counts itself.
+        val sequence = alarmDao.inGroup(alarm.groupId).filter { it.isEnabled || it.id == alarm.id }
+        return SequencePosition(sequence.indexOfFirst { it.id == alarm.id }.coerceAtLeast(0), sequence.size.coerceAtLeast(1))
+    }
 }

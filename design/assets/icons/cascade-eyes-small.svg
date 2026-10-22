@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="40" height="40" fill="none" role="img" aria-label="Cascade">
+  <title>Cascade — Eyes, small</title>
+  <!-- Two eyes side by side on one baseline: shut on the left, wide open on the right.
+       First alarm to last, with the pair reading as a face at any size.
+       Use below 64px. At or above that use cascade-eyes.svg.
+       Pupil takes the ground colour behind the mark: forest #123524, night #171C33.
+       Forest ramp stops 1 and 5. Night: #3D5BD9 and #FFB03B. -->
+  <path d="M3 18q7.5 6.5 15 0" stroke="#2E8C72" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="29" cy="20" r="8" fill="#FFC94A"/>
+  <circle cx="29" cy="20" r="3.4" fill="#123524"/>
+</svg>

@@ -19,7 +19,12 @@ data class RingingAlarm(
     val deadline: Instant,
     /** A quiet "are you awake?" prompt; [deadline] is when the alarm rings again. */
     val isWakeCheck: Boolean = false,
+    /** Where this alarm sits among the group's alarms that are on (0-based); drives the firing screen. */
+    val position: Int = 0,
+    val total: Int = 1,
 )
+
+data class SequencePosition(val position: Int, val total: Int)
 
 /** What is ringing right now, observed by [com.cascade.alarm.ui.ring.AlarmActivity]. */
 @Singleton
@@ -43,6 +48,9 @@ interface RingStore {
 
     /** The user dismissed [alarmId]; schedules its wake-up check if it was the group's last. */
     suspend fun afterDismiss(alarmId: String)
+
+    /** [alarm]'s place among its group's alarms that are on, counting itself even if it is off. */
+    suspend fun sequencePosition(alarm: AlarmEntity): SequencePosition
 }
 
 interface AlarmSoundPlayer {
