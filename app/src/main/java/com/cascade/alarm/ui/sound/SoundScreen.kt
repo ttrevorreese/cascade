@@ -28,6 +28,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
@@ -192,7 +193,7 @@ fun SoundContent(
     val c = cascadeColors
     val sound = draft.sound
     Scaffold(
-        containerColor = c.ground,
+        containerColor = Color.Transparent, // the floating dots show through (AmbientBackdrop)
         topBar = {
             CascadeTopBar("Sound", onBack = onCancel) {
                 TextButton(onClick = onSave, modifier = Modifier.testTag("save-sound")) { Text("Save sound") }

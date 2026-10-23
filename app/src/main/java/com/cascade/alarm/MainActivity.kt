@@ -15,7 +15,12 @@ import com.cascade.alarm.data.db.AlarmGroupDao
 import com.cascade.alarm.engine.ring.AlarmRingService
 import com.cascade.alarm.engine.ring.RingState
 import com.cascade.alarm.engine.schedule.Reconciler
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.cascade.alarm.ui.CascadeNavHost
+import com.cascade.alarm.ui.components.LocalBackgroundMotion
+import com.cascade.alarm.ui.settings.UiPreferences
 import com.cascade.alarm.ui.camera.PhotoStore
 import com.cascade.alarm.ui.theme.CascadeTheme
 import com.cascade.alarm.ui.theme.CascadeThemes
@@ -32,6 +37,7 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var alarmDao: AlarmDao
     @Inject lateinit var groupDao: AlarmGroupDao
     @Inject lateinit var ringState: RingState
+    @Inject lateinit var uiPreferences: UiPreferences
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -44,8 +50,11 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge(statusBarStyle = bars, navigationBarStyle = bars)
         if (savedInstanceState == null) onAppOpened()
         setContent {
+            val backgroundMotion by uiPreferences.backgroundMotion.collectAsStateWithLifecycle()
             CascadeTheme {
-                CascadeNavHost()
+                CompositionLocalProvider(LocalBackgroundMotion provides backgroundMotion) {
+                    CascadeNavHost()
+                }
             }
         }
     }

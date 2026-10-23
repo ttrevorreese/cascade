@@ -90,6 +90,10 @@ under conventions). It is how the next session knows where to pick up.
 - Permissions are asked at setup (editor), never at alarm time; missing ones fall back.
 - Commit at each working checkpoint with a descriptive message; push only when the owner asks.
 - Copy is plain and slightly dry, sentence case, buttons name their outcome (DESIGN.md §7).
+- Screens with the floating dots (Home, Reliability, Settings, Sound, alarm editor) are wrapped in
+  `AmbientBackdrop` in `CascadeNavHost` and give their Scaffold a transparent container. Keep them
+  off the group screen, escalation editor and firing screen. `LocalBackgroundMotion` defaults to
+  off, so screen tests stay still; a test that turns it on needs `mainClock.autoAdvance = false`.
 - Sound is the group's, never the alarm's. Tone keys are stored in the database: add tones, never
   rename one. Regenerate tones with `python scripts/make_tones.py` (numpy).
 - Anything the ring path plays must be readable before first unlock: bundled, or copied into

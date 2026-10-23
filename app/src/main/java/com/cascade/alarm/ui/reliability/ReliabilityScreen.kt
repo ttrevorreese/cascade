@@ -28,6 +28,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
@@ -172,7 +173,7 @@ fun ReliabilityContent(
     val passes = checks.filter { it.passed }
     var showLog by rememberSaveable { mutableStateOf(false) }
 
-    Scaffold(containerColor = c.ground, topBar = { CascadeTopBar("Reliability", onBack = onBack) }) { padding ->
+    Scaffold(containerColor = Color.Transparent, topBar = { CascadeTopBar("Reliability", onBack = onBack) }) { padding ->
         LazyColumn(
             modifier = Modifier.padding(padding).padding(horizontal = CascadeSpace.gutter),
             verticalArrangement = Arrangement.spacedBy(CascadeSpace.m),

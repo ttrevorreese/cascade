@@ -12,6 +12,8 @@ import com.cascade.alarm.ui.escalation.EscalationScreen
 import com.cascade.alarm.ui.group.GroupScreen
 import com.cascade.alarm.ui.home.HomeScreen
 import com.cascade.alarm.ui.reliability.ReliabilityScreen
+import com.cascade.alarm.ui.components.AmbientBackdrop
+import com.cascade.alarm.ui.settings.SettingsScreen
 import com.cascade.alarm.ui.sound.SoundScreen
 
 object Routes {
@@ -21,6 +23,7 @@ object Routes {
     const val RELIABILITY = "reliability"
     const val ESCALATION = "escalation/{groupId}"
     const val SOUND = "sound/{groupId}"
+    const val SETTINGS = "settings"
 
     fun group(groupId: String) = "group/${Uri.encode(groupId)}"
     fun escalation(groupId: String) = "escalation/${Uri.encode(groupId)}"
@@ -29,15 +32,23 @@ object Routes {
         "alarm/${Uri.encode(groupId)}" + (alarmId?.let { "?alarmId=${Uri.encode(it)}" } ?: "")
 }
 
+/**
+ * Home, Reliability, Settings, Sound and the alarm editor sit on [AmbientBackdrop] (the floating
+ * dots, when on). The group screen and the escalation editor do not: their spine and rail are the
+ * only ornament (DESIGN.md §10).
+ */
 @Composable
 fun CascadeNavHost() {
     val nav = rememberNavController()
     NavHost(navController = nav, startDestination = Routes.HOME) {
         composable(Routes.HOME) {
-            HomeScreen(
-                onOpenGroup = { nav.navigate(Routes.group(it)) },
-                onOpenReliability = { nav.navigate(Routes.RELIABILITY) },
-            )
+            AmbientBackdrop {
+                HomeScreen(
+                    onOpenGroup = { nav.navigate(Routes.group(it)) },
+                    onOpenReliability = { nav.navigate(Routes.RELIABILITY) },
+                    onOpenSettings = { nav.navigate(Routes.SETTINGS) },
+                )
+            }
         }
         composable(Routes.GROUP, arguments = listOf(navArgument("groupId") { type = NavType.StringType })) { entry ->
             val groupId = checkNotNull(entry.arguments?.getString("groupId"))
@@ -59,14 +70,15 @@ fun CascadeNavHost() {
                 },
             ),
         ) {
-            AlarmEditorScreen(onDone = { nav.popBackStack() })
+            AmbientBackdrop { AlarmEditorScreen(onDone = { nav.popBackStack() }) }
         }
         composable(Routes.ESCALATION, arguments = listOf(navArgument("groupId") { type = NavType.StringType })) {
             EscalationScreen(onDone = { nav.popBackStack() })
         }
         composable(Routes.SOUND, arguments = listOf(navArgument("groupId") { type = NavType.StringType })) {
-            SoundScreen(onDone = { nav.popBackStack() })
+            AmbientBackdrop { SoundScreen(onDone = { nav.popBackStack() }) }
         }
-        composable(Routes.RELIABILITY) { ReliabilityScreen(onBack = { nav.popBackStack() }) }
+        composable(Routes.RELIABILITY) { AmbientBackdrop { ReliabilityScreen(onBack = { nav.popBackStack() }) } }
+        composable(Routes.SETTINGS) { AmbientBackdrop { SettingsScreen(onBack = { nav.popBackStack() }) } }
     }
 }

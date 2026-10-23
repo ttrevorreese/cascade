@@ -47,6 +47,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -113,6 +114,7 @@ class HomeViewModel @Inject constructor(
 fun HomeScreen(
     onOpenGroup: (String) -> Unit,
     onOpenReliability: () -> Unit,
+    onOpenSettings: () -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val groups by viewModel.groups.collectAsStateWithLifecycle()
@@ -134,6 +136,7 @@ fun HomeScreen(
         blockers = checks.filter { it.blocker && !it.passed },
         adviceOutstanding = checks.any { !it.blocker && !it.passed },
         onAcknowledge = viewModel::acknowledge,
+        onOpenSettings = onOpenSettings,
     )
 }
 
@@ -151,11 +154,12 @@ fun HomeContent(
     /** Advice still to act on: a dot on the Reliability link, no banner. */
     adviceOutstanding: Boolean = false,
     onAcknowledge: (eventId: String) -> Unit = {},
+    onOpenSettings: () -> Unit = {},
 ) {
     val c = cascadeColors
     var creating by remember { mutableStateOf(false) }
     Scaffold(
-        containerColor = c.ground,
+        containerColor = Color.Transparent, // the floating dots show through (AmbientBackdrop)
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = { creating = true },
@@ -189,6 +193,7 @@ fun HomeContent(
                             )
                         }
                     }
+                    CascadeIconButton(CascadeIcons.Settings, "Settings", onOpenSettings)
                 }
             }
             if (blockers.isNotEmpty()) {

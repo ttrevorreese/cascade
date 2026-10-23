@@ -106,7 +106,7 @@ fun CascadeIconButton(icon: ImageVector, description: String, onClick: () -> Uni
     ) { Icon(icon, contentDescription = description) }
 }
 
-/** Flat top bar on the ground colour, sentence-case title. */
+/** Flat top bar over the screen's ground (and its floating dots, where a screen has them), sentence-case title. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CascadeTopBar(title: String, onBack: (() -> Unit)? = null, actions: @Composable RowScope.() -> Unit = {}) {
@@ -115,7 +115,7 @@ fun CascadeTopBar(title: String, onBack: (() -> Unit)? = null, actions: @Composa
         title = { Text(title, style = CascadeType.screenTitle, color = c.textPrimary) },
         navigationIcon = { if (onBack != null) CascadeIconButton(CascadeIcons.Back, "Back", onBack) },
         actions = actions,
-        colors = TopAppBarDefaults.topAppBarColors(containerColor = c.ground, scrolledContainerColor = c.ground),
+        colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent, scrolledContainerColor = Color.Transparent),
     )
 }
 
@@ -184,4 +184,12 @@ object CascadeIcons {
     val ChevronUp = line("up") { moveTo(6f, 15f); lineTo(12f, 9f); lineTo(18f, 15f) }
     val ChevronDown = line("down") { moveTo(6f, 9f); lineTo(12f, 15f); lineTo(18f, 9f) }
     val Add = line("add") { moveTo(12f, 5f); lineTo(12f, 19f); moveTo(5f, 12f); lineTo(19f, 12f) }
+
+    /** Two sliders, each with a round knob: settings. */
+    val Settings = line("settings") {
+        moveTo(4f, 8f); lineTo(6f, 8f); moveTo(11f, 8f); lineTo(20f, 8f)
+        moveTo(11f, 8f); arcToRelative(2.5f, 2.5f, 0f, true, true, -5f, 0f); arcToRelative(2.5f, 2.5f, 0f, true, true, 5f, 0f)
+        moveTo(4f, 16f); lineTo(13f, 16f); moveTo(18f, 16f); lineTo(20f, 16f)
+        moveTo(18f, 16f); arcToRelative(2.5f, 2.5f, 0f, true, true, -5f, 0f); arcToRelative(2.5f, 2.5f, 0f, true, true, 5f, 0f)
+    }
 }

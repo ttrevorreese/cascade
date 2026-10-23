@@ -299,7 +299,7 @@ These correct or sharpen the sections above, after checking them against current
 4. **Escalation editor** — visual ladder showing position → challenge mapping, with the ability to set each rung. This screen is the product's signature; give it real design attention.
 5. **Alarm firing screen** — full-screen over lock screen. Time, label, challenge UI, snooze button if permitted.
 6. **Reliability Check** — per §4.3.
-7. **Settings** — defaults, test alarm, theme, data export.
+7. **Settings** — defaults, test alarm, theme, data export. **Since 2026-10-23:** a "Background animation" switch for the floating dots (DESIGN.md §6), on by default; opened from the sliders icon on Home.
 8. **Stats** — dismissal times, snooze counts, challenge failure rates, give-up events. Organized people like data about themselves; this is cheap to build and drives retention.
 
 Material 3 components, but **not** Material You dynamic colour — it would override the difficulty ramp, which is the one thing the design is doing. Colours, type and spacing all come from `design/DESIGN.md`. The firing screen must be legible to someone half-asleep: large type, high contrast, generous touch targets, and a first-alarm screen that does not blind at 6am.
@@ -353,6 +353,7 @@ Each milestone should end in a working, installable app.
   - Steps: the counter reports promptly with the screen on; 20 steps completes; permission flow, including the dialog when "Use the suggested ladder" adds a walking rung, and the app-settings route after a refusal (the emulator has no step counter).
   - Reliability Check on One UI 8: the Samsung card's steps match the real settings (Never sleeping apps), "Open the settings" reaches the battery screen rather than app info, and the Fix this buttons land where their text says.
   - Sound (M6): listen to all eight tones at a low and a high alarm volume (levels differ by design, gentle ones are quieter; none should clip or click at the loop point); pick a song from the phone and let it ring; reboot without unlocking and check the picked song still plays (it is copied into device-protected storage); the 30–60 s ramp and the "Start at" level sound right on the S22's speaker.
+  - Floating dots: smooth on the S22 at 120 Hz, no noticeable battery drain with Home left open for 10 minutes, faint but visible at low brightness; check them again on the light themes once the theme picker lands (M7).
   - Launcher icon crop on One UI; the light and pastel themes, and Pewter/Loam on OLED at low brightness (DESIGN.md §2.1, §8).
   - The manual matrix above: Doze, DND, silent mode, after reboot, after update, battery optimisation on and off.
 

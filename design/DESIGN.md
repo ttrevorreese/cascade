@@ -223,6 +223,8 @@ Touch targets are never below 48dp, including the chevrons on alarm rows.
 
 **Escalation editor.** A 5dp gradient rail down the left with the rungs beside it. Each rung shows its challenge, its position, and a five-bar difficulty meter. The selected rung gets a 2dp outline in its own ramp colour.
 
+**Floating dots.** Added 2026-10-23 at the owner's request: about twenty small dots (1.5–3.5dp) drift slowly upward with a little sway behind Home, Reliability, Settings, Sound and the alarm editor. `textSecondary` at 8–22% alpha, never a ramp colour. Not on the group screen or the escalation editor (§10: their spine and rail are the only ornament), and never on the firing screen. On by default, switched off in Settings; they stand still when Android's animations are off (§9). Repaint at most 30 times a second, and only the canvas, never a recomposition.
+
 **Reliability Check.** Problems first, in a bordered warning card with an action button. Passes below as a quiet checklist. Never a wall of green ticks with the one failure buried.
 
 ---

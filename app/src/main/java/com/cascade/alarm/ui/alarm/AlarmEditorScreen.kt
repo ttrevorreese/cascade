@@ -28,6 +28,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -143,7 +144,7 @@ fun AlarmEditorContent(
     var pickingTime by remember { mutableStateOf(false) }
     var confirmingDelete by remember { mutableStateOf(false) }
     Scaffold(
-        containerColor = c.ground,
+        containerColor = Color.Transparent, // the floating dots show through (AmbientBackdrop)
         topBar = {
             CascadeTopBar(if (isNew) "New alarm" else "Edit alarm", onBack = onCancel) {
                 TextButton(onClick = onSave, modifier = Modifier.testTag("save")) { Text("Save alarm") }
