@@ -3,6 +3,7 @@ package com.cascade.alarm.ui.ring
 import android.app.Activity
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import androidx.compose.foundation.layout.Arrangement
@@ -24,6 +25,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -57,7 +59,12 @@ import kotlin.math.max
  * first alarm to full-bleed ramp5 at the last, and the sequence dots say whether more are coming.
  */
 @Composable
-fun AlarmScreen(ringing: RingingAlarm?, onDismiss: () -> Unit) {
+fun AlarmScreen(
+    ringing: RingingAlarm?,
+    onDismiss: () -> Unit,
+    onGiveUp: () -> Unit = {},
+    onDuck: (Boolean) -> Unit = {},
+) {
     var now by remember { mutableStateOf(LocalTime.now()) }
     var instant by remember { mutableStateOf(Instant.now()) }
     LaunchedEffect(Unit) {
@@ -81,6 +88,24 @@ fun AlarmScreen(ringing: RingingAlarm?, onDismiss: () -> Unit) {
     }
     val wakeCheck = ringing?.isWakeCheck == true
     val isLast = ringing != null && ringing.position >= ringing.total - 1
+    val challenge = ringing?.challenge
+    // Keyed to the ring, so a new ring always starts back on the time-and-ask screen.
+    var solving by rememberSaveable(ringing?.alarmId, ringing?.scheduledFor) { mutableStateOf(false) }
+
+    // Quieter while the challenge is being worked on; full volume after 30 s without a touch.
+    var lastInteraction by remember { mutableStateOf<Long?>(null) }
+    var ducked by remember { mutableStateOf(false) }
+    val interact = { lastInteraction = System.nanoTime() }
+    LaunchedEffect(lastInteraction) {
+        if (lastInteraction == null) return@LaunchedEffect
+        if (!ducked) {
+            ducked = true
+            onDuck(true)
+        }
+        delay(DUCK_IDLE_MILLIS)
+        ducked = false
+        onDuck(false)
+    }
 
     Column(
         modifier = Modifier
@@ -105,7 +130,8 @@ fun AlarmScreen(ringing: RingingAlarm?, onDismiss: () -> Unit) {
             color = { palette.text },
             maxLines = 1,
             // Shrinks rather than wraps at large font scales (DESIGN.md §9: works at 200%).
-            autoSize = TextAutoSize.StepBased(minFontSize = 36.sp, maxFontSize = palette.timeSize),
+            // While solving, the time steps back so the challenge has the room.
+            autoSize = TextAutoSize.StepBased(minFontSize = 36.sp, maxFontSize = if (solving) 48.sp else palette.timeSize),
             style = TextStyle(
                 fontFamily = Sora,
                 fontWeight = palette.timeWeight,
@@ -113,8 +139,19 @@ fun AlarmScreen(ringing: RingingAlarm?, onDismiss: () -> Unit) {
                 fontFeatureSettings = "tnum",
                 textAlign = TextAlign.Center,
             ),
-            modifier = Modifier.padding(top = 24.dp),
+            modifier = Modifier.padding(top = if (solving) 8.dp else 24.dp),
         )
+        if (solving && ringing != null && challenge != null) {
+            ChallengeHost(
+                ringing = ringing,
+                config = challenge,
+                onColor = palette.text,
+                onInteract = interact,
+                onComplete = onDismiss,
+                onGiveUp = onGiveUp,
+            )
+            return@Column
+        }
         Text(
             text = when {
                 wakeCheck -> stringResource(R.string.wake_check_title)
@@ -137,9 +174,20 @@ fun AlarmScreen(ringing: RingingAlarm?, onDismiss: () -> Unit) {
         } else if (ringing?.label != null) {
             Text(ringing.label, color = palette.text, style = CascadeType.rowLabel, modifier = Modifier.padding(top = 12.dp))
         }
+        val ask = challenge?.let { challengeAsk(runnableChallenge(it, LocalContext.current)) }
+        if (ask != null) {
+            Text(ask.first, color = palette.text, style = CascadeType.rowLabel, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 12.dp))
+        }
         Spacer(Modifier.height(72.dp))
         Button(
-            onClick = onDismiss,
+            onClick = {
+                if (ask != null) {
+                    solving = true
+                    interact()
+                } else {
+                    onDismiss()
+                }
+            },
             enabled = ringing != null,
             modifier = Modifier.fillMaxWidth().heightIn(min = 88.dp),
             shape = CascadeShapes.firing,
@@ -147,9 +195,12 @@ fun AlarmScreen(ringing: RingingAlarm?, onDismiss: () -> Unit) {
             elevation = null,
         ) {
             Text(
-                stringResource(if (wakeCheck) R.string.wake_check_action else R.string.ring_action_dismiss),
+                ask?.second ?: stringResource(if (wakeCheck) R.string.wake_check_action else R.string.ring_action_dismiss),
                 style = CascadeType.screenTitle,
+                textAlign = TextAlign.Center,
             )
         }
     }
 }
+
+private const val DUCK_IDLE_MILLIS = 30_000L

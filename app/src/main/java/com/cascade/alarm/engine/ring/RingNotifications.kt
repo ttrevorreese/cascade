@@ -27,7 +27,17 @@ class RingNotifications(private val context: Context) {
         val check = ringing?.isWakeCheck == true
         val title = if (check) context.getString(R.string.wake_check_title) else ringing?.label ?: context.getString(R.string.ring_title_default)
         val text = if (check) context.getString(R.string.wake_check_text) else ringing?.let { formatTime(it.scheduledFor) }
-        val action = context.getString(if (check) R.string.wake_check_action else R.string.ring_action_dismiss)
+        // An alarm with a challenge can only be ended on the alarm screen; the shade would be a
+        // way round it (SPEC §6.8). Its action opens the screen instead.
+        val challenged = ringing?.challenge != null
+        val action = context.getString(
+            when {
+                check -> R.string.wake_check_action
+                challenged -> R.string.ring_action_open
+                else -> R.string.ring_action_dismiss
+            },
+        )
+        val actionIntent = if (challenged) activityPendingIntent(null) else dismissPendingIntent()
         return NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_alarm)
             .setContentTitle(title)
@@ -42,7 +52,7 @@ class RingNotifications(private val context: Context) {
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .setFullScreenIntent(activityPendingIntent(null), true)
             .setContentIntent(activityPendingIntent(null))
-            .addAction(0, action, dismissPendingIntent())
+            .addAction(0, action, actionIntent)
             .build()
     }
 

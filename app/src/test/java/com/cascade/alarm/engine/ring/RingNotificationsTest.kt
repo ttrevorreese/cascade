@@ -4,6 +4,7 @@ import android.app.Notification
 import android.app.NotificationManager
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import com.cascade.alarm.data.challenge.ChallengeConfig
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -11,6 +12,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
 import java.time.Instant
 
 @RunWith(RobolectricTestRunner::class)
@@ -38,6 +40,20 @@ class RingNotificationsTest {
         assertEquals(NotificationManager.IMPORTANCE_HIGH, channel.importance)
         assertNull("the service plays the alarm itself", channel.sound)
         assertTrue(!channel.shouldVibrate())
+    }
+
+    @Test
+    fun `a plain alarm can be dismissed from the shade`() {
+        val n = RingNotifications(context).build(ringing)
+        assertEquals("Dismiss", n.actions.single().title)
+        assertTrue(shadowOf(n.actions.single().actionIntent).isServiceIntent)
+    }
+
+    @Test
+    fun `an alarm with a challenge cannot be dismissed from the shade, only opened`() {
+        val n = RingNotifications(context).build(ringing.copy(challenge = ChallengeConfig.Math()))
+        assertEquals("Open", n.actions.single().title)
+        assertTrue(shadowOf(n.actions.single().actionIntent).isActivityIntent)
     }
 
     private companion object {

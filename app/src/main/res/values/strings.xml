@@ -5,6 +5,7 @@
     <string name="ring_channel_name">Ringing alarms</string>
     <string name="ring_title_default">Alarm</string>
     <string name="ring_action_dismiss">Dismiss</string>
+    <string name="ring_action_open">Open</string>
     <string name="ring_last_one">Last one.</string>
     <string name="ring_position">Alarm %1$d of %2$d. More to come.</string>
     <string name="wake_check_title">Are you awake?</string>

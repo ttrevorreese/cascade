@@ -59,6 +59,9 @@ class ExoAlarmSoundPlayer(
     private var rampJob: Job? = null
     private var focusRequest: AudioFocusRequest? = null
     private var volumeToRestore: Int? = null
+    /** Volume from the ramp, and the share of it kept while ducked; the player gets their product. */
+    private var rampGain = 0f
+    private var duckFactor = 1f
 
     override fun start(rampSeconds: Int) {
         startVibration()
@@ -113,16 +116,29 @@ class ExoAlarmSoundPlayer(
             runCatching { audioManager.setStreamVolume(AudioManager.STREAM_ALARM, restore, 0) }
         }
         volumeToRestore = null
+        rampGain = 0f
+        duckFactor = 1f
+    }
+
+    override fun setDucked(ducked: Boolean) {
+        duckFactor = if (ducked) Ducking.GAIN else 1f
+        applyVolume()
+        EngineLog.i("audio ducked=$ducked")
+    }
+
+    private fun applyVolume() {
+        val volume = rampGain * duckFactor
+        player?.volume = volume
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) fallback?.volume = volume
     }
 
     private fun startRamp(rampSeconds: Int) {
         val startedAt = SystemClock.elapsedRealtime()
         rampJob = scope.launch {
             while (isActive) {
-                val gain = VolumeRamp.gain(SystemClock.elapsedRealtime() - startedAt, rampSeconds)
-                player?.volume = gain
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) fallback?.volume = gain
-                if (gain >= 1f) break
+                rampGain = VolumeRamp.gain(SystemClock.elapsedRealtime() - startedAt, rampSeconds)
+                applyVolume()
+                if (rampGain >= 1f) break
                 delay(RAMP_STEP_MILLIS)
             }
         }

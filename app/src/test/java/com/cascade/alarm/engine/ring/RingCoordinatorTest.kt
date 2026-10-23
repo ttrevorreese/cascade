@@ -1,5 +1,6 @@
 package com.cascade.alarm.engine.ring
 
+import com.cascade.alarm.data.challenge.ChallengeConfig
 import com.cascade.alarm.data.db.ActiveRingEntity
 import com.cascade.alarm.data.db.AlarmEntity
 import com.cascade.alarm.data.db.EventType
@@ -84,8 +85,10 @@ class RingCoordinatorTest {
         var starts = 0
         var checking = false
         override fun start(rampSeconds: Int) { playing = true; lastRamp = rampSeconds; starts++ }
+        var quieted = false
         override fun startWakeCheck() { checking = true }
-        override fun stop() { playing = false; checking = false }
+        override fun setDucked(ducked: Boolean) { quieted = ducked }
+        override fun stop() { playing = false; checking = false; quieted = false }
     }
 
     private class FakeWakeLock : RingWakeLock {
@@ -432,5 +435,56 @@ class RingCoordinatorTest {
         coordinator.onFire("a", scheduled)
         assertRinging()
         assertEquals(1, state.current.value?.total)
+    }
+
+    // --- Challenges ---
+
+    @Test
+    fun `the ringing alarm carries its challenge and start time`() = harness {
+        store.alarms["a"] = alarm().copy(challengeOverride = ChallengeConfig.Math())
+        coordinator.onFire("a", scheduled)
+        assertEquals(ChallengeConfig.Math(), state.current.value?.challenge)
+        assertEquals(epoch, state.current.value?.startedAt)
+    }
+
+    @Test
+    fun `a wake-up check never has a challenge`() = harness {
+        store.alarms["a"] = alarm().copy(challengeOverride = ChallengeConfig.Math())
+        store.wakeChecks += "a" to scheduled
+        coordinator.onFire("a", scheduled)
+        assertNull(state.current.value?.challenge)
+    }
+
+    @Test
+    fun `giving up ends the ring, is recorded, and the wake-up check still follows`() = harness {
+        store.alarms["a"] = alarm().copy(challengeOverride = ChallengeConfig.Math())
+        coordinator.onFire("a", scheduled)
+        coordinator.dismiss(gaveUp = true)
+        assertStopped()
+        assertEquals(EventType.GAVE_UP, store.types().last())
+        assertEquals(listOf("a"), store.dismissed)
+    }
+
+    @Test
+    fun `leaving the alarm screen is recorded and the sound comes back up`() = harness {
+        store.alarms["a"] = alarm().copy(challengeOverride = ChallengeConfig.Math())
+        coordinator.onFire("a", scheduled)
+        coordinator.duck(true)
+        assertTrue(sound.quieted)
+        coordinator.leftScreen()
+        assertFalse(sound.quieted)
+        assertRinging()
+        assertEquals("left_screen", store.events.last { it.first == EventType.CHEAT_DETECTED }.second["reason"])
+    }
+
+    @Test
+    fun `only an alarm with a challenge ducks, and leaving with nothing ringing logs nothing`() = harness {
+        coordinator.onFire("a", scheduled)
+        coordinator.duck(true)
+        assertFalse(sound.quieted)
+        coordinator.dismiss()
+        val before = store.events.size
+        coordinator.leftScreen()
+        assertEquals(before, store.events.size)
     }
 }

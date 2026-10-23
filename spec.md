@@ -251,6 +251,19 @@ Scope this carefully — a fight against a determined user is unwinnable and the
 
 **Always provide an escape hatch:** a "give up" affordance after a configurable number of failed attempts or a hard 3-minute cap. It should feel bad (confirmation dialog, logged to stats) but it must exist. Trapping a user who genuinely needs to answer a 3am emergency call is unacceptable.
 
+
+### 6.8 Implementation decisions (added 2026-10-21, M3 planning)
+
+These correct or sharpen the sections above, after checking them against current Android:
+
+- **The ringing notification never dismisses an alarm that has a challenge.** Its action becomes "Open" and leads to the challenge. Only challenge-free alarms and the wake-up check keep a notification dismiss.
+- **"Re-raise the activity" is not possible** on Android 14+ without the overlay permission, which §6.7 rules out. Instead the alarm keeps sounding, the ongoing notification returns the user with one tap, and leaving the alarm screen logs `CHEAT_DETECTED`.
+- **Permissions (camera, activity recognition) are requested while configuring a challenge, never at alarm time.** If one is missing when the alarm fires, or the challenge's data is unreadable (reference photos live in credential storage, so not before first unlock), the alarm falls back to a math challenge. It never becomes undismissable.
+- **ML Kit barcode uses the bundled model**, which works offline and in Direct Boot. QR codes for printing are generated in-app with ZXing core.
+- **Sound while solving:** the alarm drops to about 30% while the user interacts with a challenge, and returns to full volume if they leave the screen or stop for 30 seconds.
+- **Give up** appears after a number of failed attempts or 3 minutes, asks for confirmation, and logs a `GAVE_UP` event, with "Recorded in your history" beneath it.
+- **The alarm timeout still applies during a challenge** and logs `MISSED`. Waiting out a challenge is therefore possible but recorded. The 3-minute give-up is the intended exit.
+- ChallengeConfig is stored as JSON (kotlinx-serialization) in `Alarm.challengeOverride`. Until M4 the per-alarm choice is the only source; M4 adds the group escalation policy beneath it.
 ---
 
 ## 7. Screens

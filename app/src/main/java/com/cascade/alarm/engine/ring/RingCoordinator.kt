@@ -101,16 +101,32 @@ class RingCoordinator(
         begin(ring, alarm)
     }
 
-    /** The user answered: dismisses an alarm, or passes a wake-up check. */
-    suspend fun dismiss() = mutex.withLock {
+    /**
+     * The user answered: dismisses an alarm (its challenge, if any, already done), or passes a
+     * wake-up check. With [gaveUp] the alarm was ended through the challenge's escape hatch, which
+     * is logged as GAVE_UP; either way the user is up, so the wake-up check still follows.
+     */
+    suspend fun dismiss(gaveUp: Boolean = false) = mutex.withLock {
         val active = state.current.value?.let { it.alarmId to it.isWakeCheck }
             ?: try { store.activeRing()?.let { it.alarmId to it.isWakeCheck } } catch (e: Exception) { null }
         if (active?.second == true) {
             finish(EventType.WAKE_CHECK_PASSED, "reason" to "user")
             return@withLock
         }
-        finish(EventType.DISMISSED, "reason" to "user")
+        if (gaveUp) finish(EventType.GAVE_UP, "reason" to "user") else finish(EventType.DISMISSED, "reason" to "user")
         if (active != null) bestEffort { store.afterDismiss(active.first) }
+    }
+
+    /** The alarm screen went to the background while ringing (SPEC §6.7). Sound returns to full. */
+    suspend fun leftScreen() = mutex.withLock {
+        val current = state.current.value ?: return@withLock
+        sound.setDucked(false)
+        bestEffort { store.log(current.alarmId, EventType.CHEAT_DETECTED, "reason" to "left_screen") }
+    }
+
+    /** Quieter while a challenge is being worked on (SPEC §6.8). */
+    suspend fun duck(ducked: Boolean) = mutex.withLock {
+        if (state.current.value?.challenge != null) sound.setDucked(ducked)
     }
 
     private suspend fun begin(ring: ActiveRingEntity, alarm: AlarmEntity?) {
@@ -138,6 +154,9 @@ class RingCoordinator(
         val ringing = RingingAlarm(
             ring.alarmId, alarm?.label, ring.scheduledFor, deadline, ring.isWakeCheck,
             position = sequence.position, total = sequence.total,
+            // Fail open: an alarm that could not be loaded rings with the plain Dismiss button.
+            challenge = if (ring.isWakeCheck) null else alarm?.challengeOverride,
+            startedAt = ring.startedAt,
         )
         state.set(ringing)
         presenter.show(ringing)

@@ -4,6 +4,7 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import com.cascade.alarm.data.challenge.ChallengeConfig
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalTime
@@ -38,6 +39,8 @@ data class AlarmEntity(
     val isEnabled: Boolean,
     val volumeRampSeconds: Int,
     val timeoutMinutes: Int,
+    /** What dismissing it takes; null = just tap Dismiss. From M4 it overrides the group's policy. */
+    val challengeOverride: ChallengeConfig? = null,
     /** The instant currently handed to AlarmManager, or null if nothing is scheduled. */
     val nextTriggerAt: Instant? = null,
     /** Rings once at this instant ahead of the regular schedule (test alarm now, snooze later). */

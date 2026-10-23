@@ -1,5 +1,6 @@
 package com.cascade.alarm.data
 
+import com.cascade.alarm.data.challenge.ChallengeConfig
 import com.cascade.alarm.data.db.AlarmEntity
 import com.cascade.alarm.data.db.AlarmGroupEntity
 import com.cascade.alarm.data.db.time
@@ -57,6 +58,20 @@ object AlarmRules {
         val target = index + delta
         if (index !in list.indices || target !in list.indices) return list
         return list.toMutableList().apply { add(target, removeAt(index)) }
+    }
+
+    /** Keeps a saved challenge within its limits; a barcode with nothing to match is no challenge. */
+    fun normalizeChallenge(challenge: ChallengeConfig?): ChallengeConfig? = when (challenge) {
+        null -> null
+        is ChallengeConfig.Math -> challenge.copy(
+            problemCount = challenge.problemCount.coerceIn(ChallengeConfig.MIN_PROBLEMS, ChallengeConfig.MAX_PROBLEMS),
+        )
+        is ChallengeConfig.TypePhrase -> challenge.copy(phrase = challenge.phrase.trim())
+        is ChallengeConfig.BarcodeScan ->
+            if (challenge.expectedPayload.isEmpty()) null else challenge.copy(label = challenge.label.trim())
+        is ChallengeConfig.Steps -> challenge.copy(count = challenge.count.coerceIn(10, 200))
+        is ChallengeConfig.Memory -> challenge.copy(sequenceLength = challenge.sequenceLength.coerceIn(3, 10))
+        is ChallengeConfig.PhotoMatch -> challenge
     }
 
     /**

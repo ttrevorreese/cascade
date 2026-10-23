@@ -16,6 +16,7 @@
                 <action android:name="com.cascade.alarm.debug.SET_WAKE_CHECK" />
                 <action android:name="com.cascade.alarm.debug.SEED_DEMO" />
                 <action android:name="com.cascade.alarm.debug.RING_POSITION" />
+                <action android:name="com.cascade.alarm.debug.SET_CHALLENGE" />
             </intent-filter>
         </receiver>
     </application>

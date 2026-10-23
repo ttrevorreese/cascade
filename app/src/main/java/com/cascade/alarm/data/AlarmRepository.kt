@@ -122,6 +122,7 @@ class AlarmRepository @Inject constructor(
             isEnabled = alarm.isEnabled,
             volumeRampSeconds = AlarmRules.clampRamp(alarm.volumeRampSeconds),
             timeoutMinutes = AlarmRules.clampTimeout(alarm.timeoutMinutes),
+            challengeOverride = AlarmRules.normalizeChallenge(alarm.challengeOverride),
         )
         alarms.upsert(saved)
         if (existing != null && existing.positionInGroup == 0 && groups.get(saved.groupId)?.shiftWithFirst == true) {

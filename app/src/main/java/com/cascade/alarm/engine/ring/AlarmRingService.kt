@@ -59,7 +59,9 @@ class AlarmRingService : Service(), RingPresenter {
         // A null intent is a sticky restart after the process was killed mid-ring.
         val action = intent?.action ?: ACTION_RESUME
         EngineLog.i("service command $action")
-        if (action != ACTION_DISMISS) {
+        // Only commands that may start a ring need the screen, the foreground slot and the wake lock;
+        // the rest come from the alarm screen while a ring is already running.
+        if (action == ACTION_FIRE || action == ACTION_RESUME) {
             // Wake the display before posting the full-screen notification, like Google's Clock.
             screenWaker.wake()
             // Must happen synchronously: startForegroundService() gives us only a few seconds.
@@ -81,6 +83,9 @@ class AlarmRingService : Service(), RingPresenter {
                     )
                     ACTION_RESUME -> coordinator.onResume(intent?.getBooleanExtra(EXTRA_AFTER_BOOT, false) ?: false)
                     ACTION_DISMISS -> coordinator.dismiss()
+                    ACTION_GIVE_UP -> coordinator.dismiss(gaveUp = true)
+                    ACTION_LEFT_SCREEN -> coordinator.leftScreen()
+                    ACTION_DUCK -> coordinator.duck(intent?.getBooleanExtra(EXTRA_DUCKED, false) ?: false)
                 }
             } finally {
                 commandsInFlight--
@@ -134,6 +139,10 @@ class AlarmRingService : Service(), RingPresenter {
         const val ACTION_FIRE = "com.cascade.alarm.action.RING_FIRE"
         const val ACTION_RESUME = "com.cascade.alarm.action.RING_RESUME"
         const val ACTION_DISMISS = "com.cascade.alarm.action.RING_DISMISS"
+        const val ACTION_GIVE_UP = "com.cascade.alarm.action.RING_GIVE_UP"
+        const val ACTION_LEFT_SCREEN = "com.cascade.alarm.action.RING_LEFT_SCREEN"
+        const val ACTION_DUCK = "com.cascade.alarm.action.RING_DUCK"
+        private const val EXTRA_DUCKED = "ducked"
         private const val EXTRA_ALARM_ID = "alarmId"
         private const val EXTRA_SCHEDULED_FOR = "scheduledFor"
         private const val EXTRA_AFTER_BOOT = "afterBoot"
@@ -149,5 +158,14 @@ class AlarmRingService : Service(), RingPresenter {
 
         fun dismissIntent(context: Context): Intent =
             Intent(context, AlarmRingService::class.java).setAction(ACTION_DISMISS)
+
+        fun giveUpIntent(context: Context): Intent =
+            Intent(context, AlarmRingService::class.java).setAction(ACTION_GIVE_UP)
+
+        fun leftScreenIntent(context: Context): Intent =
+            Intent(context, AlarmRingService::class.java).setAction(ACTION_LEFT_SCREEN)
+
+        fun duckIntent(context: Context, ducked: Boolean): Intent =
+            Intent(context, AlarmRingService::class.java).setAction(ACTION_DUCK).putExtra(EXTRA_DUCKED, ducked)
     }
 }

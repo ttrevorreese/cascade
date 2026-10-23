@@ -1,5 +1,6 @@
 package com.cascade.alarm.engine.ring
 
+import com.cascade.alarm.data.challenge.ChallengeConfig
 import com.cascade.alarm.data.db.ActiveRingEntity
 import com.cascade.alarm.data.db.AlarmEntity
 import com.cascade.alarm.data.db.EventType
@@ -22,6 +23,10 @@ data class RingingAlarm(
     /** Where this alarm sits among the group's alarms that are on (0-based); drives the firing screen. */
     val position: Int = 0,
     val total: Int = 1,
+    /** What dismissing takes; null = the plain Dismiss button. Never set on a wake-up check. */
+    val challenge: ChallengeConfig? = null,
+    /** Start of this ring; the give-up escape hatch counts from here (SPEC §6.7). */
+    val startedAt: Instant = scheduledFor,
 )
 
 data class SequencePosition(val position: Int, val total: Int)
@@ -58,7 +63,15 @@ interface AlarmSoundPlayer {
 
     /** The wake-up check's prompt: vibration only, no alarm sound. */
     fun startWakeCheck()
+
+    /** Quieter while the user works on a challenge; full volume again when [ducked] is false (SPEC §6.8). */
+    fun setDucked(ducked: Boolean)
     fun stop()
+}
+
+object Ducking {
+    /** Share of the ramped volume kept while a challenge is being solved. */
+    const val GAIN = 0.3f
 }
 
 interface RingWakeLock {

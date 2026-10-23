@@ -4,6 +4,8 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
+import android.view.KeyEvent
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.addCallback
@@ -37,7 +39,7 @@ class AlarmActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         showOverLockScreen()
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        // Back must not dismiss the alarm; only the Dismiss button (and, from M3, a challenge) does.
+        // Back must not dismiss the alarm; only the Dismiss button or a finished challenge does.
         onBackPressedDispatcher.addCallback(this) {}
 
         startFallbackRingIfNeeded(intent)
@@ -46,7 +48,12 @@ class AlarmActivity : ComponentActivity() {
         setContent {
             val ringing by ringState.current.collectAsStateWithLifecycle()
             CascadeTheme {
-                AlarmScreen(ringing = ringing, onDismiss = ::dismiss)
+                AlarmScreen(
+                    ringing = ringing,
+                    onDismiss = ::dismiss,
+                    onGiveUp = { startService(AlarmRingService.giveUpIntent(this)) },
+                    onDuck = { startService(AlarmRingService.duckIntent(this, it)) },
+                )
             }
         }
     }
@@ -54,6 +61,26 @@ class AlarmActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         startFallbackRingIfNeeded(intent)
+    }
+
+    /** Volume keys must not silence a ringing alarm (SPEC §6.7). */
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        val volumeKey = keyCode == KeyEvent.KEYCODE_VOLUME_UP || keyCode == KeyEvent.KEYCODE_VOLUME_DOWN ||
+            keyCode == KeyEvent.KEYCODE_VOLUME_MUTE
+        if (volumeKey && ringState.current.value != null) return true
+        return super.onKeyDown(keyCode, event)
+    }
+
+    /**
+     * Going home or switching apps mid-ring is recorded (SPEC §6.7); the alarm keeps sounding and
+     * the notification brings the user back. Turning the screen off is not leaving.
+     */
+    override fun onStop() {
+        super.onStop()
+        val interactive = getSystemService(PowerManager::class.java).isInteractive
+        if (ringState.current.value != null && interactive && !isChangingConfigurations && !isFinishing) {
+            startService(AlarmRingService.leftScreenIntent(this))
+        }
     }
 
     private fun dismiss() {

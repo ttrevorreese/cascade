@@ -1,6 +1,7 @@
 package com.cascade.alarm.data.db
 
 import androidx.room.TypeConverter
+import com.cascade.alarm.data.challenge.ChallengeConfig
 import java.time.DayOfWeek
 import java.time.Instant
 import java.util.EnumSet
@@ -15,6 +16,12 @@ class Converters {
     /** Bit (n-1) set for ISO day n (Monday = bit 0). */
     @TypeConverter
     fun daysToMask(days: Set<DayOfWeek>): Int = days.fold(0) { mask, day -> mask or (1 shl (day.value - 1)) }
+
+    @TypeConverter
+    fun challengeToJson(value: ChallengeConfig?): String? = value?.let(ChallengeConfig::encode)
+
+    @TypeConverter
+    fun jsonToChallenge(value: String?): ChallengeConfig? = value?.let(ChallengeConfig::decode)
 
     @TypeConverter
     fun maskToDays(mask: Int): Set<DayOfWeek> =

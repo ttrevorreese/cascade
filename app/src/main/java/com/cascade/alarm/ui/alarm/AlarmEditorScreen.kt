@@ -171,6 +171,8 @@ fun AlarmEditorContent(
                 modifier = Modifier.fillMaxWidth(),
             )
 
+            ChallengeEditor(draft.challengeOverride) { config -> onEdit { it.copy(challengeOverride = config) } }
+
             Text("Volume ramp: ${draft.volumeRampSeconds} s", style = CascadeType.rowLabel, color = c.textPrimary)
             Slider(
                 value = draft.volumeRampSeconds.toFloat(),

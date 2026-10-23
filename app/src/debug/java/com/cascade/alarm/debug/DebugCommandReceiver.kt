@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import com.cascade.alarm.data.AlarmRepository
 import com.cascade.alarm.data.SystemTestAlarm
+import com.cascade.alarm.data.challenge.ChallengeConfig
 import com.cascade.alarm.engine.EngineEntryPoint
 import com.cascade.alarm.engine.EngineLog
 import com.cascade.alarm.engine.ring.AlarmRingService
@@ -70,6 +71,24 @@ class DebugCommandReceiver : BroadcastReceiver() {
                             val group = db.alarmGroupDao().all().firstOrNull { it.id != SystemTestAlarm.GROUP_ID } ?: return@mutate
                             val alarm = db.alarmDao().inGroup(group.id).getOrNull(position) ?: return@mutate
                             db.alarmDao().upsert(alarm.copy(oneTimeTriggerAt = at))
+                        }
+                    }
+                    // Sets the challenge of the alarm at --ei position: --es kind math|phrase|barcode|none,
+                    // with --es text for the phrase or the barcode payload. Plain extras: JSON does not
+                    // survive the device shell's quoting.
+                    "SET_CHALLENGE" -> {
+                        val position = intent.getIntExtra("position", 0)
+                        val text = intent.getStringExtra("text").orEmpty()
+                        val config = when (intent.getStringExtra("kind")) {
+                            "math" -> ChallengeConfig.Math(problemCount = intent.getIntExtra("count", 3))
+                            "phrase" -> ChallengeConfig.TypePhrase(text)
+                            "barcode" -> ChallengeConfig.BarcodeScan(text.ifEmpty { "cascade:debug" }, "Bathroom mirror")
+                            else -> null
+                        }
+                        reconciler.mutate("debug_challenge") { db ->
+                            val group = db.alarmGroupDao().all().firstOrNull { it.id != SystemTestAlarm.GROUP_ID } ?: return@mutate
+                            val alarm = db.alarmDao().inGroup(group.id).getOrNull(position) ?: return@mutate
+                            db.alarmDao().upsert(alarm.copy(challengeOverride = config))
                         }
                     }
                 }

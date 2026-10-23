@@ -109,4 +109,24 @@ class MigrationTest {
             }
         }
     }
+
+    @Test
+    fun v4AlarmsKeepPlainDismissal() {
+        helper.createDatabase(db, 4).use { v4 ->
+            v4.execSQL(
+                "INSERT INTO alarm_groups (id, name, colorHex, iconKey, isArmed, sortOrder, createdAt, shiftWithFirst, " +
+                    "wakeCheckEnabled, wakeCheckDelayMinutes) VALUES ('g', 'Workday', '#000000', 'default', 1, 0, 0, 1, 0, 3)",
+            )
+            v4.execSQL(
+                "INSERT INTO alarms (id, groupId, positionInGroup, hour, minute, daysOfWeek, label, isEnabled, " +
+                    "volumeRampSeconds, timeoutMinutes) VALUES ('a', 'g', 0, 6, 0, 31, NULL, 1, 30, 15)",
+            )
+        }
+        helper.runMigrationsAndValidate(db, 5, true, Migrations.MIGRATION_4_5).use { v5 ->
+            v5.query("SELECT challengeOverride FROM alarms WHERE id = 'a'").use { c ->
+                c.moveToFirst()
+                assertEquals(true, c.isNull(0))
+            }
+        }
+    }
 }
