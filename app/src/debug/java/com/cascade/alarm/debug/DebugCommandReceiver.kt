@@ -12,6 +12,7 @@ import com.cascade.alarm.data.sound.Tones
 import com.cascade.alarm.engine.EngineEntryPoint
 import com.cascade.alarm.engine.EngineLog
 import com.cascade.alarm.engine.ring.AlarmRingService
+import com.cascade.alarm.ui.settings.AnimationChoice
 import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -32,6 +33,13 @@ class DebugCommandReceiver : BroadcastReceiver() {
         EngineLog.i("debug command $action")
         if (action == "DISMISS") {
             context.startService(AlarmRingService.dismissIntent(context))
+            return
+        }
+        // Look and feel, until M7's Appearance screen: --es theme <id>; --es animation theme|none|<key>.
+        if (action == "SET_THEME" || action == "SET_ANIMATION") {
+            val ui = EntryPointAccessors.fromApplication(context, DebugUiEntryPoint::class.java).uiPreferences()
+            intent.getStringExtra("theme")?.let(ui::setTheme)
+            intent.getStringExtra("animation")?.let { ui.setAnimation(AnimationChoice.fromKey(it)) }
             return
         }
         val pending = goAsync()

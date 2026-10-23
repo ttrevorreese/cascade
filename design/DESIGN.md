@@ -223,7 +223,25 @@ Touch targets are never below 48dp, including the chevrons on alarm rows.
 
 **Escalation editor.** A 5dp gradient rail down the left with the rungs beside it. Each rung shows its challenge, its position, and a five-bar difficulty meter. The selected rung gets a 2dp outline in its own ramp colour.
 
-**Floating dots.** Added 2026-10-23 at the owner's request: about twenty small dots (1.5–3.5dp) drift slowly upward with a little sway behind Home, Reliability, Settings, Sound and the alarm editor. `textSecondary` at 8–22% alpha, never a ramp colour. Not on the group screen or the escalation editor (§10: their spine and rail are the only ornament), and never on the firing screen. On by default, switched off in Settings; they stand still when Android's animations are off (§9). Repaint at most 30 times a second, and only the canvas, never a recomposition.
+**Background animation.** Added 2026-10-23 at the owner's request. A quiet animation plays behind Home, Reliability, Sound and the alarm editor; Settings shows it in a preview window instead. Never on the group screen or the escalation editor (§10: their spine and rail are the only ornament), never on the firing screen. Every animation draws in `textSecondary` at low alpha (about a third more on light grounds, where faint grey vanishes), never a ramp colour; stands still when Android's animations are off (§9); repaints at most 30 times a second, only the canvas.
+
+Each theme family has its own, and **Match the theme** is the default; the user can pick any one instead, or None:
+
+| Family | Animation | |
+|---|---|---|
+| Landscape | Drift | dots rising slowly, like pollen |
+| Earth | Embers | sparks that rise, flicker and burn out |
+| After dark | Stars | still points that twinkle |
+| Quiet | Snow | soft flakes falling |
+| Stark, Daylight, Mineral | Dust | a few motes wandering |
+| Pastel | Bubbles | rings floating up |
+| Terminal | Rain | thin streaks falling |
+| Neon | Pulse | rings that swell and fade, sonar-like |
+| Retro | Orbits | dots circling faint tilted ellipses |
+| Royal | Glints | brief four-point sparkles |
+| Clarity | none | the accessibility family: motion distracts the people it is for |
+
+The table lives in code (`AmbientAnimation.forFamily`); a test fails if a family in `themes.json` has no decision.
 
 **Reliability Check.** Problems first, in a bordered warning card with an action button. Passes below as a quiet checklist. Never a wall of green ticks with the one failure buried.
 

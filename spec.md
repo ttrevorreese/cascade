@@ -299,7 +299,7 @@ These correct or sharpen the sections above, after checking them against current
 4. **Escalation editor** — visual ladder showing position → challenge mapping, with the ability to set each rung. This screen is the product's signature; give it real design attention.
 5. **Alarm firing screen** — full-screen over lock screen. Time, label, challenge UI, snooze button if permitted.
 6. **Reliability Check** — per §4.3.
-7. **Settings** — defaults, test alarm, theme, data export. **Since 2026-10-23:** a "Background animation" switch for the floating dots (DESIGN.md §6), on by default; opened from the sliders icon on Home.
+7. **Settings** — defaults, test alarm, theme, data export. **Since 2026-10-23:** "Background animation" (DESIGN.md §6): Match the theme (default; each theme family has its own animation), one of ten by name, or None, with a live preview; opened from the sliders icon on Home. The chosen theme is stored too, but only a debug command sets it until M7's Appearance screen.
 8. **Stats** — dismissal times, snooze counts, challenge failure rates, give-up events. Organized people like data about themselves; this is cheap to build and drives retention.
 
 Material 3 components, but **not** Material You dynamic colour — it would override the difficulty ramp, which is the one thing the design is doing. Colours, type and spacing all come from `design/DESIGN.md`. The firing screen must be legible to someone half-asleep: large type, high contrast, generous touch targets, and a first-alarm screen that does not blind at 6am.
@@ -320,7 +320,7 @@ Each milestone should end in a working, installable app.
 | M4 | Escalation | Policy resolution, escalation editor screen, reorder semantics |
 | M5 | Reliability | Reliability Check, missed-alarm detector, test alarm, OEM guidance, event logging |
 | M6 | Audio | Built-in tones, device audio picker, volume ramp. **Updated 2026-10-23:** sound is per group; Spotify moved to M7 |
-| M7 | Polish | Spotify behind a feature flag (§9, moved from M6 on 2026-10-23), stats, settings, all fifty-two themes generated from `design/assets/themes.json`, the Appearance screen (its grid generated from the JSON too), per-group themes, the theme-pack purchase, onboarding, accessibility pass |
+| M7 | Polish | Spotify behind a feature flag (§9, moved from M6 on 2026-10-23); the Appearance screen also sets the theme the background animation follows (DESIGN.md §6); stats, settings, all fifty-two themes generated from `design/assets/themes.json`, the Appearance screen (its grid generated from the JSON too), per-group themes, the theme-pack purchase, onboarding, accessibility pass |
 | M8 | Release prep | Play Store listing, permission justifications, privacy policy, closed testing |
 
 **Estimate:** 11–14 weeks of focused solo work to a shipped Play Store release. M1 and M5 together are roughly 40% of the total and are where the difficulty actually lives. The challenge screens look like the bulk of the work but are the easy part. Fifty-two themes cost almost nothing beyond the first two if the token system is built properly at M2 and both the colour table and the picker grid are generated from `design/assets/themes.json`; the single in-app purchase at M7 is a few days. The one real cost is visual QA, since the firing screens want eyeballing per theme.
@@ -353,7 +353,7 @@ Each milestone should end in a working, installable app.
   - Steps: the counter reports promptly with the screen on; 20 steps completes; permission flow, including the dialog when "Use the suggested ladder" adds a walking rung, and the app-settings route after a refusal (the emulator has no step counter).
   - Reliability Check on One UI 8: the Samsung card's steps match the real settings (Never sleeping apps), "Open the settings" reaches the battery screen rather than app info, and the Fix this buttons land where their text says.
   - Sound (M6): listen to all eight tones at a low and a high alarm volume (levels differ by design, gentle ones are quieter; none should clip or click at the loop point); pick a song from the phone and let it ring; reboot without unlocking and check the picked song still plays (it is copied into device-protected storage); the 30–60 s ramp and the "Start at" level sound right on the S22's speaker.
-  - Floating dots: smooth on the S22 at 120 Hz, no noticeable battery drain with Home left open for 10 minutes, faint but visible at low brightness; check them again on the light themes once the theme picker lands (M7).
+  - Background animations: each of the ten smooth on the S22 at 120 Hz, no noticeable battery drain with Home left open for 10 minutes, faint but visible at low brightness; then once the theme picker lands (M7), walk one theme per family and judge whether the family's animation suits it.
   - Launcher icon crop on One UI; the light and pastel themes, and Pewter/Loam on OLED at low brightness (DESIGN.md §2.1, §8).
   - The manual matrix above: Doze, DND, silent mode, after reboot, after update, battery optimisation on and off.
 

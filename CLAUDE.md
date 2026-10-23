@@ -71,7 +71,8 @@ under conventions). It is how the next session knows where to pick up.
   `RING_IN`, `SET_TIMEOUT`, `SET_DAILY`, `DISABLE`, `DISMISS`, `SET_WAKE_CHECK`, `SEED_DEMO`,
   `RING_POSITION --ei position N`, `SET_CHALLENGE --ei position N --es kind math|phrase|barcode|memory|steps|clear`,
   `SET_SOUND --es tone <key> | --es file <name> [--ei ramp S --ei start P]` (first group and the test
-  alarm; a file name that was never copied in exercises the fallback). New debug actions also need
+  alarm; a file name that was never copied in exercises the fallback),
+  `SET_THEME --es theme <id>`, `SET_ANIMATION --es animation theme|none|<key>`. New debug actions also need
   an `<action>` line in `app/src/debug/AndroidManifest.xml`.
 - Read the app's database: `adb exec-out run-as com.cascade.alarm cat .../databases/cascade.db`
   (and `-wal`, `-shm`) into a folder and open with Python's sqlite3. `adb shell cat` mangles binaries.
@@ -90,10 +91,13 @@ under conventions). It is how the next session knows where to pick up.
 - Permissions are asked at setup (editor), never at alarm time; missing ones fall back.
 - Commit at each working checkpoint with a descriptive message; push only when the owner asks.
 - Copy is plain and slightly dry, sentence case, buttons name their outcome (DESIGN.md §7).
-- Screens with the floating dots (Home, Reliability, Settings, Sound, alarm editor) are wrapped in
-  `AmbientBackdrop` in `CascadeNavHost` and give their Scaffold a transparent container. Keep them
-  off the group screen, escalation editor and firing screen. `LocalBackgroundMotion` defaults to
-  off, so screen tests stay still; a test that turns it on needs `mainClock.autoAdvance = false`.
+- Background animations (`AmbientAnimation`, DESIGN.md §6): screens that show one (Home,
+  Reliability, Sound, alarm editor) are wrapped in `AmbientBackdrop` in `CascadeNavHost` and give
+  their Scaffold a transparent container. Keep them off the group screen, escalation editor, firing
+  screen. `LocalAmbientAnimation` defaults to null, so screen tests stay still; a test that sets one
+  needs `mainClock.autoAdvance = false`, or Android's animations off if it scrolls.
+- The stored theme (`UiPreferences.themeId`) drives MainActivity's theme and the animation; only
+  `SET_THEME` changes it until M7. The firing screen does not follow it yet (M7).
 - Sound is the group's, never the alarm's. Tone keys are stored in the database: add tones, never
   rename one. Regenerate tones with `python scripts/make_tones.py` (numpy).
 - Anything the ring path plays must be readable before first unlock: bundled, or copied into

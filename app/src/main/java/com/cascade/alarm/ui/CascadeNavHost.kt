@@ -33,9 +33,9 @@ object Routes {
 }
 
 /**
- * Home, Reliability, Settings, Sound and the alarm editor sit on [AmbientBackdrop] (the floating
- * dots, when on). The group screen and the escalation editor do not: their spine and rail are the
- * only ornament (DESIGN.md §10).
+ * Home, Reliability, Sound and the alarm editor sit on [AmbientBackdrop] (the background
+ * animation, when there is one). The group screen and the escalation editor do not: their spine
+ * and rail are the only ornament (DESIGN.md §10). Settings shows the animation in its own preview.
  */
 @Composable
 fun CascadeNavHost() {
@@ -79,6 +79,6 @@ fun CascadeNavHost() {
             AmbientBackdrop { SoundScreen(onDone = { nav.popBackStack() }) }
         }
         composable(Routes.RELIABILITY) { AmbientBackdrop { ReliabilityScreen(onBack = { nav.popBackStack() }) } }
-        composable(Routes.SETTINGS) { AmbientBackdrop { SettingsScreen(onBack = { nav.popBackStack() }) } }
+        composable(Routes.SETTINGS) { SettingsScreen(onBack = { nav.popBackStack() }) }
     }
 }

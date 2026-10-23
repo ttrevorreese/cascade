@@ -16,10 +16,11 @@ import com.cascade.alarm.engine.ring.AlarmRingService
 import com.cascade.alarm.engine.ring.RingState
 import com.cascade.alarm.engine.schedule.Reconciler
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.cascade.alarm.ui.CascadeNavHost
-import com.cascade.alarm.ui.components.LocalBackgroundMotion
+import com.cascade.alarm.ui.components.LocalAmbientAnimation
 import com.cascade.alarm.ui.settings.UiPreferences
 import com.cascade.alarm.ui.camera.PhotoStore
 import com.cascade.alarm.ui.theme.CascadeTheme
@@ -41,18 +42,23 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Bar icons follow the theme, not the system dark-mode setting (DESIGN.md §2.1).
-        val bars = if (CascadeThemes.default.colors.isLight) {
-            SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
-        } else {
-            SystemBarStyle.dark(Color.TRANSPARENT)
-        }
-        enableEdgeToEdge(statusBarStyle = bars, navigationBarStyle = bars)
         if (savedInstanceState == null) onAppOpened()
         setContent {
-            val backgroundMotion by uiPreferences.backgroundMotion.collectAsStateWithLifecycle()
-            CascadeTheme {
-                CompositionLocalProvider(LocalBackgroundMotion provides backgroundMotion) {
+            val themeId by uiPreferences.themeId.collectAsStateWithLifecycle()
+            val animation by uiPreferences.animation.collectAsStateWithLifecycle()
+            val theme = CascadeThemes.byId(themeId)
+            // Bar icons follow the theme, not the system dark-mode setting (DESIGN.md §2.1).
+            DisposableEffect(theme.colors.isLight) {
+                val bars = if (theme.colors.isLight) {
+                    SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
+                } else {
+                    SystemBarStyle.dark(Color.TRANSPARENT)
+                }
+                enableEdgeToEdge(statusBarStyle = bars, navigationBarStyle = bars)
+                onDispose {}
+            }
+            CascadeTheme(theme) {
+                CompositionLocalProvider(LocalAmbientAnimation provides animation.resolve(theme.id)) {
                     CascadeNavHost()
                 }
             }

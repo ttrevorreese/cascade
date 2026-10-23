@@ -18,6 +18,8 @@
                 <action android:name="com.cascade.alarm.debug.RING_POSITION" />
                 <action android:name="com.cascade.alarm.debug.SET_CHALLENGE" />
                 <action android:name="com.cascade.alarm.debug.SET_SOUND" />
+                <action android:name="com.cascade.alarm.debug.SET_THEME" />
+                <action android:name="com.cascade.alarm.debug.SET_ANIMATION" />
             </intent-filter>
         </receiver>
     </application>
