@@ -42,4 +42,9 @@ data class AlarmGroupEntity(
     /** Perceived loudness the ramp starts from, in percent of full. */
     @ColumnInfo(defaultValue = "15") // SoundSettings.DEFAULT_START_PERCENT
     val rampStartPercent: Int = SoundSettings.DEFAULT_START_PERCENT,
+    /**
+     * The group's own theme (DESIGN.md §11), or null to follow the app theme. Resolved at fire time
+     * by [com.cascade.alarm.ui.theme.ThemeResolution]; an unknown or unowned id falls back silently.
+     */
+    val themeId: String? = null,
 )

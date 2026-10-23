@@ -180,4 +180,21 @@ class MigrationTest {
             }
         }
     }
+
+    @Test
+    fun v7GroupsFollowTheAppTheme() {
+        helper.createDatabase(db, 7).use { v7 ->
+            v7.execSQL(
+                "INSERT INTO alarm_groups (id, name, colorHex, iconKey, isArmed, sortOrder, createdAt) " +
+                    "VALUES ('g', 'Workday', '#000000', 'default', 1, 0, 0)",
+            )
+        }
+        helper.runMigrationsAndValidate(db, 8, true, Migrations.MIGRATION_7_8).use { v8 ->
+            v8.query("SELECT themeId, sound, rampSeconds FROM alarm_groups WHERE id = 'g'").use { c ->
+                c.moveToFirst()
+                assertEquals(true, c.isNull(0))
+                assertEquals(45, c.getInt(2))
+            }
+        }
+    }
 }

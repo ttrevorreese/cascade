@@ -157,6 +157,8 @@ class RingCoordinator(
             position = sequence.position, total = sequence.total,
             challenge = if (ring.isWakeCheck) null else challengeFor(alarm),
             startedAt = ring.startedAt,
+            // Only the look; a failure means the app theme, never a delay.
+            groupThemeId = alarm?.let { try { store.themeFor(it) } catch (e: Exception) { null } },
         )
         // Read before anything audible changes; a failure here means the defaults, never silence.
         val ringSound = if (ring.isWakeCheck) null else soundFor(alarm)

@@ -12,10 +12,11 @@ import com.cascade.alarm.data.sound.Tones
 import com.cascade.alarm.engine.EngineEntryPoint
 import com.cascade.alarm.engine.EngineLog
 import com.cascade.alarm.engine.ring.AlarmRingService
-import com.cascade.alarm.ui.settings.AnimationChoice
+import com.cascade.alarm.ui.components.AnimationChoice
 import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.time.DayOfWeek
 import java.time.Instant
@@ -36,10 +37,24 @@ class DebugCommandReceiver : BroadcastReceiver() {
             return
         }
         // Look and feel, until M7's Appearance screen: --es theme <id>; --es animation theme|none|<key>.
-        if (action == "SET_THEME" || action == "SET_ANIMATION") {
-            val ui = EntryPointAccessors.fromApplication(context, DebugUiEntryPoint::class.java).uiPreferences()
-            intent.getStringExtra("theme")?.let(ui::setTheme)
-            intent.getStringExtra("animation")?.let { ui.setAnimation(AnimationChoice.fromKey(it)) }
+        // --ez owned true|false: pretend Cascade Plus is (not) owned, until Play Billing can be tested.
+        if (action == "SET_THEME" || action == "SET_ANIMATION" || action == "SET_PLUS") {
+            val ui = EntryPointAccessors.fromApplication(context, DebugUiEntryPoint::class.java)
+            intent.getStringExtra("theme")?.let(ui.uiPreferences()::setTheme)
+            intent.getStringExtra("animation")?.let { ui.uiPreferences().setAnimation(AnimationChoice.fromKey(it)) }
+            if (intent.hasExtra("owned")) ui.entitlements().setPlusOwned(intent.getBooleanExtra("owned", false))
+            // --es group <id>|follow: the first listed group's own theme.
+            intent.getStringExtra("group")?.let { theme ->
+                val pending = goAsync()
+                CoroutineScope(Dispatchers.IO).launch {
+                    try {
+                        val group = engine.alarmRepository().observeGroupSummaries().first().firstOrNull()?.group
+                        group?.let { repository.setGroupTheme(it.id, theme.takeUnless { t -> t == "follow" }) }
+                    } finally {
+                        pending.finish()
+                    }
+                }
+            }
             return
         }
         val pending = goAsync()

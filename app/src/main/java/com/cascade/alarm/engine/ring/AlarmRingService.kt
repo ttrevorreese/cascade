@@ -7,7 +7,11 @@ import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.ServiceCompat
+import androidx.compose.ui.graphics.toArgb
+import com.cascade.alarm.data.billing.Entitlements
 import com.cascade.alarm.data.sound.SoundFiles
+import com.cascade.alarm.ui.ring.ringTheme
+import com.cascade.alarm.ui.settings.UiPreferences
 import com.cascade.alarm.engine.EngineLog
 import com.cascade.alarm.engine.TimeSource
 import dagger.hilt.android.AndroidEntryPoint
@@ -32,6 +36,8 @@ class AlarmRingService : Service(), RingPresenter {
     @Inject lateinit var ringState: RingState
     @Inject lateinit var time: TimeSource
     @Inject lateinit var soundFiles: SoundFiles
+    @Inject lateinit var uiPreferences: UiPreferences
+    @Inject lateinit var entitlements: Entitlements
 
     private val scope = CoroutineScope(
         SupervisorJob() + Dispatchers.Main.immediate +
@@ -48,7 +54,7 @@ class AlarmRingService : Service(), RingPresenter {
 
     override fun onCreate() {
         super.onCreate()
-        notifications = RingNotifications(this)
+        notifications = RingNotifications(this) { ringTheme(it.groupThemeId, uiPreferences, entitlements).colors.ramp.last().toArgb() }
         wakeLock = AndroidRingWakeLock(this)
         screenWaker = ScreenWaker(this)
         sound = ExoAlarmSoundPlayer(this, scope, soundFiles::file)

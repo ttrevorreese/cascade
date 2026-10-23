@@ -124,10 +124,10 @@ fun CascadeTopBar(title: String, onBack: (() -> Unit)? = null, actions: @Composa
  * segments (DESIGN.md §6). Decorative; the card states the step count in words beside it.
  */
 @Composable
-fun RampPreview(total: Int, modifier: Modifier = Modifier, dot: Dp = 7.dp, segment: Dp = 14.dp) {
+fun RampPreview(total: Int, modifier: Modifier = Modifier, dot: Dp = 7.dp, segment: Dp = 14.dp, ramp: List<Color> = cascadeColors.ramp) {
     if (total <= 0) return
-    val c = cascadeColors
-    val colors = (0 until total).map { c.ramp(rampStopFor(it, total)) }
+    // [ramp] is a group's own when its card keeps the app's surface (DESIGN.md §11.2).
+    val colors = (0 until total).map { ramp[rampStopFor(it, total).ordinal] }
     Canvas(modifier.width(dot * total + segment * (total - 1)).height(dot)) {
         val r = dot.toPx() / 2
         val step = (dot + segment).toPx()
@@ -184,6 +184,12 @@ object CascadeIcons {
     val ChevronUp = line("up") { moveTo(6f, 15f); lineTo(12f, 9f); lineTo(18f, 15f) }
     val ChevronDown = line("down") { moveTo(6f, 9f); lineTo(12f, 15f); lineTo(18f, 9f) }
     val Add = line("add") { moveTo(12f, 5f); lineTo(12f, 19f); moveTo(5f, 12f); lineTo(19f, 12f) }
+
+    /** A padlock: a theme that is part of Cascade Plus. */
+    val Lock = line("lock") {
+        moveTo(6f, 11f); lineTo(18f, 11f); lineTo(18f, 20f); lineTo(6f, 20f); close()
+        moveTo(8.5f, 11f); lineTo(8.5f, 8f); arcToRelative(3.5f, 3.5f, 0f, false, true, 7f, 0f); lineTo(15.5f, 11f)
+    }
 
     /** Two sliders, each with a round knob: settings. */
     val Settings = line("settings") {

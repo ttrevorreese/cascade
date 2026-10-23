@@ -2,6 +2,17 @@ package com.cascade.alarm.ui.home
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.runtime.CompositionLocalProvider
+import com.cascade.alarm.data.billing.Entitlements
+import com.cascade.alarm.data.db.AlarmGroupEntity
+import com.cascade.alarm.ui.settings.UiPreferences
+import com.cascade.alarm.ui.theme.CascadeColors
+import com.cascade.alarm.ui.theme.CascadeThemes
+import com.cascade.alarm.ui.theme.LocalCascadeColors
+import com.cascade.alarm.ui.theme.ThemeResolution
+import com.cascade.alarm.ui.theme.ThemeSpec
+import kotlinx.coroutines.flow.combine
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.items
@@ -81,7 +92,15 @@ import javax.inject.Inject
 class HomeViewModel @Inject constructor(
     private val repository: AlarmRepository,
     private val reliability: ReliabilityRepository,
+    preferences: UiPreferences,
+    entitlements: Entitlements,
 ) : ViewModel() {
+    /** Each group's theme for its card, resolved the same way as at fire time (DESIGN.md §11.1). */
+    val themeFor: StateFlow<(AlarmGroupEntity) -> ThemeSpec> =
+        combine(preferences.themeId, entitlements.plusOwned) { app, plus ->
+            { group: AlarmGroupEntity -> ThemeResolution.resolve(group.themeId, app) { it.isFree || plus } }
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, { _: AlarmGroupEntity -> CascadeThemes.default })
+
     val groups: StateFlow<List<GroupSummary>?> = repository.observeGroupSummaries()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
@@ -118,6 +137,7 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val groups by viewModel.groups.collectAsStateWithLifecycle()
+    val themeFor by viewModel.themeFor.collectAsStateWithLifecycle()
     val incidents by viewModel.incidents.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var checks by remember { mutableStateOf(emptyList<ReliabilityCheck>()) }
@@ -137,6 +157,7 @@ fun HomeScreen(
         adviceOutstanding = checks.any { !it.blocker && !it.passed },
         onAcknowledge = viewModel::acknowledge,
         onOpenSettings = onOpenSettings,
+        themeFor = themeFor,
     )
 }
 
@@ -155,6 +176,8 @@ fun HomeContent(
     adviceOutstanding: Boolean = false,
     onAcknowledge: (eventId: String) -> Unit = {},
     onOpenSettings: () -> Unit = {},
+    /** A group's own theme for its card; the app theme when not given. */
+    themeFor: ((AlarmGroupEntity) -> ThemeSpec)? = null,
 ) {
     val c = cascadeColors
     var creating by remember { mutableStateOf(false) }
@@ -223,6 +246,7 @@ fun HomeContent(
                 else -> itemsIndexed(groups, key = { _, it -> it.group.id }) { index, summary ->
                     GroupCard(
                         summary = summary,
+                        theme = themeFor?.invoke(summary.group),
                         canMoveUp = index > 0,
                         canMoveDown = index < groups.lastIndex,
                         onClick = { onOpenGroup(summary.group.id) },
@@ -270,13 +294,19 @@ private fun NextAlarm(groups: List<GroupSummary>) {
 @Composable
 private fun GroupCard(
     summary: GroupSummary,
+    theme: ThemeSpec?,
     canMoveUp: Boolean,
     canMoveDown: Boolean,
     onClick: () -> Unit,
     onArmedChange: (Boolean) -> Unit,
     onMove: (Int) -> Unit,
 ) {
-    val c = cascadeColors
+    val app = cascadeColors
+    val group = theme?.colors ?: app
+    // The polarity rule (DESIGN.md §11.2): a group's surface only when it matches the page's
+    // light or dark; otherwise the app's surface, with the group's ramp and a swatch.
+    val samePolarity = group.isLight == app.isLight
+    val c = if (samePolarity) group else app
     val armed = summary.group.isArmed
     val is24Hour = is24HourClock()
     val locale = currentLocale()
@@ -286,18 +316,20 @@ private fun GroupCard(
         color = if (armed) c.surface else c.surfaceMuted,
         modifier = Modifier.fillMaxWidth().testTag("group-${summary.group.id}"),
     ) {
+      CompositionLocalProvider(LocalCascadeColors provides c) {
         Column(Modifier.padding(start = 18.dp, end = 8.dp, top = 14.dp, bottom = 4.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(summary.group.name, style = CascadeType.cardTitle, color = if (armed) c.textPrimary else c.textSecondary)
                     Text(scheduleLine(summary, is24Hour, locale), style = CascadeType.body, color = c.textSecondary)
                 }
+                if (!samePolarity) ThemeSwatch(group, Modifier.padding(end = CascadeSpace.s).testTag("swatch-${summary.group.id}"))
                 CascadeSwitch(armed, onArmedChange, Modifier.testTag("armed-${summary.group.id}"))
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 // A disarmed group loses its ramp preview entirely (DESIGN.md §6).
                 if (armed && summary.alarmCount > 0) {
-                    RampPreview(summary.alarmCount)
+                    RampPreview(summary.alarmCount, ramp = group.ramp)
                     Text(
                         if (summary.alarmCount == 1) "1 step" else "${summary.alarmCount} steps",
                         style = CascadeType.caption,
@@ -310,6 +342,18 @@ private fun GroupCard(
                 CascadeIconButton(CascadeIcons.ChevronDown, "Move ${summary.group.name} down", { onMove(1) }, enabled = canMoveDown)
             }
         }
+      }
+    }
+}
+
+/** A group theme of the other polarity, shown small: its ground with its last ramp stop inside. */
+@Composable
+private fun ThemeSwatch(colors: CascadeColors, modifier: Modifier = Modifier) {
+    Box(
+        modifier.size(18.dp).clip(CircleShape).background(colors.ground).border(1.dp, cascadeColors.line, CircleShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(Modifier.size(8.dp).clip(CircleShape).background(colors.ramp.last()))
     }
 }
 

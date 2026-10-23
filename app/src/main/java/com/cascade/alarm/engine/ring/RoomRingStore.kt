@@ -44,4 +44,6 @@ class RoomRingStore @Inject constructor(
 
     override suspend fun soundFor(alarm: AlarmEntity): RingSound =
         groupDao.get(alarm.groupId)?.let(RingSound::of) ?: RingSound()
+
+    override suspend fun themeFor(alarm: AlarmEntity): String? = groupDao.get(alarm.groupId)?.themeId
 }

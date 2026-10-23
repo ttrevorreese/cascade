@@ -10,6 +10,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasScrollAction
+import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -21,11 +22,12 @@ import androidx.test.core.app.ApplicationProvider
 import com.cascade.alarm.ui.components.AmbientAnimation
 import com.cascade.alarm.ui.components.AmbientBackdrop
 import com.cascade.alarm.ui.components.AmbientCanvas
-import com.cascade.alarm.ui.components.LocalAmbientAnimation
+import com.cascade.alarm.ui.components.LocalAnimationChoice
 import com.cascade.alarm.ui.home.HomeContent
-import com.cascade.alarm.ui.settings.AnimationChoice
-import com.cascade.alarm.ui.settings.SettingsContent
+import com.cascade.alarm.ui.components.AnimationChoice
+import com.cascade.alarm.ui.appearance.AppearanceContent
 import com.cascade.alarm.ui.settings.UiPreferences
+import com.cascade.alarm.ui.theme.CascadeTheme
 import com.cascade.alarm.ui.theme.CascadeThemes
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -44,21 +46,28 @@ class AmbientScreensTest {
     private val context get() = ApplicationProvider.getApplicationContext<Context>()
 
     @Test
-    fun theBackdropShowsWhateverAnimationIsProvided() {
+    fun theBackdropShowsTheChosenAnimationForTheThemeInEffect() {
         // The animations run forever; a manual clock keeps the test from chasing frames.
         compose.mainClock.autoAdvance = false
-        var animation by mutableStateOf<AmbientAnimation?>(AmbientAnimation.DRIFT)
+        var choice by mutableStateOf<AnimationChoice>(AnimationChoice.MatchTheme)
+        var theme by mutableStateOf("forest")
         compose.setContent {
-            CompositionLocalProvider(LocalAmbientAnimation provides animation) {
-                AmbientBackdrop { HomeContent(emptyList(), {}, {}, { _, _ -> }, { _, _ -> }, {}) }
+            CascadeTheme(CascadeThemes.byId(theme)) {
+                CompositionLocalProvider(LocalAnimationChoice provides choice) {
+                    AmbientBackdrop { HomeContent(emptyList(), {}, {}, { _, _ -> }, { _, _ -> }, {}) }
+                }
             }
         }
         compose.mainClock.advanceTimeBy(500)
         compose.onNodeWithTag("ambient-drift").assertExists()
-        animation = AmbientAnimation.SNOW
+        // "Match the theme" follows whatever theme is in effect, a group's included.
+        theme = "night"
+        compose.mainClock.advanceTimeBy(100)
+        compose.onNodeWithTag("ambient-stars").assertExists()
+        choice = AnimationChoice.Fixed(AmbientAnimation.SNOW)
         compose.mainClock.advanceTimeBy(100)
         compose.onNodeWithTag("ambient-snow").assertExists()
-        animation = null
+        choice = AnimationChoice.None
         compose.mainClock.advanceTimeBy(100)
         compose.onNodeWithTag("ambient-snow").assertDoesNotExist()
     }
@@ -128,28 +137,34 @@ class AmbientScreensTest {
     }
 
     @Test
-    fun settingsNamesTheThemesAnimationAndPreviewsTheChoice() {
+    fun appearanceNamesTheThemesAnimationAndPreviewsTheChoice() {
         // Android's "Remove animations": the preview stands still, so the list can scroll and settle.
         Settings.Global.putFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 0f)
         var choice by mutableStateOf<AnimationChoice>(AnimationChoice.MatchTheme)
-        compose.setContent { SettingsContent(choice, "forest", { choice = it }, {}) }
+        compose.setContent { appearance(choice = choice, onAnimation = { choice = it }) }
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasTestTag("animation-theme"))
         compose.onNodeWithText("Forest is in the Landscape family: drift.").assertExists()
-        compose.onNodeWithTag("animation-theme").assertExists()
         compose.onNodeWithTag("ambient-drift").assertExists()
 
-        compose.onNode(hasScrollAction()).performScrollToNode(hasTestTag("animation-snow"))
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasTestTag("animation-snow"))
         compose.onNodeWithText("Snow").performClick()
         assertEquals(AnimationChoice.Fixed(AmbientAnimation.SNOW), choice)
 
-        compose.onNode(hasScrollAction()).performScrollToNode(hasTestTag("animation-none"))
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasTestTag("animation-none"))
         compose.onNodeWithText("None").performClick()
         assertEquals(AnimationChoice.None, choice)
     }
 
     @Test
     fun clarityExplainsWhyItKeepsStill() {
-        compose.setContent { SettingsContent(AnimationChoice.MatchTheme, "beacon", {}, {}) }
+        Settings.Global.putFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 0f)
+        compose.setContent { appearance(themeId = "beacon") }
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasTestTag("animation-theme"))
         compose.onNodeWithText("Beacon is in the Clarity family: no animation, to keep it easy to read.").assertExists()
         compose.onNodeWithText("No animation").assertExists()
     }
+
+    @androidx.compose.runtime.Composable
+    private fun appearance(themeId: String = "forest", choice: AnimationChoice = AnimationChoice.MatchTheme, onAnimation: (AnimationChoice) -> Unit = {}) =
+        AppearanceContent(themeId, choice, plusOwned = false, price = null, onTheme = {}, onAnimation = onAnimation, onBuy = {}, onRestore = {}, onBack = {})
 }

@@ -170,6 +170,7 @@ dependencies {
     implementation(libs.room.ktx)
     ksp(libs.room.compiler)
     implementation(libs.media3.exoplayer)
+    implementation(libs.play.billing)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.serialization.json)
     // Challenges (SPEC §6): camera for QR and photo match; ML Kit's bundled model works offline

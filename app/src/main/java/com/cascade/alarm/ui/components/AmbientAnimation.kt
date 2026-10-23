@@ -21,6 +21,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.dp
+import com.cascade.alarm.ui.theme.CascadeThemes
+import com.cascade.alarm.ui.theme.LocalCascadeTheme
 import com.cascade.alarm.ui.theme.cascadeColors
 import kotlin.math.PI
 import kotlin.math.cos
@@ -79,11 +81,44 @@ enum class AmbientAnimation(val key: String, val label: String, val description:
     }
 }
 
+/** What plays behind the screens: the theme family's own, one picked by name, or nothing. */
+sealed interface AnimationChoice {
+    data object MatchTheme : AnimationChoice
+    data class Fixed(val animation: AmbientAnimation) : AnimationChoice
+    data object None : AnimationChoice
+
+    /** The animation to show under [themeId]; null means a still background. */
+    fun resolve(themeId: String): AmbientAnimation? = when (this) {
+        MatchTheme -> AmbientAnimation.forFamily(CascadeThemes.familyOf(themeId).id)
+        is Fixed -> animation
+        None -> null
+    }
+
+    val key: String
+        get() = when (this) {
+            MatchTheme -> MATCH_THEME
+            is Fixed -> animation.key
+            None -> NONE
+        }
+
+    companion object {
+        private const val MATCH_THEME = "theme"
+        private const val NONE = "none"
+
+        fun fromKey(key: String?): AnimationChoice = when (key) {
+            null, MATCH_THEME -> MatchTheme
+            NONE -> None
+            else -> AmbientAnimation.byKey(key)?.let(::Fixed) ?: MatchTheme
+        }
+    }
+}
+
 /**
- * The animation behind the current screen, or null for none. Provided by MainActivity from the
- * user's choice and theme; null by default so previews and tests stay still.
+ * The user's animation choice, provided by MainActivity. [AmbientBackdrop] resolves it against
+ * the theme in effect, so "Match the theme" follows a group's own theme inside its screens.
+ * None by default so previews and tests stay still.
  */
-val LocalAmbientAnimation = compositionLocalOf<AmbientAnimation?> { null }
+val LocalAnimationChoice = compositionLocalOf<AnimationChoice> { AnimationChoice.None }
 
 /**
  * The screen's ground with the background animation behind [content]. Screens that use it give
@@ -93,7 +128,9 @@ val LocalAmbientAnimation = compositionLocalOf<AmbientAnimation?> { null }
 @Composable
 fun AmbientBackdrop(content: @Composable () -> Unit) {
     Box(Modifier.fillMaxSize().background(cascadeColors.ground)) {
-        LocalAmbientAnimation.current?.let { AmbientCanvas(it, Modifier.fillMaxSize(), animate = !animationsOff()) }
+        LocalAnimationChoice.current.resolve(LocalCascadeTheme.current.id)?.let {
+            AmbientCanvas(it, Modifier.fillMaxSize(), animate = !animationsOff())
+        }
         content()
     }
 }

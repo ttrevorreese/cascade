@@ -18,7 +18,11 @@ import com.cascade.alarm.data.db.ActiveRingDao
 import com.cascade.alarm.engine.EngineLog
 import com.cascade.alarm.engine.ring.AlarmRingService
 import com.cascade.alarm.engine.ring.RingState
+import androidx.compose.runtime.remember
+import com.cascade.alarm.data.billing.Entitlements
+import com.cascade.alarm.ui.settings.UiPreferences
 import com.cascade.alarm.ui.theme.CascadeTheme
+import com.cascade.alarm.ui.theme.SystemBarsFor
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -34,6 +38,8 @@ import javax.inject.Inject
 class AlarmActivity : ComponentActivity() {
     @Inject lateinit var ringState: RingState
     @Inject lateinit var activeRingDao: ActiveRingDao
+    @Inject lateinit var uiPreferences: UiPreferences
+    @Inject lateinit var entitlements: Entitlements
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -47,7 +53,10 @@ class AlarmActivity : ComponentActivity() {
 
         setContent {
             val ringing by ringState.current.collectAsStateWithLifecycle()
-            CascadeTheme {
+            // The group's theme, fully, and already in place: nothing about an alarm fades in (DESIGN.md §11.3).
+            val theme = remember(ringing?.groupThemeId) { ringTheme(ringing?.groupThemeId, uiPreferences, entitlements) }
+            SystemBarsFor(theme.colors.isLight)
+            CascadeTheme(theme) {
                 AlarmScreen(
                     ringing = ringing,
                     onDismiss = ::dismiss,

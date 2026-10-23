@@ -74,7 +74,7 @@ fun CascadeTheme(theme: ThemeSpec = CascadeThemes.default, content: @Composable 
         labelSmall = CascadeType.caption,
     )
     val shapes = Shapes(small = CascadeShapes.small, medium = CascadeShapes.medium, large = CascadeShapes.card)
-    CompositionLocalProvider(LocalCascadeColors provides c) {
+    CompositionLocalProvider(LocalCascadeColors provides c, LocalCascadeTheme provides theme) {
         MaterialTheme(colorScheme = scheme, typography = typography, shapes = shapes, content = content)
     }
 }

@@ -320,6 +320,8 @@ Resolution order, in one shared function: `group.themeId ?? appThemeId ?? "fores
 2. **An unowned theme falls back silently.** If `themeId` names a pack theme and the pack is not owned — a refund, a reinstall, a restore that has not completed — resolve to the app theme and carry on. Never block the alarm, never show a paywall on the firing screen. Show the lock in the group editor instead, where there is time to deal with it.
 3. **An unknown `themeId` falls back the same way.** Treat a missing key as null rather than throwing; a typo in a backup file must not stop an alarm.
 
+**Built 2026-10-23.** `ThemeResolution.resolve` is the one function; the ring carries the group's `themeId` (read at fire time) and the firing screen and notification resolve it. The app theme and the Plus entitlement are kept in device-protected storage so the firing screen can theme itself before the first unlock. The group's theme picker opens in the app theme, so every preview is judged on the same page.
+
 ### 11.2 How far the theme reaches
 
 | Surface | Theme used |
@@ -365,6 +367,8 @@ Rules for the paywall:
 - The unlock button sits at the bottom of the Appearance screen, below the list. Nowhere else in the app.
 - Never gate anything that affects whether an alarm fires or how it behaves. Reliability is not a premium feature, and selling it would be indefensible in a wake-up app.
 - Restore purchases must work offline against the cached Play entitlement, because a user reinstalling on a new phone at midnight should still get their theme.
+
+**Built 2026-10-23.** Product id `cascade_plus` (INAPP). Only Play's own answer changes ownership: a failed connection keeps the cached answer, a full query without Plus means a refund. Purchases are acknowledged at once (Play refunds unacknowledged ones after three days). Families with an idea get one line under the chips (Quiet, Terminal, Neon, Clarity). The Background animation picker lives on the Appearance screen too.
 
 ### 12.1 The app icon is fixed
 

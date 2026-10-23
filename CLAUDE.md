@@ -12,8 +12,13 @@ under conventions). It is how the next session knows where to pick up.
 - **Last finished:** M6 Audio (2026-10-23): sound per group (8 tones, a file from the phone copied
   into device-protected storage), 30–60 s ramp with a "Start at" level, preview, fallback chain
   with `SOUND_FALLBACK` events and a Home card. Decisions: `spec.md` §4.2.
-- **Next:** M7 Polish, which now also holds Spotify (SPEC §9; needs the owner's Spotify Client ID
-  first). Start with a plan for the owner.
+- **In progress:** M7 Polish (started 2026-10-23, plan given and approved). Done: Appearance screen
+  (theme grid from themes.json, background animation picker, unlock button), per-group themes
+  (schema v8, resolved at fire time, Home card polarity rule, firing screen + notification accent),
+  Cascade Plus through Play Billing 8 (`PlayPlusStore`, product `cascade_plus`).
+- **Next in M7:** Settings + Stats, onboarding, accessibility pass, then Spotify (needs the owner's
+  Client ID). Open questions for the owner: add snooze in M7? (not built anywhere yet; spec §5 has
+  `snoozeConfig`); Cascade Plus price, and whether a Play Console account exists.
 - Before starting a milestone: give the owner a short plan and wait for approval (their kickoff
   notes in `design/CLAUDE_CODE_PROMPT.md`), unless they have said to go ahead.
 
@@ -30,7 +35,7 @@ under conventions). It is how the next session knows where to pick up.
 | M4 Escalation | done | per-group ladder, resolved at fire time, escalation editor |
 | M5 Reliability | done | Reliability Check (problems first), missed/late cards with cause from boot time, test result, OEM guidance, event log share |
 | M6 Audio | done | per-group sound, tones from `scripts/make_tones.py`, picked files copied in, ramp 30–60 s + start level, fallback logged and shown on Home |
-| M7 Polish | **next** | Spotify (moved from M6), stats, settings, Appearance screen + 52 themes picker, per-group themes, theme purchase, onboarding |
+| M7 Polish | **in progress** | done: Appearance, per-group themes, Plus purchase. Left: Spotify (moved from M6), stats, settings, Appearance screen + 52 themes picker, per-group themes, theme purchase, onboarding |
 | M8 Release prep | | Play listing, permission declarations, privacy policy |
 
 ## Sources of truth
@@ -72,7 +77,9 @@ under conventions). It is how the next session knows where to pick up.
   `RING_POSITION --ei position N`, `SET_CHALLENGE --ei position N --es kind math|phrase|barcode|memory|steps|clear`,
   `SET_SOUND --es tone <key> | --es file <name> [--ei ramp S --ei start P]` (first group and the test
   alarm; a file name that was never copied in exercises the fallback),
-  `SET_THEME --es theme <id>`, `SET_ANIMATION --es animation theme|none|<key>`. New debug actions also need
+  `SET_THEME --es theme <id> [--es group <id>|follow]` (app theme; first group's own theme),
+  `SET_ANIMATION --es animation theme|none|<key>`, `SET_PLUS --ez owned true|false` (pretend Cascade
+  Plus is owned; a real Play query on the Appearance screen can overwrite it on a phone with Play). New debug actions also need
   an `<action>` line in `app/src/debug/AndroidManifest.xml`.
 - Read the app's database: `adb exec-out run-as com.cascade.alarm cat .../databases/cascade.db`
   (and `-wal`, `-shm`) into a folder and open with Python's sqlite3. `adb shell cat` mangles binaries.
@@ -96,8 +103,12 @@ under conventions). It is how the next session knows where to pick up.
   their Scaffold a transparent container. Keep them off the group screen, escalation editor, firing
   screen. `LocalAmbientAnimation` defaults to null, so screen tests stay still; a test that sets one
   needs `mainClock.autoAdvance = false`, or Android's animations off if it scrolls.
-- The stored theme (`UiPreferences.themeId`) drives MainActivity's theme and the animation; only
-  `SET_THEME` changes it until M7. The firing screen does not follow it yet (M7).
+- Themes: always resolve with `ThemeResolution` (never `CascadeThemes.byId` for display): it applies
+  ownership and the fallbacks. `UiPreferences` and `Entitlements` live in device-protected storage
+  because the firing screen reads them before first unlock. A group's screens are wrapped in
+  `GroupThemed` in `CascadeNavHost`; Home/Settings/Appearance/Reliability use the app theme.
+- Robolectric screen tests with the family chips: scroll the list with `hasScrollToIndexAction()`
+  (the chips row also scrolls) and `performScrollTo()` a chip before clicking it.
 - Sound is the group's, never the alarm's. Tone keys are stored in the database: add tones, never
   rename one. Regenerate tones with `python scripts/make_tones.py` (numpy).
 - Anything the ring path plays must be readable before first unlock: bundled, or copied into

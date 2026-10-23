@@ -30,6 +30,8 @@ data class RingingAlarm(
     val challenge: ChallengeConfig? = null,
     /** Start of this ring; the give-up escape hatch counts from here (SPEC §6.7). */
     val startedAt: Instant = scheduledFor,
+    /** The group's own theme as stored, read at fire time; the UI resolves it (DESIGN.md §11.1). */
+    val groupThemeId: String? = null,
 )
 
 data class SequencePosition(val position: Int, val total: Int)
@@ -65,6 +67,9 @@ interface RingStore {
 
     /** [alarm]'s group's sound and ramp, read at fire time. */
     suspend fun soundFor(alarm: AlarmEntity): RingSound
+
+    /** [alarm]'s group's own theme id, or null to follow the app theme. */
+    suspend fun themeFor(alarm: AlarmEntity): String?
 }
 
 /** What a ring plays and how it gets louder: the group's settings ([AlarmGroupEntity]). */

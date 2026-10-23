@@ -109,6 +109,11 @@ class AlarmRepository @Inject constructor(
         pruneSoundFiles()
     }
 
+    /** The group's own theme, or null to follow the app theme (DESIGN.md §11). */
+    suspend fun setGroupTheme(id: String, themeId: String?) = reconciler.mutate("group_theme") {
+        groups.get(id)?.let { groups.upsert(it.copy(themeId = themeId)) }
+    }
+
     /** Deletes copied audio files that no group plays any more (also ones picked but not saved). */
     suspend fun pruneSoundFiles() {
         val inUse = groups.all().mapNotNullTo(mutableSetOf()) { (it.sound as? SoundConfig.DeviceAudio)?.fileName }

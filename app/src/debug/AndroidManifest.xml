@@ -20,6 +20,7 @@
                 <action android:name="com.cascade.alarm.debug.SET_SOUND" />
                 <action android:name="com.cascade.alarm.debug.SET_THEME" />
                 <action android:name="com.cascade.alarm.debug.SET_ANIMATION" />
+                <action android:name="com.cascade.alarm.debug.SET_PLUS" />
             </intent-filter>
         </receiver>
     </application>

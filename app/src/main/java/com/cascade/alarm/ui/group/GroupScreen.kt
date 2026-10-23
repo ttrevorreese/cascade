@@ -68,7 +68,9 @@ import com.cascade.alarm.ui.home.NameDialog
 import com.cascade.alarm.ui.is24HourClock
 import com.cascade.alarm.ui.theme.CascadeShapes
 import com.cascade.alarm.ui.theme.CascadeSpace
+import com.cascade.alarm.ui.theme.CascadeThemes
 import com.cascade.alarm.ui.theme.CascadeType
+import com.cascade.alarm.ui.theme.LocalCascadeTheme
 import com.cascade.alarm.ui.theme.cascadeColors
 import com.cascade.alarm.ui.theme.rampStopFor
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -120,6 +122,7 @@ fun GroupScreen(
     onOpenAlarm: (alarmId: String?) -> Unit,
     onOpenEscalation: () -> Unit,
     onOpenSound: () -> Unit,
+    onOpenTheme: () -> Unit = {},
     viewModel: GroupViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -141,6 +144,7 @@ fun GroupScreen(
         onWakeCheckChange = viewModel::setWakeCheck,
         onOpenEscalation = onOpenEscalation,
         onOpenSound = onOpenSound,
+        onOpenTheme = onOpenTheme,
     )
 }
 
@@ -160,6 +164,7 @@ fun GroupContent(
     onWakeCheckChange: (enabled: Boolean, delayMinutes: Int) -> Unit,
     onOpenEscalation: () -> Unit = {},
     onOpenSound: () -> Unit = {},
+    onOpenTheme: () -> Unit = {},
 ) {
     val c = cascadeColors
     val policy = group.escalationPolicy
@@ -259,6 +264,7 @@ fun GroupContent(
             if (alarms.isNotEmpty()) {
                 item { EscalationSummary(policy, onOpenEscalation) }
                 item { SoundSummary(group, onOpenSound) }
+                item { ThemeSummary(group, onOpenTheme) }
             }
             // Settings go below the alarms so the sequence itself stays on screen.
             if (alarms.isNotEmpty()) {
@@ -386,6 +392,27 @@ private fun SoundSummary(group: AlarmGroupEntity, onOpen: () -> Unit) {
             )
         }
         SecondaryButton("Change", onOpen, small = true, modifier = Modifier.testTag("change-sound"))
+    }
+}
+
+/** The group's own theme, or that it follows the app's; and when a pack theme is not owned, says so. */
+@Composable
+private fun ThemeSummary(group: AlarmGroupEntity, onOpen: () -> Unit) {
+    val c = cascadeColors
+    // This screen is drawn in the group's resolved theme, so that is what is in effect.
+    val showing = LocalCascadeTheme.current
+    val chosen = group.themeId?.let(CascadeThemes::find)
+    val detail = when {
+        chosen == null -> "Follows the app theme, ${showing.name}"
+        chosen.id != showing.id -> "${chosen.name} needs Cascade Plus; showing ${showing.name} for now"
+        else -> chosen.name
+    }
+    Row(Modifier.fillMaxWidth().padding(top = CascadeSpace.l), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f).padding(end = CascadeSpace.m)) {
+            Text("Theme", style = CascadeType.rowLabel, color = c.textPrimary)
+            Text(detail, style = CascadeType.body, color = c.textSecondary, modifier = Modifier.testTag("theme-summary"))
+        }
+        SecondaryButton("Change", onOpen, small = true, modifier = Modifier.testTag("change-theme"))
     }
 }
 

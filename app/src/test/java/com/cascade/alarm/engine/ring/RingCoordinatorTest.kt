@@ -92,6 +92,12 @@ class RingCoordinatorTest {
             if (failSound) error("db unavailable")
             return sound
         }
+        var theme: String? = "citrus"
+        var failTheme = false
+        override suspend fun themeFor(alarm: AlarmEntity): String? {
+            if (failTheme) error("db unavailable")
+            return theme
+        }
         fun types() = events.map { it.first }
     }
 
@@ -235,6 +241,17 @@ class RingCoordinatorTest {
         assertRinging()
         val fallback = store.events.single { it.first == EventType.SOUND_FALLBACK }.second
         assertEquals(mapOf("scheduledFor" to scheduled, "reason" to "file_missing", "next" to "classic"), fallback)
+    }
+
+    @Test
+    fun `the ring carries its group's theme, and rings without it when it cannot be read`() = harness {
+        coordinator.onFire("a", scheduled)
+        assertEquals("citrus", state.current.value?.groupThemeId)
+        coordinator.dismiss()
+        store.failTheme = true
+        coordinator.onFire("a", scheduled.plusSeconds(60))
+        assertRinging()
+        assertNull(state.current.value?.groupThemeId)
     }
 
     @Test

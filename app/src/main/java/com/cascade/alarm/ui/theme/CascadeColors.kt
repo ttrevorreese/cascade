@@ -59,10 +59,16 @@ object CascadeThemes {
     val families: List<ThemeFamily> = GeneratedThemes.families
     val default: ThemeSpec = byId(GeneratedThemes.DEFAULT)
 
-    fun byId(id: String): ThemeSpec = all.firstOrNull { it.id == id } ?: all.first { it.id == GeneratedThemes.DEFAULT }
+    fun byId(id: String): ThemeSpec = find(id) ?: all.first { it.id == GeneratedThemes.DEFAULT }
+
+    /** The theme with [id], or null for an id this version does not know. */
+    fun find(id: String): ThemeSpec? = all.firstOrNull { it.id == id }
 
     /** The family [themeId] belongs to; an unknown id counts as the default theme's. */
     fun familyOf(themeId: String): ThemeFamily = byId(themeId).id.let { id -> families.first { id in it.themeIds } }
 }
 
 val LocalCascadeColors = staticCompositionLocalOf { CascadeThemes.default.colors }
+
+/** The theme in effect here: the app's, or a group's inside that group's screens (DESIGN.md §11.2). */
+val LocalCascadeTheme = staticCompositionLocalOf { CascadeThemes.default }

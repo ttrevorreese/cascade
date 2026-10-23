@@ -19,7 +19,11 @@ import java.time.format.FormatStyle
  * [AlarmActivity] on screen from the background, so without notification permission the alarm
  * still sounds but cannot take over the lock screen.
  */
-class RingNotifications(private val context: Context) {
+class RingNotifications(
+    private val context: Context,
+    /** The accent for a ring: its theme's last ramp stop (DESIGN.md §11.2), or null for none. */
+    private val accentFor: (RingingAlarm) -> Int? = { null },
+) {
     private val manager = context.getSystemService(NotificationManager::class.java)
 
     fun build(ringing: RingingAlarm?): Notification {
@@ -38,7 +42,9 @@ class RingNotifications(private val context: Context) {
             },
         )
         val actionIntent = if (challenged) activityPendingIntent(null) else dismissPendingIntent()
+        val accent = ringing?.let { runCatching { accentFor(it) }.getOrNull() }
         return NotificationCompat.Builder(context, CHANNEL_ID)
+            .apply { accent?.let(::setColor) }
             .setSmallIcon(R.drawable.ic_stat_alarm)
             .setContentTitle(title)
             .setContentText(text)

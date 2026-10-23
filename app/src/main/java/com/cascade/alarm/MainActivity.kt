@@ -1,11 +1,8 @@
 package com.cascade.alarm
 
-import android.graphics.Color
 import android.os.Bundle
 import androidx.activity.ComponentActivity
-import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.cascade.alarm.data.challenge.ChallengeConfig
@@ -16,15 +13,16 @@ import com.cascade.alarm.engine.ring.AlarmRingService
 import com.cascade.alarm.engine.ring.RingState
 import com.cascade.alarm.engine.schedule.Reconciler
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.cascade.alarm.ui.CascadeNavHost
-import com.cascade.alarm.ui.components.LocalAmbientAnimation
+import com.cascade.alarm.ui.components.LocalAnimationChoice
 import com.cascade.alarm.ui.settings.UiPreferences
 import com.cascade.alarm.ui.camera.PhotoStore
 import com.cascade.alarm.ui.theme.CascadeTheme
-import com.cascade.alarm.ui.theme.CascadeThemes
+import com.cascade.alarm.ui.theme.SystemBarsFor
+import com.cascade.alarm.ui.theme.ThemeResolution
+import com.cascade.alarm.data.billing.Entitlements
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -39,6 +37,7 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var groupDao: AlarmGroupDao
     @Inject lateinit var ringState: RingState
     @Inject lateinit var uiPreferences: UiPreferences
+    @Inject lateinit var entitlements: Entitlements
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -46,19 +45,12 @@ class MainActivity : ComponentActivity() {
         setContent {
             val themeId by uiPreferences.themeId.collectAsStateWithLifecycle()
             val animation by uiPreferences.animation.collectAsStateWithLifecycle()
-            val theme = CascadeThemes.byId(themeId)
-            // Bar icons follow the theme, not the system dark-mode setting (DESIGN.md §2.1).
-            DisposableEffect(theme.colors.isLight) {
-                val bars = if (theme.colors.isLight) {
-                    SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
-                } else {
-                    SystemBarStyle.dark(Color.TRANSPARENT)
-                }
-                enableEdgeToEdge(statusBarStyle = bars, navigationBarStyle = bars)
-                onDispose {}
-            }
+            // Read so that a purchase or refund re-themes at once.
+            val plusOwned by entitlements.plusOwned.collectAsStateWithLifecycle()
+            val theme = ThemeResolution.app(themeId) { it.isFree || plusOwned }
+            SystemBarsFor(theme.colors.isLight)
             CascadeTheme(theme) {
-                CompositionLocalProvider(LocalAmbientAnimation provides animation.resolve(theme.id)) {
+                CompositionLocalProvider(LocalAnimationChoice provides animation) {
                     CascadeNavHost()
                 }
             }
