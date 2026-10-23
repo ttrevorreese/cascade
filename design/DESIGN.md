@@ -336,6 +336,8 @@ Resolution order, in one shared function: `group.themeId ?? appThemeId ?? "fores
 
 **The polarity rule.** A group card on Home uses the group theme's `surface` **only when the group theme's `light` flag matches the app theme's.** When they differ — a light group theme under a dark app theme — the card keeps the app theme's surface and shows the group's identity through the ramp strip plus a small theme swatch. A white card on a dark page reads as a rendering error, not a choice. The artboard shows both cases side by side.
 
+**Added 2026-10-23 at the owner's request:** a switch on the Appearance screen, *Group themes on Home* (on by default), keeps every card in the app theme, ramp included, for anyone who prefers one calm page. The group's own screens and its firing screen keep its theme either way.
+
 Home keeps one background colour regardless. Twenty cards in twenty themes would be a patchwork; the page stays calm and the cards carry the difference.
 
 ### 11.3 Transitions

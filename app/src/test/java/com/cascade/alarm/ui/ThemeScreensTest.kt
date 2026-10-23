@@ -140,4 +140,41 @@ class ThemeScreensTest {
         first.setPlusOwned(true)
         assertTrue(Entitlements(context).owns(CascadeThemes.byId("citrus")))
     }
+
+    @Test
+    fun withGroupThemesOffEveryCardStaysInTheAppTheme() {
+        val group = AlarmGroupEntity("g", "Gym Day", "#000000", "default", true, 0, Instant.EPOCH, themeId = "paper")
+        compose.setContent {
+            CascadeTheme(CascadeThemes.byId("forest")) {
+                HomeContent(listOf(GroupSummary(group, 2, 2, null)), {}, {}, { _, _ -> }, { _, _ -> }, {}, themeFor = null)
+            }
+        }
+        compose.onNodeWithTag("swatch-g", useUnmergedTree = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun appearanceSwitchesGroupThemesOnHome() {
+        var on by mutableStateOf(true)
+        compose.setContent {
+            AppearanceContent(
+                "forest", AnimationChoice.None, plusOwned = false, price = null,
+                onTheme = {}, onAnimation = {}, onBuy = {}, onRestore = {}, onBack = {},
+                groupThemesOnHome = on, onGroupThemesOnHome = { on = it },
+            )
+        }
+        scrollTo("group-themes-on-home")
+        compose.onNodeWithText("Each group's card shows its own theme").assertExists()
+        compose.onNodeWithTag("group-themes-on-home").performClick()
+        assertFalse(on)
+        compose.onNodeWithText("Every card stays in Forest").assertExists()
+    }
+
+    @Test
+    fun groupThemesOnHomeStartsOnAndIsKept() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val first = com.cascade.alarm.ui.settings.UiPreferences(context)
+        assertTrue(first.groupThemesOnHome.value)
+        first.setGroupThemesOnHome(false)
+        assertFalse(com.cascade.alarm.ui.settings.UiPreferences(context).groupThemesOnHome.value)
+    }
 }

@@ -95,11 +95,14 @@ class HomeViewModel @Inject constructor(
     preferences: UiPreferences,
     entitlements: Entitlements,
 ) : ViewModel() {
-    /** Each group's theme for its card, resolved the same way as at fire time (DESIGN.md §11.1). */
-    val themeFor: StateFlow<(AlarmGroupEntity) -> ThemeSpec> =
-        combine(preferences.themeId, entitlements.plusOwned) { app, plus ->
-            { group: AlarmGroupEntity -> ThemeResolution.resolve(group.themeId, app) { it.isFree || plus } }
-        }.stateIn(viewModelScope, SharingStarted.Eagerly, { _: AlarmGroupEntity -> CascadeThemes.default })
+    /**
+     * Each group's theme for its card, resolved the same way as at fire time (DESIGN.md §11.1);
+     * null when the user keeps every card in the app theme.
+     */
+    val themeFor: StateFlow<((AlarmGroupEntity) -> ThemeSpec)?> =
+        combine(preferences.themeId, entitlements.plusOwned, preferences.groupThemesOnHome) { app, plus, on ->
+            if (!on) null else { group: AlarmGroupEntity -> ThemeResolution.resolve(group.themeId, app) { it.isFree || plus } }
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     val groups: StateFlow<List<GroupSummary>?> = repository.observeGroupSummaries()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
@@ -176,7 +179,7 @@ fun HomeContent(
     adviceOutstanding: Boolean = false,
     onAcknowledge: (eventId: String) -> Unit = {},
     onOpenSettings: () -> Unit = {},
-    /** A group's own theme for its card; the app theme when not given. */
+    /** A group's own theme for its card; the app theme for every card when null. */
     themeFor: ((AlarmGroupEntity) -> ThemeSpec)? = null,
 ) {
     val c = cascadeColors

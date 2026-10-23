@@ -3,6 +3,7 @@ package com.cascade.alarm.ui.appearance
 import android.app.Activity
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
@@ -17,6 +18,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
@@ -26,6 +28,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.cascade.alarm.data.billing.Entitlements
 import com.cascade.alarm.data.billing.PlusStore
 import com.cascade.alarm.ui.components.AnimationChoice
+import com.cascade.alarm.ui.components.CascadeSwitch
 import com.cascade.alarm.ui.components.CascadeTopBar
 import com.cascade.alarm.ui.components.SecondaryButton
 import com.cascade.alarm.ui.settings.UiPreferences
@@ -48,6 +51,7 @@ class AppearanceViewModel @Inject constructor(
     val animation: StateFlow<AnimationChoice> = preferences.animation
     val plusOwned: StateFlow<Boolean> = entitlements.plusOwned
     val price: StateFlow<String?> = store.price
+    val groupThemesOnHome: StateFlow<Boolean> = preferences.groupThemesOnHome
 
     init {
         // Ownership can change elsewhere (a purchase on another device, a refund): ask on each visit.
@@ -56,6 +60,7 @@ class AppearanceViewModel @Inject constructor(
 
     fun setTheme(theme: ThemeSpec) = preferences.setTheme(theme.id)
     fun setAnimation(choice: AnimationChoice) = preferences.setAnimation(choice)
+    fun setGroupThemesOnHome(on: Boolean) = preferences.setGroupThemesOnHome(on)
     fun buy(activity: Activity) = store.buy(activity)
     fun restore() = store.refresh()
 }
@@ -66,6 +71,7 @@ fun AppearanceScreen(onBack: () -> Unit, viewModel: AppearanceViewModel = hiltVi
     val animation by viewModel.animation.collectAsStateWithLifecycle()
     val plusOwned by viewModel.plusOwned.collectAsStateWithLifecycle()
     val price by viewModel.price.collectAsStateWithLifecycle()
+    val groupThemesOnHome by viewModel.groupThemesOnHome.collectAsStateWithLifecycle()
     val activity = LocalActivity.current
     AppearanceContent(
         themeId = themeId,
@@ -77,6 +83,8 @@ fun AppearanceScreen(onBack: () -> Unit, viewModel: AppearanceViewModel = hiltVi
         onBuy = { activity?.let(viewModel::buy) },
         onRestore = viewModel::restore,
         onBack = onBack,
+        groupThemesOnHome = groupThemesOnHome,
+        onGroupThemesOnHome = viewModel::setGroupThemesOnHome,
     )
 }
 
@@ -95,6 +103,8 @@ fun AppearanceContent(
     onBuy: () -> Unit,
     onRestore: () -> Unit,
     onBack: () -> Unit,
+    groupThemesOnHome: Boolean = true,
+    onGroupThemesOnHome: (Boolean) -> Unit = {},
 ) {
     val c = cascadeColors
     val owns = { theme: ThemeSpec -> theme.isFree || plusOwned }
@@ -132,6 +142,22 @@ fun AppearanceContent(
                         sheetFor = theme.id
                         sheetOpen = true
                     }
+                }
+            }
+            item {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = CascadeSpace.gutter).padding(top = CascadeSpace.xl),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f).padding(end = CascadeSpace.m)) {
+                        Text("Group themes on Home", style = CascadeType.rowLabel, color = c.textPrimary)
+                        Text(
+                            if (groupThemesOnHome) "Each group's card shows its own theme" else "Every card stays in ${CascadeThemes.byId(themeId).name}",
+                            style = CascadeType.body,
+                            color = c.textSecondary,
+                        )
+                    }
+                    CascadeSwitch(groupThemesOnHome, onGroupThemesOnHome, Modifier.testTag("group-themes-on-home"))
                 }
             }
             item { Spacer(Modifier.height(CascadeSpace.xxl)) }

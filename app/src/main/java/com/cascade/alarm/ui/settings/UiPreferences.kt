@@ -26,12 +26,24 @@ class UiPreferences @Inject constructor(@ApplicationContext context: Context) {
 
     private val mutableAnimation = MutableStateFlow(readAnimation())
     private val mutableThemeId = MutableStateFlow(prefs.getString(THEME, null) ?: CascadeThemes.default.id)
+    private val mutableGroupThemesOnHome = MutableStateFlow(prefs.getBoolean(GROUP_THEMES_ON_HOME, true))
 
     /** The background animation; matching the theme by default (owner's request, 2026-10-23). */
     val animation: StateFlow<AnimationChoice> = mutableAnimation.asStateFlow()
 
     /** The app theme as chosen; resolve it with ThemeResolution, which checks ownership. */
     val themeId: StateFlow<String> = mutableThemeId.asStateFlow()
+
+    /**
+     * Whether Home's group cards show each group's own theme (DESIGN.md §11.2), or all stay in the
+     * app theme. On by default; added at the owner's request, 2026-10-23.
+     */
+    val groupThemesOnHome: StateFlow<Boolean> = mutableGroupThemesOnHome.asStateFlow()
+
+    fun setGroupThemesOnHome(on: Boolean) {
+        prefs.edit().putBoolean(GROUP_THEMES_ON_HOME, on).apply()
+        mutableGroupThemesOnHome.value = on
+    }
 
     fun setAnimation(choice: AnimationChoice) {
         prefs.edit().putString(ANIMATION, choice.key).apply()
@@ -56,5 +68,6 @@ class UiPreferences @Inject constructor(@ApplicationContext context: Context) {
         const val ANIMATION = "background_animation"
         const val OLD_SWITCH = "background_motion"
         const val THEME = "theme"
+        const val GROUP_THEMES_ON_HOME = "group_themes_on_home"
     }
 }
