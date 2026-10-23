@@ -14,6 +14,7 @@ import androidx.compose.ui.test.performTextReplacement
 import com.cascade.alarm.data.challenge.ChallengeConfig
 import com.cascade.alarm.data.challenge.Difficulty
 import com.cascade.alarm.data.challenge.MathProblems
+import com.cascade.alarm.data.challenge.MemorySequence
 import com.cascade.alarm.data.challenge.challengeSeed
 import com.cascade.alarm.engine.ring.RingingAlarm
 import com.cascade.alarm.ui.alarm.ChallengeEditor
@@ -132,5 +133,57 @@ class ChallengeScreensTest {
         compose.onNodeWithText("Leave empty for four random words each time.").assertExists()
         compose.onNodeWithTag("challenge-none").performClick()
         assertEquals(null, challenge)
+    }
+
+    @Test
+    fun theMemorySequenceIsShownThenRepeated() {
+        val config = ChallengeConfig.Memory(4)
+        val sequence = MemorySequence.generate(challengeSeed("a", scheduled), 4)
+        val names = listOf("Circle", "Square", "Triangle", "Diamond")
+        var dismissed = 0
+        compose.setContent { AlarmScreen(ringing(config), onDismiss = { dismissed++ }) }
+        compose.onNodeWithText("Repeat a sequence of 4 to dismiss.").assertExists()
+        compose.onNodeWithText("Show the sequence").performClick()
+        compose.onNodeWithText("Watch the sequence.").assertExists()
+        compose.mainClock.advanceTimeBy(5_000)
+        compose.onNodeWithText("Repeat it: 0 of 4").assertExists()
+        // A wrong first pad replays the sequence.
+        compose.onNodeWithContentDescription(names[(sequence[0] + 1) % 4]).performClick()
+        compose.mainClock.advanceTimeBy(100)
+        compose.onNodeWithText("Not quite. Watch again.").assertExists()
+        compose.mainClock.advanceTimeBy(5_000)
+        compose.onNodeWithText("Repeat it: 0 of 4").assertExists()
+        sequence.forEach { compose.onNodeWithContentDescription(names[it]).performClick() }
+        compose.waitForIdle()
+        assertEquals(1, dismissed)
+    }
+
+    @Test
+    fun stepsWithoutAStepSensorAskForSumsInstead() {
+        // Robolectric has no step counter, like some phones.
+        compose.setContent { AlarmScreen(ringing(ChallengeConfig.Steps(30)), onDismiss = {}) }
+        compose.onNodeWithText("Solve 3 sums to dismiss.").assertExists()
+    }
+
+    @Test
+    fun aPhotoWithoutCameraAccessAsksForSumsInstead() {
+        val config = ChallengeConfig.PhotoMatch("p", signature = "ab".repeat(136), label = "Toothbrush")
+        compose.setContent { AlarmScreen(ringing(config), onDismiss = {}) }
+        compose.onNodeWithText("Solve 3 sums to dismiss.").assertExists()
+    }
+
+    @Test
+    fun theEditorOffersTheM3bChallenges() {
+        var challenge by mutableStateOf<ChallengeConfig?>(null)
+        compose.setContent { ChallengeEditor(challenge) { challenge = it } }
+        compose.onNodeWithTag("challenge-memory").performClick()
+        compose.onNodeWithText("More").performClick()
+        assertEquals(ChallengeConfig.Memory(6), challenge)
+        compose.onNodeWithTag("challenge-steps").performClick()
+        compose.onNodeWithText("More").performClick()
+        assertEquals(ChallengeConfig.Steps(30), challenge)
+        compose.onNodeWithText("This phone has no step counter, so this alarm asks for sums instead.").assertExists()
+        compose.onNodeWithTag("challenge-photo").performClick()
+        compose.onNodeWithText("Take the reference photo").assertExists()
     }
 }

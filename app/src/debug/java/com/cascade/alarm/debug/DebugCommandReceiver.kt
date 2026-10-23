@@ -73,7 +73,7 @@ class DebugCommandReceiver : BroadcastReceiver() {
                             db.alarmDao().upsert(alarm.copy(oneTimeTriggerAt = at))
                         }
                     }
-                    // Sets the challenge of the alarm at --ei position: --es kind math|phrase|barcode|none,
+                    // Sets the challenge of the alarm at --ei position: --es kind math|phrase|barcode|memory|steps|none,
                     // with --es text for the phrase or the barcode payload. Plain extras: JSON does not
                     // survive the device shell's quoting.
                     "SET_CHALLENGE" -> {
@@ -83,6 +83,8 @@ class DebugCommandReceiver : BroadcastReceiver() {
                             "math" -> ChallengeConfig.Math(problemCount = intent.getIntExtra("count", 3))
                             "phrase" -> ChallengeConfig.TypePhrase(text)
                             "barcode" -> ChallengeConfig.BarcodeScan(text.ifEmpty { "cascade:debug" }, "Bathroom mirror")
+                            "memory" -> ChallengeConfig.Memory(intent.getIntExtra("count", 5))
+                            "steps" -> ChallengeConfig.Steps(intent.getIntExtra("count", 20))
                             else -> null
                         }
                         reconciler.mutate("debug_challenge") { db ->

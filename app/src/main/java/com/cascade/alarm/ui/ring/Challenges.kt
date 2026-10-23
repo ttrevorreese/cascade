@@ -1,6 +1,25 @@
 package com.cascade.alarm.ui.ring
 
 import android.content.Context
+import androidx.compose.foundation.Image
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.layout.ContentScale
+import com.cascade.alarm.data.challenge.MemorySequence
+import com.cascade.alarm.data.challenge.PhotoHash
+import com.cascade.alarm.data.challenge.StepProgress
+import com.cascade.alarm.ui.camera.PhotoCamera
+import com.cascade.alarm.ui.camera.PhotoCameraState
+import com.cascade.alarm.ui.camera.PhotoGrids
+import com.cascade.alarm.ui.camera.PhotoStore
+import com.cascade.alarm.ui.camera.StepSensor
+import com.cascade.alarm.ui.camera.rememberStepCounter
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -63,13 +82,16 @@ import java.time.Duration
 import java.time.Instant
 
 /**
- * The challenge actually shown for [configured]: one that cannot run here (no camera permission,
- * or a type whose screen arrives in M3b) becomes the math fallback, never a dead end (SPEC §6.8).
+ * The challenge actually shown for [configured]: one that cannot run here (no camera or step
+ * sensor, a permission revoked since setup, a photo with no fingerprint) becomes the math
+ * fallback, never a dead end (SPEC §6.8).
  */
 fun runnableChallenge(configured: ChallengeConfig, context: Context): ChallengeConfig = when (configured) {
-    is ChallengeConfig.Math, is ChallengeConfig.TypePhrase -> configured
+    is ChallengeConfig.Math, is ChallengeConfig.TypePhrase, is ChallengeConfig.Memory -> configured
     is ChallengeConfig.BarcodeScan -> if (hasCameraPermission(context)) configured else ChallengeConfig.FALLBACK
-    is ChallengeConfig.Steps, is ChallengeConfig.PhotoMatch, is ChallengeConfig.Memory -> ChallengeConfig.FALLBACK
+    is ChallengeConfig.PhotoMatch ->
+        if (hasCameraPermission(context) && configured.signature.isNotEmpty()) configured else ChallengeConfig.FALLBACK
+    is ChallengeConfig.Steps -> if (StepSensor.usable(context)) configured else ChallengeConfig.FALLBACK
 }
 
 /** What the firing screen says is being asked, and what its button does (DESIGN.md §7). */
@@ -80,8 +102,10 @@ fun challengeAsk(config: ChallengeConfig): Pair<String, String> = when (config) 
     is ChallengeConfig.BarcodeScan ->
         (if (config.label.isBlank()) "Scan your code to dismiss." else "Scan the code at ${config.label}.") to "Open the scanner"
     is ChallengeConfig.Steps -> "Walk ${config.count} steps to dismiss." to "Start walking"
-    is ChallengeConfig.PhotoMatch -> "Take the matching photo to dismiss." to "Open the camera"
-    is ChallengeConfig.Memory -> "Repeat the sequence to dismiss." to "Start"
+    is ChallengeConfig.PhotoMatch ->
+        (if (config.label.isBlank()) "Photograph your matching spot to dismiss." else "Photograph the ${config.label.lowercase()} to dismiss.") to
+            "Open the camera"
+    is ChallengeConfig.Memory -> "Repeat a sequence of ${config.sequenceLength} to dismiss." to "Show the sequence"
 }
 
 /**
@@ -125,7 +149,9 @@ fun ChallengeHost(
             is ChallengeConfig.Math -> MathChallenge(shown, seed, onColor, onInteract, miss, complete)
             is ChallengeConfig.TypePhrase -> PhraseChallenge(shown.phrase.ifBlank { Phrases.generated(seed) }, onColor, onInteract, complete)
             is ChallengeConfig.BarcodeScan -> BarcodeChallenge(shown, onColor, onInteract, miss, complete) { cameraFailed = true }
-            else -> Unit // runnableChallenge never returns the M3b types yet
+            is ChallengeConfig.PhotoMatch -> PhotoChallenge(shown, onColor, onInteract, miss, complete) { cameraFailed = true }
+            is ChallengeConfig.Steps -> StepsChallenge(shown, onColor, complete)
+            is ChallengeConfig.Memory -> MemoryChallenge(shown, seed, onColor, onInteract, miss, complete)
         }
         if (GiveUp.available(misses, Duration.between(ringing.startedAt, now))) GiveUpHatch(onColor, onGiveUp)
     }
@@ -306,3 +332,176 @@ private fun BarcodeChallenge(
     )
     Text(if (lastWrong != null) "That is a different code." else " ", color = onColor, style = CascadeType.rowLabel)
 }
+
+@Composable
+private fun PhotoChallenge(
+    config: ChallengeConfig.PhotoMatch,
+    onColor: Color,
+    onInteract: () -> Unit,
+    onMiss: () -> Unit,
+    onComplete: () -> Unit,
+    onCameraFailed: () -> Unit,
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val camera = remember { PhotoCameraState() }
+    // Unreadable before first unlock (credential storage); matching still works from the fingerprint.
+    val reference = remember(config.referencePhotoId) { PhotoStore.load(context, config.referencePhotoId)?.asImageBitmap() }
+    var checking by remember { mutableStateOf(false) }
+    var missed by rememberSaveable { mutableStateOf(false) }
+    val what = config.label.ifBlank { "the spot you photographed" }
+
+    Text("Take a photo of $what, like this one.", color = onColor, style = CascadeType.rowLabel, textAlign = TextAlign.Center)
+    Row(
+        Modifier.padding(vertical = 12.dp).fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Box(Modifier.weight(1f).aspectRatio(0.75f).clip(CascadeShapes.medium), contentAlignment = Alignment.Center) {
+            if (reference != null) {
+                Image(reference, contentDescription = "Your reference photo", contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
+            } else {
+                Text(config.label.ifBlank { "Your reference photo" }, color = onColor, style = CascadeType.rowLabel, textAlign = TextAlign.Center)
+            }
+        }
+        PhotoCamera(camera, onUnavailable = onCameraFailed, modifier = Modifier.weight(1f).aspectRatio(0.75f).clip(CascadeShapes.medium))
+    }
+    Text(
+        if (missed) "Not quite. Line it up like the reference and try again." else " ",
+        color = onColor,
+        style = CascadeType.rowLabel,
+        textAlign = TextAlign.Center,
+    )
+    OutlinedButton(
+        onClick = {
+            onInteract()
+            checking = true
+            scope.launch {
+                val photo = camera.take(context)
+                val matched = photo != null && withContext(Dispatchers.Default) {
+                    PhotoHash.matches(config.signature, PhotoGrids.candidate(photo), config.threshold)
+                }
+                checking = false
+                when {
+                    photo == null -> onCameraFailed()
+                    matched -> onComplete()
+                    else -> {
+                        missed = true
+                        onMiss()
+                    }
+                }
+            }
+        },
+        enabled = !checking,
+        modifier = Modifier.padding(top = 8.dp).fillMaxWidth().heightIn(min = 64.dp),
+        shape = CascadeShapes.firing,
+        border = BorderStroke(2.dp, onColor),
+    ) { Text(if (checking) "Checking" else "Take the photo", color = onColor, style = CascadeType.screenTitle) }
+}
+
+@Composable
+private fun StepsChallenge(config: ChallengeConfig.Steps, onColor: Color, onComplete: () -> Unit) {
+    val counter by rememberStepCounter()
+    var progress by remember { mutableStateOf(StepProgress()) }
+    LaunchedEffect(counter) {
+        counter?.let { progress = progress.record(it) }
+        if (progress.done(config.count)) onComplete()
+    }
+    val walked = progress.walked.coerceAtMost(config.count)
+    Text("Get up and walk.", color = onColor, style = CascadeType.rowLabel)
+    Text(
+        "$walked of ${config.count}",
+        color = onColor,
+        style = TextStyle(fontFamily = Sora, fontSize = 56.sp, fontFeatureSettings = "tnum", textAlign = TextAlign.Center),
+        modifier = Modifier.padding(vertical = 16.dp).semantics { contentDescription = "$walked of ${config.count} steps" },
+    )
+    LinearProgressIndicator(
+        progress = { walked.toFloat() / config.count },
+        color = onColor,
+        trackColor = onColor.copy(alpha = 0.25f),
+        modifier = Modifier.fillMaxWidth().heightIn(min = 10.dp).clip(CascadeShapes.small),
+    )
+    Text("steps", color = onColor, style = CascadeType.body, modifier = Modifier.padding(top = 8.dp))
+}
+
+/** Pad shapes, so the sequence reads by shape and position, never by colour alone (DESIGN.md §9). */
+private val PAD_NAMES = listOf("Circle", "Square", "Triangle", "Diamond")
+private val PAD_SYMBOLS = listOf("●", "■", "▲", "◆")
+
+@Composable
+private fun MemoryChallenge(
+    config: ChallengeConfig.Memory,
+    seed: Long,
+    onColor: Color,
+    onInteract: () -> Unit,
+    onMiss: () -> Unit,
+    onComplete: () -> Unit,
+) {
+    val sequence = remember(seed, config) { MemorySequence.generate(seed, config.sequenceLength) }
+    var entered by rememberSaveable { mutableStateOf(listOf<Int>()) }
+    var showing by rememberSaveable { mutableStateOf(true) }
+    var lit by remember { mutableStateOf<Int?>(null) }
+    var replays by rememberSaveable { mutableStateOf(0) }
+    var wrong by rememberSaveable { mutableStateOf(false) }
+
+    LaunchedEffect(replays) {
+        showing = true
+        delay(600)
+        for (pad in sequence) {
+            lit = pad
+            delay(650)
+            lit = null
+            delay(250)
+        }
+        showing = false
+    }
+
+    Text(
+        when {
+            showing && wrong -> "Not quite. Watch again."
+            showing -> "Watch the sequence."
+            else -> "Repeat it: ${entered.size} of ${sequence.size}"
+        },
+        color = onColor,
+        style = CascadeType.rowLabel,
+    )
+    Column(Modifier.padding(top = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        for (row in 0 until 2) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                for (col in 0 until 2) {
+                    val pad = row * 2 + col
+                    val on = lit == pad
+                    OutlinedButton(
+                        onClick = {
+                            onInteract()
+                            val next = entered + pad
+                            if (!MemorySequence.onTrack(sequence, next)) {
+                                wrong = true
+                                entered = emptyList()
+                                onMiss()
+                                replays++
+                            } else if (next.size == sequence.size) {
+                                onComplete()
+                            } else {
+                                wrong = false
+                                entered = next
+                            }
+                        },
+                        enabled = !showing,
+                        modifier = Modifier.weight(1f).aspectRatio(1.4f).semantics { contentDescription = PAD_NAMES[pad] },
+                        shape = CascadeShapes.firing,
+                        border = BorderStroke(2.dp, onColor.copy(alpha = if (on) 1f else 0.6f)),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = if (on) onColor else Color.Transparent,
+                            disabledContainerColor = if (on) onColor else Color.Transparent,
+                        ),
+                    ) {
+                        Text(PAD_SYMBOLS[pad], color = if (on) onColor.inverse() else onColor, fontSize = 40.sp)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** The lit pad's symbol is drawn in the opposite of the pad's fill so it stays visible. */
+private fun Color.inverse(): Color = if (luminance() > 0.5f) Color.Black else Color.White

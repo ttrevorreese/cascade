@@ -27,8 +27,18 @@ sealed interface ChallengeConfig {
     @Serializable @SerialName("steps")
     data class Steps(val count: Int = 20) : ChallengeConfig
 
+    /**
+     * [signature] is the reference's fingerprint ([PhotoHash]); it lives in the database so the
+     * challenge works before first unlock. The photo [referencePhotoId] is only for showing, and
+     * stays in credential-encrypted storage. [label] says what it is, e.g. "Toothbrush".
+     */
     @Serializable @SerialName("photo")
-    data class PhotoMatch(val referencePhotoId: String, val threshold: Float) : ChallengeConfig
+    data class PhotoMatch(
+        val referencePhotoId: String,
+        val threshold: Float = PhotoHash.DEFAULT_THRESHOLD,
+        val signature: String = "",
+        val label: String = "",
+    ) : ChallengeConfig
 
     @Serializable @SerialName("memory")
     data class Memory(val sequenceLength: Int = 5) : ChallengeConfig
@@ -36,6 +46,8 @@ sealed interface ChallengeConfig {
     companion object {
         const val MIN_PROBLEMS = 1
         const val MAX_PROBLEMS = 10
+        const val MIN_STEPS = 10
+        const val MAX_STEPS = 200
 
         /**
          * Stands in when a configured challenge cannot run (a permission was revoked, its data is

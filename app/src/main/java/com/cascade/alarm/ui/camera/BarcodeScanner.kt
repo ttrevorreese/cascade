@@ -26,6 +26,7 @@ import com.cascade.alarm.engine.EngineLog
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.common.InputImage
 import kotlinx.coroutines.awaitCancellation
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.delay
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
@@ -81,6 +82,10 @@ fun BarcodeScanner(onScanned: (String) -> Unit, onUnavailable: () -> Unit, modif
             provider = ProcessCameraProvider.awaitInstance(context)
             provider.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis)
             awaitCancellation()
+        } catch (e: CancellationException) {
+            // Leaving the screen, not a camera failure. Some cancellations are also
+            // IllegalStateExceptions, so this must come first.
+            throw e
         } catch (e: IllegalArgumentException) {
             EngineLog.e("no usable back camera", e)
             unavailable()

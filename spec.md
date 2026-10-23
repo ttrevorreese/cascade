@@ -261,7 +261,8 @@ These correct or sharpen the sections above, after checking them against current
 
 - **The ringing notification never dismisses an alarm that has a challenge.** Its action becomes "Open" and leads to the challenge. Only challenge-free alarms and the wake-up check keep a notification dismiss.
 - **"Re-raise the activity" is not possible** on Android 14+ without the overlay permission, which §6.7 rules out. Instead the alarm keeps sounding, the ongoing notification returns the user with one tap, and leaving the alarm screen logs `CHEAT_DETECTED`.
-- **Permissions (camera, activity recognition) are requested while configuring a challenge, never at alarm time.** If one is missing when the alarm fires, or the challenge's data is unreadable (reference photos live in credential storage, so not before first unlock), the alarm falls back to a math challenge. It never becomes undismissable.
+- **Permissions (camera, activity recognition) are requested while configuring a challenge, never at alarm time.** If one is missing when the alarm fires, or the hardware is absent or fails (no step counter, a camera that will not open or shows no frame within 10 s), the alarm falls back to a math challenge. It never becomes undismissable.
+- **Photo match compares a fingerprint, not the photo** (M3b): the lighting is removed (a local high-pass), then the reference records which neighbouring cells of a 17x17 grid are brighter, and which of those are clear edges. Only clear edges are compared, the reference is searched for within the new photo to tolerate framing, and a match needs 75% agreement. The fingerprint cannot be turned back into a picture, so it lives in the device-protected database and **photo match works before first unlock**; only the reference image itself stays in credential storage, and before first unlock the screen shows its name instead. A reference that is too plain (a blank wall) is refused at setup.
 - **ML Kit barcode uses the bundled model**, which works offline and in Direct Boot. QR codes for printing are generated in-app with ZXing core.
 - **Sound while solving:** the alarm drops to about 30% while the user interacts with a challenge, and returns to full volume if they leave the screen or stop for 30 seconds.
 - **Give up** appears after a number of failed attempts or 3 minutes, asks for confirmation, and logs a `GAVE_UP` event, with "Recorded in your history" beneath it.
@@ -324,6 +325,12 @@ Each milestone should end in a working, installable app.
 - **Instrumented:** Room migrations, boot receiver reconciliation, alarm firing path.
 - **Manual matrix, mandatory before release:** fire an alarm with the device locked, screen off, in Doze (`adb shell dumpsys deviceidle force-idle`), in Do Not Disturb, in silent mode, after reboot, after app update, with battery optimization enabled and disabled, and on at least one Xiaomi or Samsung device in addition to Pixel.
 - Write a scripted end-to-end test for the full alarm path early (M1) and run it on every milestone.
+- **Real-phone checks collected along the way** (the emulator cannot do these; run them on the Galaxy S22 Ultra once the app is complete):
+  - QR/barcode: scan a printed Cascade code and an existing product barcode; a different code is refused.
+  - Photo match: reference of a real object (toothbrush), match in morning light, rejection of a different object, behaviour right after a reboot before unlock (name shown, matching still works). Tune `PhotoHash.DEFAULT_THRESHOLD` from these.
+  - Steps: the counter reports promptly with the screen on; 20 steps completes; permission flow.
+  - Launcher icon crop on One UI; the light and pastel themes, and Pewter/Loam on OLED at low brightness (DESIGN.md §2.1, §8).
+  - The manual matrix above: Doze, DND, silent mode, after reboot, after update, battery optimisation on and off.
 
 ---
 

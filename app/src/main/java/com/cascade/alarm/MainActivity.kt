@@ -8,21 +8,27 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
+import com.cascade.alarm.data.challenge.ChallengeConfig
 import com.cascade.alarm.data.db.ActiveRingDao
+import com.cascade.alarm.data.db.AlarmDao
 import com.cascade.alarm.engine.ring.AlarmRingService
 import com.cascade.alarm.engine.ring.RingState
 import com.cascade.alarm.engine.schedule.Reconciler
 import com.cascade.alarm.ui.CascadeNavHost
+import com.cascade.alarm.ui.camera.PhotoStore
 import com.cascade.alarm.ui.theme.CascadeTheme
 import com.cascade.alarm.ui.theme.CascadeThemes
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     @Inject lateinit var reconciler: Reconciler
     @Inject lateinit var activeRingDao: ActiveRingDao
+    @Inject lateinit var alarmDao: AlarmDao
     @Inject lateinit var ringState: RingState
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -52,5 +58,8 @@ class MainActivity : ComponentActivity() {
                 AlarmRingService.resumeIntent(this@MainActivity, afterBoot = false),
             )
         }
+        // Reference photos whose alarm was deleted, or that were taken and then not saved.
+        val inUse = alarmDao.all().mapNotNull { (it.challengeOverride as? ChallengeConfig.PhotoMatch)?.referencePhotoId }.toSet()
+        withContext(Dispatchers.IO) { PhotoStore.deleteAllExcept(this@MainActivity, inUse) }
     }
 }

@@ -1,6 +1,7 @@
 package com.cascade.alarm.data
 
 import com.cascade.alarm.data.challenge.ChallengeConfig
+import com.cascade.alarm.data.challenge.MemorySequence
 import com.cascade.alarm.data.db.AlarmEntity
 import com.cascade.alarm.data.db.AlarmGroupEntity
 import com.cascade.alarm.data.db.time
@@ -69,9 +70,12 @@ object AlarmRules {
         is ChallengeConfig.TypePhrase -> challenge.copy(phrase = challenge.phrase.trim())
         is ChallengeConfig.BarcodeScan ->
             if (challenge.expectedPayload.isEmpty()) null else challenge.copy(label = challenge.label.trim())
-        is ChallengeConfig.Steps -> challenge.copy(count = challenge.count.coerceIn(10, 200))
-        is ChallengeConfig.Memory -> challenge.copy(sequenceLength = challenge.sequenceLength.coerceIn(3, 10))
-        is ChallengeConfig.PhotoMatch -> challenge
+        is ChallengeConfig.Steps -> challenge.copy(count = challenge.count.coerceIn(ChallengeConfig.MIN_STEPS, ChallengeConfig.MAX_STEPS))
+        is ChallengeConfig.Memory -> challenge.copy(
+            sequenceLength = challenge.sequenceLength.coerceIn(MemorySequence.MIN_LENGTH, MemorySequence.MAX_LENGTH),
+        )
+        is ChallengeConfig.PhotoMatch ->
+            if (challenge.signature.isEmpty()) null else challenge.copy(label = challenge.label.trim())
     }
 
     /**

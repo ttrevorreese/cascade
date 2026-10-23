@@ -19,6 +19,9 @@
     <!-- QR and photo challenges only; requested when the challenge is set up (SPEC §6.8). -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera.any" android:required="false" />
+    <!-- Step challenge only; requested when the challenge is set up (SPEC §6.4). -->
+    <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+    <uses-feature android:name="android.hardware.sensor.stepcounter" android:required="false" />
 
     <application
         android:name=".CascadeApp"

@@ -1,6 +1,19 @@
 package com.cascade.alarm.ui.alarm
 
 import android.Manifest
+import android.os.Build
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.layout.ContentScale
+import com.cascade.alarm.data.challenge.MemorySequence
+import com.cascade.alarm.data.challenge.PhotoHash
+import com.cascade.alarm.ui.camera.PhotoCamera
+import com.cascade.alarm.ui.camera.PhotoCameraState
+import com.cascade.alarm.ui.camera.PhotoGrids
+import com.cascade.alarm.ui.camera.PhotoStore
+import com.cascade.alarm.ui.camera.StepSensor
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -45,7 +58,10 @@ import com.cascade.alarm.ui.theme.CascadeSpace
 import com.cascade.alarm.ui.theme.CascadeType
 import com.cascade.alarm.ui.theme.cascadeColors
 
-private enum class Kind(val label: String) { NONE("None"), MATH("Sums"), PHRASE("Type a phrase"), BARCODE("Scan a code") }
+private enum class Kind(val label: String) {
+    NONE("None"), MATH("Sums"), PHRASE("Type a phrase"), BARCODE("Scan a code"),
+    PHOTO("Match a photo"), STEPS("Walk"), MEMORY("Repeat a sequence"),
+}
 
 private val ChallengeConfig?.kind: Kind
     get() = when (this) {
@@ -53,8 +69,9 @@ private val ChallengeConfig?.kind: Kind
         is ChallengeConfig.Math -> Kind.MATH
         is ChallengeConfig.TypePhrase -> Kind.PHRASE
         is ChallengeConfig.BarcodeScan -> Kind.BARCODE
-        // M3b types are not offered yet; show them as what the alarm would fall back to.
-        else -> Kind.MATH
+        is ChallengeConfig.PhotoMatch -> Kind.PHOTO
+        is ChallengeConfig.Steps -> Kind.STEPS
+        is ChallengeConfig.Memory -> Kind.MEMORY
     }
 
 /**
@@ -68,8 +85,14 @@ fun ChallengeEditor(challenge: ChallengeConfig?, onChange: (ChallengeConfig?) ->
     val context = LocalContext.current
     var cameraGranted by remember { mutableStateOf(hasCameraPermission(context)) }
     val cameraPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { cameraGranted = it }
+    var stepsGranted by remember { mutableStateOf(StepSensor.hasPermission(context)) }
+    val stepsPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { stepsGranted = it }
+    val askForSteps = {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) stepsPermission.launch(Manifest.permission.ACTIVITY_RECOGNITION)
+    }
     var scanning by remember { mutableStateOf(false) }
     var showingQr by remember { mutableStateOf(false) }
+    var photographing by remember { mutableStateOf(false) }
 
     Column(verticalArrangement = Arrangement.spacedBy(CascadeSpace.m)) {
         Text("Challenge", style = CascadeType.rowLabel, color = c.textPrimary)
@@ -86,9 +109,13 @@ fun ChallengeEditor(challenge: ChallengeConfig?, onChange: (ChallengeConfig?) ->
                                 Kind.MATH -> ChallengeConfig.Math()
                                 Kind.PHRASE -> ChallengeConfig.TypePhrase()
                                 Kind.BARCODE -> ChallengeConfig.BarcodeScan(expectedPayload = "", label = "")
+                                Kind.PHOTO -> ChallengeConfig.PhotoMatch(referencePhotoId = "")
+                                Kind.STEPS -> ChallengeConfig.Steps()
+                                Kind.MEMORY -> ChallengeConfig.Memory()
                             },
                         )
-                        if (kind == Kind.BARCODE && !cameraGranted) cameraPermission.launch(Manifest.permission.CAMERA)
+                        if ((kind == Kind.BARCODE || kind == Kind.PHOTO) && !cameraGranted) cameraPermission.launch(Manifest.permission.CAMERA)
+                        if (kind == Kind.STEPS && !stepsGranted) askForSteps()
                     },
                     label = { Text(kind.label) },
                     shape = CascadeShapes.small,
@@ -179,7 +206,135 @@ fun ChallengeEditor(challenge: ChallengeConfig?, onChange: (ChallengeConfig?) ->
                     QrDialog(challenge.expectedPayload, challenge.label, onClose = { showingQr = false })
                 }
             }
-            else -> Unit
+            is ChallengeConfig.PhotoMatch -> {
+                OutlinedTextField(
+                    value = challenge.label,
+                    onValueChange = { onChange(challenge.copy(label = it)) },
+                    label = { Text("What it is") },
+                    placeholder = { Text("Toothbrush") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                if (!cameraGranted) {
+                    Text("Without camera access this alarm asks for sums instead.", style = CascadeType.body, color = c.status.warn)
+                    SecondaryButton("Allow the camera", { cameraPermission.launch(Manifest.permission.CAMERA) }, Modifier.fillMaxWidth())
+                }
+                val reference = remember(challenge.referencePhotoId) {
+                    challenge.referencePhotoId.takeIf { it.isNotEmpty() }?.let { PhotoStore.load(context, it)?.asImageBitmap() }
+                }
+                if (reference != null) {
+                    Image(
+                        reference,
+                        contentDescription = "Reference photo",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxWidth(0.5f).aspectRatio(0.75f).clip(CascadeShapes.medium),
+                    )
+                }
+                Text(
+                    if (challenge.signature.isEmpty()) {
+                        "Photograph something you have to get up for, like your toothbrush. Take it in the light you will have in the morning."
+                    } else {
+                        "To dismiss, you take a photo that matches this one."
+                    },
+                    style = CascadeType.body,
+                    color = c.textSecondary,
+                )
+                SecondaryButton(
+                    if (challenge.signature.isEmpty()) "Take the reference photo" else "Take a new reference photo",
+                    { if (cameraGranted) photographing = true else cameraPermission.launch(Manifest.permission.CAMERA) },
+                    Modifier.fillMaxWidth(),
+                )
+                if (photographing) {
+                    ReferencePhotoDialog(
+                        onTaken = { id, signature ->
+                            // The old photo is no longer anyone's reference.
+                            if (challenge.referencePhotoId.isNotEmpty()) PhotoStore.delete(context, challenge.referencePhotoId)
+                            onChange(challenge.copy(referencePhotoId = id, signature = signature))
+                            photographing = false
+                        },
+                        onClose = { photographing = false },
+                    )
+                }
+            }
+            is ChallengeConfig.Steps -> {
+                if (!StepSensor.hasSensor(context)) {
+                    Text("This phone has no step counter, so this alarm asks for sums instead.", style = CascadeType.body, color = c.status.warn)
+                } else if (!stepsGranted) {
+                    Text("Without activity access this alarm asks for sums instead.", style = CascadeType.body, color = c.status.warn)
+                    SecondaryButton("Allow step counting", askForSteps, Modifier.fillMaxWidth())
+                }
+                Stepper(
+                    "${challenge.count} steps",
+                    onFewer = { onChange(challenge.copy(count = (challenge.count - 10).coerceAtLeast(ChallengeConfig.MIN_STEPS))) },
+                    onMore = { onChange(challenge.copy(count = (challenge.count + 10).coerceAtMost(ChallengeConfig.MAX_STEPS))) },
+                )
+            }
+            is ChallengeConfig.Memory -> {
+                Text("Watch a sequence of shapes light up, then tap them back in order.", style = CascadeType.body, color = c.textSecondary)
+                Stepper(
+                    "${challenge.sequenceLength} in the sequence",
+                    onFewer = { onChange(challenge.copy(sequenceLength = (challenge.sequenceLength - 1).coerceAtLeast(MemorySequence.MIN_LENGTH))) },
+                    onMore = { onChange(challenge.copy(sequenceLength = (challenge.sequenceLength + 1).coerceAtMost(MemorySequence.MAX_LENGTH))) },
+                )
+            }
+            null -> Unit
+        }
+    }
+}
+
+@Composable
+private fun Stepper(value: String, onFewer: () -> Unit, onMore: () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(CascadeSpace.s)) {
+        Text(value, style = CascadeType.rowLabel, color = cascadeColors.textPrimary, modifier = Modifier.weight(1f))
+        SecondaryButton("Fewer", onFewer, small = true)
+        SecondaryButton("More", onMore, small = true)
+    }
+}
+
+@Composable
+private fun ReferencePhotoDialog(onTaken: (id: String, signature: String) -> Unit, onClose: () -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val camera = remember { PhotoCameraState() }
+    var failed by remember { mutableStateOf(false) }
+    var tooPlain by remember { mutableStateOf(false) }
+    var busy by remember { mutableStateOf(false) }
+    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Column(
+            Modifier.fillMaxSize().background(cascadeColors.ground).safeDrawingPadding().padding(CascadeSpace.gutter),
+            verticalArrangement = Arrangement.spacedBy(CascadeSpace.l),
+        ) {
+            Text("Take the reference photo", style = CascadeType.screenTitle, color = cascadeColors.textPrimary)
+            Text(
+                if (tooPlain) "That is too plain to match reliably. Fill the frame with something with more detail."
+                else "Fill most of the frame with it. Your morning photo needs to look like this one.",
+                style = CascadeType.body,
+                color = if (tooPlain) cascadeColors.status.warn else cascadeColors.textSecondary,
+            )
+            if (failed) {
+                Text("The camera could not be opened.", style = CascadeType.body, color = cascadeColors.status.warn)
+            } else {
+                PhotoCamera(camera, onUnavailable = { failed = true }, modifier = Modifier.fillMaxWidth().aspectRatio(0.75f).clip(CascadeShapes.card))
+            }
+            PrimaryButton(
+                if (busy) "Saving" else "Take the photo",
+                {
+                    busy = true
+                    scope.launch {
+                        val photo = camera.take(context)
+                        val signature = photo?.let { withContext(Dispatchers.Default) { PhotoHash.signature(PhotoGrids.reference(it)) } }
+                        busy = false
+                        when {
+                            photo == null -> failed = true
+                            signature == null -> tooPlain = true
+                            else -> onTaken(withContext(Dispatchers.IO) { PhotoStore.save(context, photo) }, signature)
+                        }
+                    }
+                },
+                Modifier.fillMaxWidth(),
+                enabled = !busy && !failed,
+            )
+            SecondaryButton("Cancel", onClose, Modifier.fillMaxWidth())
         }
     }
 }
