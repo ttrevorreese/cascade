@@ -64,6 +64,7 @@ object AlarmRules {
     /** Keeps a saved challenge within its limits; a barcode with nothing to match is no challenge. */
     fun normalizeChallenge(challenge: ChallengeConfig?): ChallengeConfig? = when (challenge) {
         null -> null
+        ChallengeConfig.None -> ChallengeConfig.None
         is ChallengeConfig.Math -> challenge.copy(
             problemCount = challenge.problemCount.coerceIn(ChallengeConfig.MIN_PROBLEMS, ChallengeConfig.MAX_PROBLEMS),
         )

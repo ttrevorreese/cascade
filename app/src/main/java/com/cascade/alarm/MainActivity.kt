@@ -11,6 +11,7 @@ import androidx.lifecycle.lifecycleScope
 import com.cascade.alarm.data.challenge.ChallengeConfig
 import com.cascade.alarm.data.db.ActiveRingDao
 import com.cascade.alarm.data.db.AlarmDao
+import com.cascade.alarm.data.db.AlarmGroupDao
 import com.cascade.alarm.engine.ring.AlarmRingService
 import com.cascade.alarm.engine.ring.RingState
 import com.cascade.alarm.engine.schedule.Reconciler
@@ -29,6 +30,7 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var reconciler: Reconciler
     @Inject lateinit var activeRingDao: ActiveRingDao
     @Inject lateinit var alarmDao: AlarmDao
+    @Inject lateinit var groupDao: AlarmGroupDao
     @Inject lateinit var ringState: RingState
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -59,7 +61,9 @@ class MainActivity : ComponentActivity() {
             )
         }
         // Reference photos whose alarm was deleted, or that were taken and then not saved.
-        val inUse = alarmDao.all().mapNotNull { (it.challengeOverride as? ChallengeConfig.PhotoMatch)?.referencePhotoId }.toSet()
+        // A photo can be an alarm's own challenge or a rung of a group's ladder; keep both.
+        val challenges = alarmDao.all().mapNotNull { it.challengeOverride } + groupDao.all().flatMap { it.escalationPolicy.steps }
+        val inUse = challenges.mapNotNull { (it as? ChallengeConfig.PhotoMatch)?.referencePhotoId }.toSet()
         withContext(Dispatchers.IO) { PhotoStore.deleteAllExcept(this@MainActivity, inUse) }
     }
 }

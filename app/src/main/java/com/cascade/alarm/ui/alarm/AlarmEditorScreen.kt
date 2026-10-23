@@ -37,6 +37,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.cascade.alarm.data.AlarmRepository
 import com.cascade.alarm.data.AlarmRules
+import com.cascade.alarm.data.challenge.ChallengeConfig
+import com.cascade.alarm.data.challenge.Escalation
+import com.cascade.alarm.data.challenge.EscalationPolicy
+import com.cascade.alarm.ui.ChallengeText
 import com.cascade.alarm.data.db.AlarmEntity
 import com.cascade.alarm.engine.ring.VolumeRamp
 import com.cascade.alarm.ui.TimeText
@@ -53,13 +57,15 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.DayOfWeek
 import java.time.format.TextStyle
 import javax.inject.Inject
 
-data class AlarmEditorState(val draft: AlarmEntity? = null, val isNew: Boolean = false)
+/** [ladderRung]: what the group's escalation ladder gives this alarm when it has no override. */
+data class AlarmEditorState(val draft: AlarmEntity? = null, val isNew: Boolean = false, val ladderRung: ChallengeConfig? = null)
 
 @HiltViewModel
 class AlarmEditorViewModel @Inject constructor(
@@ -75,9 +81,13 @@ class AlarmEditorViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             val existing = alarmId?.let { repository.alarm(it) }
+            val draft = existing ?: repository.newAlarmDraft(groupId)
+            val policy = repository.observeGroup(groupId).first()?.escalationPolicy ?: EscalationPolicy()
+            val siblings = repository.observeAlarms(groupId).first().filter { it.id != draft.id }
             mutableState.value = AlarmEditorState(
-                draft = existing ?: repository.newAlarmDraft(groupId),
+                draft = draft,
                 isNew = existing == null,
+                ladderRung = Escalation.rung(policy, Escalation.position(draft, siblings + draft)),
             )
         }
     }
@@ -109,6 +119,7 @@ fun AlarmEditorScreen(onDone: () -> Unit, viewModel: AlarmEditorViewModel = hilt
     AlarmEditorContent(
         draft = draft,
         isNew = state.isNew,
+        ladderRung = state.ladderRung,
         onEdit = viewModel::edit,
         onSave = { viewModel.save(onDone) },
         onDelete = { viewModel.delete(onDone) },
@@ -125,6 +136,7 @@ fun AlarmEditorContent(
     onSave: () -> Unit,
     onDelete: () -> Unit,
     onCancel: () -> Unit,
+    ladderRung: ChallengeConfig? = null,
 ) {
     val c = cascadeColors
     val is24Hour = is24HourClock()
@@ -171,7 +183,7 @@ fun AlarmEditorContent(
                 modifier = Modifier.fillMaxWidth(),
             )
 
-            ChallengeEditor(draft.challengeOverride) { config -> onEdit { it.copy(challengeOverride = config) } }
+            AlarmChallenge(draft.challengeOverride, ladderRung) { config -> onEdit { it.copy(challengeOverride = config) } }
 
             Text("Volume ramp: ${draft.volumeRampSeconds} s", style = CascadeType.rowLabel, color = c.textPrimary)
             Slider(
@@ -224,5 +236,36 @@ fun AlarmEditorContent(
             confirmButton = { TextButton(onClick = { confirmingDelete = false; onDelete() }) { Text("Delete alarm") } },
             dismissButton = { TextButton(onClick = { confirmingDelete = false }) { Text("Cancel") } },
         )
+    }
+}
+
+/**
+ * The alarm's challenge: by default whatever its group's ladder gives this position; switching
+ * the ladder off sets the alarm's own (SPEC §5: override ?: rung).
+ */
+@Composable
+private fun AlarmChallenge(override: ChallengeConfig?, ladderRung: ChallengeConfig?, onChange: (ChallengeConfig?) -> Unit) {
+    val c = cascadeColors
+    Column(verticalArrangement = Arrangement.spacedBy(CascadeSpace.m)) {
+        Text("Challenge", style = CascadeType.rowLabel, color = c.textPrimary)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f).padding(end = CascadeSpace.m)) {
+                Text("Use the group's ladder", style = CascadeType.body, color = c.textPrimary)
+                Text(
+                    if (override != null) "This alarm has its own challenge."
+                    else if (ladderRung == null) "The ladder is empty, so this alarm has no challenge."
+                    else "From the ladder: ${ChallengeText.full(ladderRung)}.",
+                    style = CascadeType.body,
+                    color = c.textSecondary,
+                )
+            }
+            CascadeSwitch(
+                checked = override == null,
+                // Starting from the rung makes "same, but harder" one tap away.
+                onCheckedChange = { follow -> onChange(if (follow) null else ladderRung ?: ChallengeConfig.None) },
+                modifier = Modifier.testTag("follow-ladder"),
+            )
+        }
+        if (override != null) ChallengeEditor(override, onChange, showIntro = false)
     }
 }

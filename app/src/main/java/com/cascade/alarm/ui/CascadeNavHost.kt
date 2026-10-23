@@ -9,6 +9,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.cascade.alarm.ui.alarm.AlarmEditorScreen
 import com.cascade.alarm.ui.diagnostics.DiagnosticsScreen
+import com.cascade.alarm.ui.escalation.EscalationScreen
 import com.cascade.alarm.ui.group.GroupScreen
 import com.cascade.alarm.ui.home.HomeScreen
 
@@ -17,8 +18,10 @@ object Routes {
     const val GROUP = "group/{groupId}"
     const val ALARM = "alarm/{groupId}?alarmId={alarmId}"
     const val DIAGNOSTICS = "diagnostics"
+    const val ESCALATION = "escalation/{groupId}"
 
     fun group(groupId: String) = "group/${Uri.encode(groupId)}"
+    fun escalation(groupId: String) = "escalation/${Uri.encode(groupId)}"
     fun alarm(groupId: String, alarmId: String?) =
         "alarm/${Uri.encode(groupId)}" + (alarmId?.let { "?alarmId=${Uri.encode(it)}" } ?: "")
 }
@@ -38,6 +41,7 @@ fun CascadeNavHost() {
             GroupScreen(
                 onBack = { nav.popBackStack() },
                 onOpenAlarm = { alarmId -> nav.navigate(Routes.alarm(groupId, alarmId)) },
+                onOpenEscalation = { nav.navigate(Routes.escalation(groupId)) },
             )
         }
         composable(
@@ -52,6 +56,9 @@ fun CascadeNavHost() {
             ),
         ) {
             AlarmEditorScreen(onDone = { nav.popBackStack() })
+        }
+        composable(Routes.ESCALATION, arguments = listOf(navArgument("groupId") { type = NavType.StringType })) {
+            EscalationScreen(onDone = { nav.popBackStack() })
         }
         composable(Routes.DIAGNOSTICS) { DiagnosticsScreen(onBack = { nav.popBackStack() }) }
     }

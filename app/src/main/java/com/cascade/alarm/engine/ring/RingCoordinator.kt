@@ -1,5 +1,6 @@
 package com.cascade.alarm.engine.ring
 
+import com.cascade.alarm.data.challenge.ChallengeConfig
 import com.cascade.alarm.data.db.ActiveRingEntity
 import com.cascade.alarm.data.db.AlarmEntity
 import com.cascade.alarm.data.db.EventType
@@ -154,8 +155,7 @@ class RingCoordinator(
         val ringing = RingingAlarm(
             ring.alarmId, alarm?.label, ring.scheduledFor, deadline, ring.isWakeCheck,
             position = sequence.position, total = sequence.total,
-            // Fail open: an alarm that could not be loaded rings with the plain Dismiss button.
-            challenge = if (ring.isWakeCheck) null else alarm?.challengeOverride,
+            challenge = if (ring.isWakeCheck) null else challengeFor(alarm),
             startedAt = ring.startedAt,
         )
         state.set(ringing)
@@ -173,6 +173,20 @@ class RingCoordinator(
                 timeoutJob = null
                 if (ring.isWakeCheck) failWakeCheck(ring.alarmId, alarm, "timeout") else finish(EventType.MISSED, "reason" to "timeout")
             }
+        }
+    }
+
+    /**
+     * Fail open: an alarm that could not be loaded rings with the plain Dismiss button; if only
+     * its group's ladder cannot be read, the alarm's own override still applies.
+     */
+    private suspend fun challengeFor(alarm: AlarmEntity?): ChallengeConfig? {
+        alarm ?: return null
+        return try {
+            store.challengeFor(alarm)
+        } catch (e: Exception) {
+            EngineLog.e("cannot resolve escalation alarm=${alarm.id}", e)
+            alarm.challengeOverride?.takeUnless { it == ChallengeConfig.None }
         }
     }
 

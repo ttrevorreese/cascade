@@ -56,6 +56,9 @@ interface RingStore {
 
     /** [alarm]'s place among its group's alarms that are on, counting itself even if it is off. */
     suspend fun sequencePosition(alarm: AlarmEntity): SequencePosition
+
+    /** What dismissing [alarm] takes, from its override or its group's ladder (SPEC §5); null = plain. */
+    suspend fun challengeFor(alarm: AlarmEntity): ChallengeConfig?
 }
 
 interface AlarmSoundPlayer {

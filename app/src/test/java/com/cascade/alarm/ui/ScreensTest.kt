@@ -135,6 +135,7 @@ class ScreensTest {
         compose.onNode(hasScrollAction()).performScrollToNode(hasTestTag("group-shift-with-first"))
         compose.onNodeWithTag("group-shift-with-first").assertIsOn().performSemanticsAction(SemanticsActions.OnClick)
         assertEquals(false, shiftWithFirst)
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("+5 min"))
         compose.onNodeWithText("+5 min").performClick()
         compose.onNodeWithText("−5 min").performClick()
         assertEquals(listOf(5L, -5L), shifts)

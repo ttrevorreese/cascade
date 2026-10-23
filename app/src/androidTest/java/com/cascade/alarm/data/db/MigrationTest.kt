@@ -129,4 +129,20 @@ class MigrationTest {
             }
         }
     }
+
+    @Test
+    fun v5GroupsGetAnEmptyLadder() {
+        helper.createDatabase(db, 5).use { v5 ->
+            v5.execSQL(
+                "INSERT INTO alarm_groups (id, name, colorHex, iconKey, isArmed, sortOrder, createdAt, shiftWithFirst, " +
+                    "wakeCheckEnabled, wakeCheckDelayMinutes) VALUES ('g', 'Workday', '#000000', 'default', 1, 0, 0, 1, 0, 3)",
+            )
+        }
+        helper.runMigrationsAndValidate(db, 6, true, Migrations.MIGRATION_5_6).use { v6 ->
+            v6.query("SELECT escalationPolicy FROM alarm_groups WHERE id = 'g'").use { c ->
+                c.moveToFirst()
+                assertEquals("{}", c.getString(0))
+            }
+        }
+    }
 }

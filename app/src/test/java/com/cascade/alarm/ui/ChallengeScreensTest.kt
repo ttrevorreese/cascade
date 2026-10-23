@@ -122,8 +122,8 @@ class ChallengeScreensTest {
 
     @Test
     fun theEditorPicksAndConfiguresAChallenge() {
-        var challenge by mutableStateOf<ChallengeConfig?>(null)
-        compose.setContent { ChallengeEditor(challenge) { challenge = it } }
+        var challenge by mutableStateOf<ChallengeConfig>(ChallengeConfig.None)
+        compose.setContent { ChallengeEditor(challenge, { challenge = it }) }
         compose.onNodeWithTag("challenge-math").performClick()
         assertEquals(ChallengeConfig.Math(), challenge)
         compose.onNodeWithText("Hard").performClick()
@@ -132,7 +132,7 @@ class ChallengeScreensTest {
         compose.onNodeWithTag("challenge-phrase").performClick()
         compose.onNodeWithText("Leave empty for four random words each time.").assertExists()
         compose.onNodeWithTag("challenge-none").performClick()
-        assertEquals(null, challenge)
+        assertEquals(ChallengeConfig.None, challenge)
     }
 
     @Test
@@ -174,8 +174,8 @@ class ChallengeScreensTest {
 
     @Test
     fun theEditorOffersTheM3bChallenges() {
-        var challenge by mutableStateOf<ChallengeConfig?>(null)
-        compose.setContent { ChallengeEditor(challenge) { challenge = it } }
+        var challenge by mutableStateOf<ChallengeConfig>(ChallengeConfig.None)
+        compose.setContent { ChallengeEditor(challenge, { challenge = it }) }
         compose.onNodeWithTag("challenge-memory").performClick()
         compose.onNodeWithText("More").performClick()
         assertEquals(ChallengeConfig.Memory(6), challenge)

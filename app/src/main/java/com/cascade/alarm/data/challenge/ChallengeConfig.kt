@@ -8,11 +8,18 @@ enum class Difficulty { EASY, MEDIUM, HARD }
 
 /**
  * What must be done to dismiss an alarm (SPEC §5, §6). Stored as JSON in
- * `alarms.challengeOverride`; null there means no challenge. All types are declared now so the
- * stored format is stable; steps, photo match and memory get their screens in M3b.
+ * `alarms.challengeOverride` (null there means "follow the group's ladder") and in each group's
+ * [EscalationPolicy].
  */
 @Serializable
 sealed interface ChallengeConfig {
+    /**
+     * Plain Dismiss, chosen on purpose: as an alarm's override it opts out of its group's ladder;
+     * as a rung it keeps that position easy. An alarm with no override at all follows the ladder.
+     */
+    @Serializable @SerialName("none")
+    data object None : ChallengeConfig
+
     @Serializable @SerialName("math")
     data class Math(val difficulty: Difficulty = Difficulty.MEDIUM, val problemCount: Int = 3) : ChallengeConfig
 

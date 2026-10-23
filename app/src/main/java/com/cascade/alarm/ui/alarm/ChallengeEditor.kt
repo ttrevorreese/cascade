@@ -63,9 +63,9 @@ private enum class Kind(val label: String) {
     PHOTO("Match a photo"), STEPS("Walk"), MEMORY("Repeat a sequence"),
 }
 
-private val ChallengeConfig?.kind: Kind
+private val ChallengeConfig.kind: Kind
     get() = when (this) {
-        null -> Kind.NONE
+        ChallengeConfig.None -> Kind.NONE
         is ChallengeConfig.Math -> Kind.MATH
         is ChallengeConfig.TypePhrase -> Kind.PHRASE
         is ChallengeConfig.BarcodeScan -> Kind.BARCODE
@@ -75,12 +75,12 @@ private val ChallengeConfig?.kind: Kind
     }
 
 /**
- * Picks and configures what dismissing the alarm takes (SPEC §6). Permissions are asked for here,
+ * Picks and configures a challenge (SPEC §6): an alarm's own, or a rung of the escalation ladder. Permissions are asked for here,
  * never at alarm time (SPEC §6.8).
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun ChallengeEditor(challenge: ChallengeConfig?, onChange: (ChallengeConfig?) -> Unit) {
+fun ChallengeEditor(challenge: ChallengeConfig, onChange: (ChallengeConfig) -> Unit, showIntro: Boolean = true) {
     val c = cascadeColors
     val context = LocalContext.current
     var cameraGranted by remember { mutableStateOf(hasCameraPermission(context)) }
@@ -95,8 +95,10 @@ fun ChallengeEditor(challenge: ChallengeConfig?, onChange: (ChallengeConfig?) ->
     var photographing by remember { mutableStateOf(false) }
 
     Column(verticalArrangement = Arrangement.spacedBy(CascadeSpace.m)) {
-        Text("Challenge", style = CascadeType.rowLabel, color = c.textPrimary)
-        Text("What it takes to dismiss this alarm.", style = CascadeType.body, color = c.textSecondary)
+        if (showIntro) {
+            Text("Challenge", style = CascadeType.rowLabel, color = c.textPrimary)
+            Text("What it takes to dismiss this alarm.", style = CascadeType.body, color = c.textSecondary)
+        }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(CascadeSpace.s)) {
             Kind.entries.forEach { kind ->
                 FilterChip(
@@ -105,7 +107,7 @@ fun ChallengeEditor(challenge: ChallengeConfig?, onChange: (ChallengeConfig?) ->
                         if (challenge.kind == kind) return@FilterChip
                         onChange(
                             when (kind) {
-                                Kind.NONE -> null
+                                Kind.NONE -> ChallengeConfig.None
                                 Kind.MATH -> ChallengeConfig.Math()
                                 Kind.PHRASE -> ChallengeConfig.TypePhrase()
                                 Kind.BARCODE -> ChallengeConfig.BarcodeScan(expectedPayload = "", label = "")
@@ -277,7 +279,7 @@ fun ChallengeEditor(challenge: ChallengeConfig?, onChange: (ChallengeConfig?) ->
                     onMore = { onChange(challenge.copy(sequenceLength = (challenge.sequenceLength + 1).coerceAtMost(MemorySequence.MAX_LENGTH))) },
                 )
             }
-            null -> Unit
+            ChallengeConfig.None -> Unit
         }
     }
 }

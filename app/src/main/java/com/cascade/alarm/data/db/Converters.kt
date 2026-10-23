@@ -2,6 +2,7 @@ package com.cascade.alarm.data.db
 
 import androidx.room.TypeConverter
 import com.cascade.alarm.data.challenge.ChallengeConfig
+import com.cascade.alarm.data.challenge.EscalationPolicy
 import java.time.DayOfWeek
 import java.time.Instant
 import java.util.EnumSet
@@ -22,6 +23,12 @@ class Converters {
 
     @TypeConverter
     fun jsonToChallenge(value: String?): ChallengeConfig? = value?.let(ChallengeConfig::decode)
+
+    @TypeConverter
+    fun policyToJson(value: EscalationPolicy): String = EscalationPolicy.encode(value)
+
+    @TypeConverter
+    fun jsonToPolicy(value: String): EscalationPolicy = EscalationPolicy.decode(value)
 
     @TypeConverter
     fun maskToDays(mask: Int): Set<DayOfWeek> =

@@ -87,7 +87,7 @@ import java.time.Instant
  * fallback, never a dead end (SPEC §6.8).
  */
 fun runnableChallenge(configured: ChallengeConfig, context: Context): ChallengeConfig = when (configured) {
-    is ChallengeConfig.Math, is ChallengeConfig.TypePhrase, is ChallengeConfig.Memory -> configured
+    ChallengeConfig.None, is ChallengeConfig.Math, is ChallengeConfig.TypePhrase, is ChallengeConfig.Memory -> configured
     is ChallengeConfig.BarcodeScan -> if (hasCameraPermission(context)) configured else ChallengeConfig.FALLBACK
     is ChallengeConfig.PhotoMatch ->
         if (hasCameraPermission(context) && configured.signature.isNotEmpty()) configured else ChallengeConfig.FALLBACK
@@ -96,6 +96,8 @@ fun runnableChallenge(configured: ChallengeConfig, context: Context): ChallengeC
 
 /** What the firing screen says is being asked, and what its button does (DESIGN.md §7). */
 fun challengeAsk(config: ChallengeConfig): Pair<String, String> = when (config) {
+    // Resolution turns None into no challenge, so the firing screen never asks for it.
+    ChallengeConfig.None -> "" to "Dismiss"
     is ChallengeConfig.Math ->
         (if (config.problemCount == 1) "Solve a sum to dismiss." else "Solve ${config.problemCount} sums to dismiss.") to "Start the sums"
     is ChallengeConfig.TypePhrase -> "Type a phrase to dismiss." to "Show the phrase"
@@ -152,6 +154,7 @@ fun ChallengeHost(
             is ChallengeConfig.PhotoMatch -> PhotoChallenge(shown, onColor, onInteract, miss, complete) { cameraFailed = true }
             is ChallengeConfig.Steps -> StepsChallenge(shown, onColor, complete)
             is ChallengeConfig.Memory -> MemoryChallenge(shown, seed, onColor, onInteract, miss, complete)
+            ChallengeConfig.None -> LaunchedEffect(Unit) { complete() }
         }
         if (GiveUp.available(misses, Duration.between(ringing.startedAt, now))) GiveUpHatch(onColor, onGiveUp)
     }

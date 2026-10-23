@@ -1,5 +1,6 @@
 package com.cascade.alarm.data
 
+import com.cascade.alarm.data.challenge.EscalationPolicy
 import com.cascade.alarm.data.db.AlarmEntity
 import com.cascade.alarm.data.db.AlarmGroupDefaults
 import com.cascade.alarm.data.db.AlarmGroupEntity
@@ -81,6 +82,12 @@ class AlarmRepository @Inject constructor(
         val group = groups.get(id) ?: return@mutate
         groups.upsert(group.copy(wakeCheckEnabled = enabled, wakeCheckDelayMinutes = WakeCheck.clampDelay(delayMinutes)))
         if (!enabled) alarms.upsertAll(alarms.inGroup(id).map { it.copy(wakeCheckAt = null) })
+    }
+
+    /** Saves the group's ladder; rungs are normalised like an alarm's own challenge. */
+    suspend fun setEscalationPolicy(id: String, policy: EscalationPolicy) = reconciler.mutate("group_escalation") {
+        val group = groups.get(id) ?: return@mutate
+        groups.upsert(group.copy(escalationPolicy = EscalationPolicy(policy.steps.mapNotNull(AlarmRules::normalizeChallenge))))
     }
 
     /** Moves every alarm in the group by [minutes] (the group screen's −5 / +5 buttons). */

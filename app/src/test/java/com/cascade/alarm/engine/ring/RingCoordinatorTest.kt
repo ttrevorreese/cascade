@@ -1,6 +1,8 @@
 package com.cascade.alarm.engine.ring
 
 import com.cascade.alarm.data.challenge.ChallengeConfig
+import com.cascade.alarm.data.challenge.Escalation
+import com.cascade.alarm.data.challenge.EscalationPolicy
 import com.cascade.alarm.data.db.ActiveRingEntity
 import com.cascade.alarm.data.db.AlarmEntity
 import com.cascade.alarm.data.db.EventType
@@ -72,6 +74,12 @@ class RingCoordinatorTest {
         }
         var sequence = SequencePosition(0, 1)
         var failSequence = false
+        var failChallenge = false
+        /** The real resolution with an empty ladder: the alarm's own override, None meaning plain. */
+        override suspend fun challengeFor(alarm: AlarmEntity): ChallengeConfig? {
+            if (failChallenge) error("db unavailable")
+            return Escalation.resolve(alarm, EscalationPolicy(), 0)
+        }
         override suspend fun sequencePosition(alarm: AlarmEntity): SequencePosition {
             if (failSequence) error("db unavailable")
             return sequence
@@ -486,5 +494,14 @@ class RingCoordinatorTest {
         val before = store.events.size
         coordinator.leftScreen()
         assertEquals(before, store.events.size)
+    }
+
+    @Test
+    fun `if the ladder cannot be read the alarm's own challenge still applies`() = harness {
+        store.alarms["a"] = alarm().copy(challengeOverride = ChallengeConfig.TypePhrase("up"))
+        store.failChallenge = true
+        coordinator.onFire("a", scheduled)
+        assertRinging()
+        assertEquals(ChallengeConfig.TypePhrase("up"), state.current.value?.challenge)
     }
 }

@@ -20,6 +20,14 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.runtime.rememberCoroutineScope
+import com.cascade.alarm.data.AlarmRules
+import com.cascade.alarm.data.challenge.ChallengeConfig
+import com.cascade.alarm.data.challenge.Escalation
+import com.cascade.alarm.data.challenge.EscalationPolicy
+import com.cascade.alarm.ui.ChallengeText
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -109,6 +117,7 @@ class GroupViewModel @Inject constructor(
 fun GroupScreen(
     onBack: () -> Unit,
     onOpenAlarm: (alarmId: String?) -> Unit,
+    onOpenEscalation: () -> Unit,
     viewModel: GroupViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -128,6 +137,7 @@ fun GroupScreen(
         onShiftWithFirstChange = viewModel::setShiftWithFirst,
         onShift = viewModel::shift,
         onWakeCheckChange = viewModel::setWakeCheck,
+        onOpenEscalation = onOpenEscalation,
     )
 }
 
@@ -145,12 +155,34 @@ fun GroupContent(
     onShiftWithFirstChange: (Boolean) -> Unit,
     onShift: (minutes: Long) -> Unit,
     onWakeCheckChange: (enabled: Boolean, delayMinutes: Int) -> Unit,
+    onOpenEscalation: () -> Unit = {},
 ) {
     val c = cascadeColors
+    val policy = group.escalationPolicy
+    // What each alarm will ask for, by the same rule the engine applies when it fires.
+    fun resolvedIn(list: List<AlarmEntity>, alarm: AlarmEntity) = Escalation.resolve(alarm, policy, Escalation.position(alarm, list))
+    val snackbar = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    // Reordering changes an alarm's place, which can change its rung: say so (SPEC §7.2).
+    val is24Hour = is24HourClock()
+    val move: (String, Int) -> Unit = { id, delta ->
+        val index = alarms.indexOfFirst { it.id == id }
+        onMoveAlarm(id, delta)
+        if (index + delta in alarms.indices) {
+            val reordered = AlarmRules.move(alarms, index, delta).mapIndexed { i, a -> a.copy(positionInGroup = i) }
+            val before = resolvedIn(alarms, alarms[index])
+            val after = resolvedIn(reordered, reordered[index + delta])
+            if (before != after) {
+                val time = TimeText.time(alarms[index].hour, alarms[index].minute, is24Hour)
+                scope.launch { snackbar.showSnackbar("The $time alarm now asks: ${ChallengeText.full(after).replaceFirstChar { it.lowercase() }}.") }
+            }
+        }
+    }
     var renaming by remember { mutableStateOf(false) }
     var confirmingDelete by remember { mutableStateOf(false) }
     Scaffold(
         containerColor = c.ground,
+        snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
             // The name is the page title below, where long names have the full width.
             CascadeTopBar("", onBack = onBack) {
@@ -214,10 +246,14 @@ fun GroupContent(
                     previous = if (index > 0) stop(index - 1) else null,
                     next = if (index < alarms.lastIndex) stop(index + 1) else null,
                     groupArmed = group.isArmed,
+                    challenge = resolvedIn(alarms, alarm),
                     onClick = { onOpenAlarm(alarm.id) },
                     onEnabledChange = { onAlarmEnabledChange(alarm.id, it) },
-                    onMove = { onMoveAlarm(alarm.id, it) },
+                    onMove = { move(alarm.id, it) },
                 )
+            }
+            if (alarms.isNotEmpty()) {
+                item { EscalationSummary(policy, onOpenEscalation) }
             }
             // Settings go below the alarms so the sequence itself stays on screen.
             if (alarms.isNotEmpty()) {
@@ -310,6 +346,27 @@ private fun WakeCheckSetting(group: AlarmGroupEntity, onChange: (enabled: Boolea
     }
 }
 
+@Composable
+private fun EscalationSummary(policy: EscalationPolicy, onOpen: () -> Unit) {
+    val c = cascadeColors
+    fun lower(config: ChallengeConfig) = ChallengeText.full(config).replaceFirstChar { it.lowercase() }
+    Row(Modifier.fillMaxWidth().padding(top = CascadeSpace.l), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f).padding(end = CascadeSpace.m)) {
+            Text("Escalation", style = CascadeType.rowLabel, color = c.textPrimary)
+            Text(
+                when (policy.steps.size) {
+                    0 -> "No ladder yet. Each alarm can still have its own challenge."
+                    1 -> "1 rung: ${lower(policy.steps.single())}"
+                    else -> "${policy.steps.size} rungs, from ${lower(policy.steps.first())} to ${lower(policy.steps.last())}"
+                },
+                style = CascadeType.body,
+                color = c.textSecondary,
+            )
+        }
+        SecondaryButton(if (policy.steps.isEmpty()) "Set up" else "Edit", onOpen, small = true)
+    }
+}
+
 /**
  * One alarm on the spine. The row draws its share of the 2dp line, blending halfway towards its
  * neighbours' colours at its top and bottom edges, so the rows together draw one continuous
@@ -324,6 +381,7 @@ private fun AlarmRow(
     previous: Color?,
     next: Color?,
     groupArmed: Boolean,
+    challenge: ChallengeConfig?,
     onClick: () -> Unit,
     onEnabledChange: (Boolean) -> Unit,
     onMove: (Int) -> Unit,
@@ -371,6 +429,10 @@ private fun AlarmRow(
                 style = CascadeType.body,
                 color = c.textSecondary,
             )
+            // The resolved challenge, so the escalation down the spine reads in words too.
+            ChallengeText.short(challenge)?.let {
+                Text(it, style = CascadeType.caption, color = c.textQuiet, modifier = Modifier.testTag("challenge-${alarm.id}"))
+            }
             if (!groupArmed && alarm.isEnabled) {
                 Text("Group is off", style = CascadeType.caption, color = c.textQuiet)
             }

@@ -200,6 +200,11 @@ data class AlarmEvent(                   // append-only audit log
 
 **Escalation resolution:** `alarm.challengeOverride ?: group.escalationPolicy.steps.getOrElse(alarm.positionInGroup) { steps.last() }`.
 
+**Escalation decisions (2026-10-22, M4 planning):**
+- The position used for escalation counts **only the alarms that are on** (the same position the firing screen's sequence dots show). Switching off the last alarm makes the one before it the last, so the final alarm that actually rings always gets the hardest rung.
+- The policy is resolved when the alarm fires, never cached, so ladder edits apply to the next ring without rescheduling. If the group cannot be read, the alarm's own override applies, else plain Dismiss.
+- New groups start with an empty ladder. The escalation editor offers a one-tap **suggested ladder** (easy sums → type a phrase → harder sums → steps) to edit from. Existing groups migrate with an empty ladder, so nothing changes for alarms already set up.
+
 ---
 
 ## 6. Dismissal challenges

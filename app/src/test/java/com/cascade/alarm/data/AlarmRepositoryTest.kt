@@ -7,6 +7,10 @@ import com.cascade.alarm.data.db.CascadeDatabase
 import com.cascade.alarm.engine.EventLog
 import com.cascade.alarm.engine.TimeSource
 import com.cascade.alarm.engine.schedule.AlarmScheduler
+import com.cascade.alarm.data.challenge.ChallengeConfig
+import com.cascade.alarm.data.challenge.Difficulty
+import com.cascade.alarm.data.challenge.EscalationPolicy
+import com.cascade.alarm.engine.ring.RoomRingStore
 import com.cascade.alarm.engine.schedule.Reconciler
 import com.cascade.alarm.engine.schedule.Reconciler.FireResult
 import kotlinx.coroutines.runBlocking
@@ -302,6 +306,28 @@ class AlarmRepositoryTest {
         repo.setAlarmEnabled(ids[0], false)
         assertNull(repo.alarm(ids[0])!!.wakeCheckAt)
         assertFalse(ids[0] in scheduler.scheduled)
+    }
+
+    @Test
+    fun `a saved ladder drops rungs that cannot work and the ring resolves from it`() = runBlocking {
+        val (groupId, ids) = sequence("Workday", 6 to 0, 6 to 10, 6 to 20)
+        repo.setEscalationPolicy(
+            groupId,
+            EscalationPolicy(listOf(ChallengeConfig.Math(Difficulty.EASY, 50), ChallengeConfig.BarcodeScan("", ""), ChallengeConfig.TypePhrase(" up "))),
+        )
+        val saved = db.alarmGroupDao().get(groupId)!!.escalationPolicy
+        assertEquals(EscalationPolicy(listOf(ChallengeConfig.Math(Difficulty.EASY, 10), ChallengeConfig.TypePhrase("up"))), saved)
+
+        val store = RoomRingStore(reconciler, db.alarmDao(), db.alarmGroupDao(), db.activeRingDao(), EventLog(db.alarmEventDao(), time))
+        assertEquals(ChallengeConfig.Math(Difficulty.EASY, 10), store.challengeFor(repo.alarm(ids[0])!!))
+        assertEquals(ChallengeConfig.TypePhrase("up"), store.challengeFor(repo.alarm(ids[2])!!)) // the last rung repeats
+        // Switching off the middle alarm moves the last one down a rung.
+        repo.setAlarmEnabled(ids[1], false)
+        assertEquals(ChallengeConfig.TypePhrase("up"), store.challengeFor(repo.alarm(ids[2])!!))
+        repo.setAlarmEnabled(ids[1], true)
+        // An alarm's own None opts out of the ladder.
+        repo.saveAlarm(repo.alarm(ids[0])!!.copy(challengeOverride = ChallengeConfig.None))
+        assertEquals(null, store.challengeFor(repo.alarm(ids[0])!!))
     }
 
     @Test

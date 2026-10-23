@@ -3,11 +3,12 @@ package com.cascade.alarm.data.db
 import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import com.cascade.alarm.data.challenge.EscalationPolicy
 import java.time.Instant
 
 /**
- * SPEC §5 `AlarmGroup`, minus escalationPolicy (arrives with M4). Arming is a master switch that
- * never mutates its alarms' own isEnabled values.
+ * SPEC §5 `AlarmGroup`. Arming is a master switch that never mutates its alarms' own isEnabled
+ * values.
  */
 @Entity(tableName = "alarm_groups")
 data class AlarmGroupEntity(
@@ -27,4 +28,7 @@ data class AlarmGroupEntity(
     /** Minutes between dismissing the last alarm and the check (1–5). */
     @ColumnInfo(defaultValue = "3")
     val wakeCheckDelayMinutes: Int = 3,
+    /** The challenge ladder by position (SPEC §5). Empty: no challenges unless an alarm sets one. */
+    @ColumnInfo(defaultValue = "{}")
+    val escalationPolicy: EscalationPolicy = EscalationPolicy(),
 )
