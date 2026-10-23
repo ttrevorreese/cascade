@@ -42,7 +42,6 @@ import com.cascade.alarm.data.challenge.Escalation
 import com.cascade.alarm.data.challenge.EscalationPolicy
 import com.cascade.alarm.ui.ChallengeText
 import com.cascade.alarm.data.db.AlarmEntity
-import com.cascade.alarm.engine.ring.VolumeRamp
 import com.cascade.alarm.ui.TimeText
 import com.cascade.alarm.ui.components.CascadeSwitch
 import com.cascade.alarm.ui.components.CascadeTopBar
@@ -185,14 +184,6 @@ fun AlarmEditorContent(
 
             AlarmChallenge(draft.challengeOverride, ladderRung) { config -> onEdit { it.copy(challengeOverride = config) } }
 
-            Text("Volume ramp: ${draft.volumeRampSeconds} s", style = CascadeType.rowLabel, color = c.textPrimary)
-            Slider(
-                value = draft.volumeRampSeconds.toFloat(),
-                onValueChange = { v -> onEdit { it.copy(volumeRampSeconds = v.toInt()) } },
-                valueRange = 0f..VolumeRamp.MAX_RAMP_SECONDS.toFloat(),
-                steps = VolumeRamp.MAX_RAMP_SECONDS / 5 - 1,
-            )
-
             Text("Stop if not dismissed after: ${draft.timeoutMinutes} min", style = CascadeType.rowLabel, color = c.textPrimary)
             Slider(
                 value = draft.timeoutMinutes.toFloat(),
@@ -204,6 +195,12 @@ fun AlarmEditorContent(
                 Text("Alarm on", style = CascadeType.rowLabel, color = c.textPrimary, modifier = Modifier.weight(1f))
                 CascadeSwitch(draft.isEnabled, { on -> onEdit { it.copy(isEnabled = on) } })
             }
+
+            Text(
+                "Sound and how it gets louder are set for the whole group, on the group's screen.",
+                style = CascadeType.body,
+                color = c.textSecondary,
+            )
 
             PrimaryButton("Save alarm", onSave, Modifier.fillMaxWidth())
             if (!isNew) {

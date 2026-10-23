@@ -34,7 +34,6 @@ object SystemTestAlarm {
         daysOfWeek = emptySet(),
         label = "Test alarm",
         isEnabled = false,
-        volumeRampSeconds = RingDefaults.RAMP_SECONDS,
         timeoutMinutes = RingDefaults.TIMEOUT_MINUTES,
     )
 }

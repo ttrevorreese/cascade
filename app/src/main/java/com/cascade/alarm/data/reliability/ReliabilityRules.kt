@@ -20,21 +20,33 @@ sealed interface Incident {
     val eventId: String
     val alarmId: String
     val scheduledFor: Instant
-    val cause: IncidentCause
 
     data class Missed(
         override val eventId: String,
         override val alarmId: String,
         override val scheduledFor: Instant,
-        override val cause: IncidentCause,
+        val cause: IncidentCause,
     ) : Incident
 
     data class Late(
         override val eventId: String,
         override val alarmId: String,
         override val scheduledFor: Instant,
-        override val cause: IncidentCause,
+        val cause: IncidentCause,
         val lateBy: Duration,
+    ) : Incident
+
+    /**
+     * The alarm rang, but not with its group's sound (M6): [reason] is why (`file_missing`,
+     * `unknown_tone`, `could_not_play`, `system_sound_failed`), [next] what played instead
+     * (`classic`, `system_sound` or `vibration`).
+     */
+    data class SoundFailed(
+        override val eventId: String,
+        override val alarmId: String,
+        override val scheduledFor: Instant,
+        val reason: String,
+        val next: String,
     ) : Incident
 }
 
@@ -53,6 +65,9 @@ object ReliabilityRules {
     /** Older incidents are history, not news. */
     val WINDOW: Duration = Duration.ofDays(7)
 
+    /** What a fallback ended on, from best to worst. */
+    private val FALLBACK_ORDER = listOf("classic", "system_sound", "vibration")
+
     fun cause(scheduledFor: Instant, bootTime: Instant): IncidentCause =
         if (scheduledFor.isBefore(bootTime)) IncidentCause.PHONE_OFF else IncidentCause.APP_STOPPED
 
@@ -60,7 +75,8 @@ object ReliabilityRules {
      * Alarms that never rang ([EventType.MISSED] with reason `not_fired`) and rings more than
      * [LATE_AFTER] late, newest first, minus the [acknowledged] ones and the hidden test alarm
      * (its result is shown separately). Timeouts and superseded rings are not incidents: the
-     * alarm did ring.
+     * alarm did ring. A ring whose sound fell back is one incident however many steps it fell,
+     * showing the last (what actually played).
      */
     fun incidents(events: List<AlarmEventEntity>, bootTime: Instant, now: Instant, acknowledged: Set<String>): List<Incident> =
         events.asSequence()
@@ -80,11 +96,17 @@ object ReliabilityRules {
                             Incident.Late(event.id, event.alarmId, scheduledFor, cause(scheduledFor, bootTime), lateBy)
                         } else null
                     }
+                    EventType.SOUND_FALLBACK -> Incident.SoundFailed(
+                        event.id, event.alarmId, scheduledFor,
+                        reason = metadata(event.metadata, "reason").orEmpty(),
+                        next = metadata(event.metadata, "next").orEmpty(),
+                    )
                     else -> null
                 }
             }
+            .groupBy { if (it is Incident.SoundFailed) "sound ${it.alarmId} ${it.scheduledFor}" else it.eventId }
+            .map { (_, same) -> same.maxBy { (it as? Incident.SoundFailed)?.let { f -> FALLBACK_ORDER.indexOf(f.next) } ?: 0 } }
             .sortedByDescending { it.scheduledFor }
-            .toList()
 
     /** How the most recent test alarm went, or null if none has run (events of the test alarm, any order). */
     fun lastTest(testEvents: List<AlarmEventEntity>): TestResult? =

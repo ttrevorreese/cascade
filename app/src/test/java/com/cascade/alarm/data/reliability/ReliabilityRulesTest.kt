@@ -14,12 +14,16 @@ class ReliabilityRulesTest {
     private val now = Instant.parse("2026-10-22T20:00:00Z")
     private val boot = Instant.parse("2026-10-22T08:00:00Z")
 
-    private fun event(id: String, type: EventType, at: Instant, scheduledFor: Instant?, reason: String? = null, alarm: String = "a", wakeCheck: Boolean = false) =
+    private fun event(
+        id: String, type: EventType, at: Instant, scheduledFor: Instant?, reason: String? = null, alarm: String = "a",
+        wakeCheck: Boolean = false, next: String? = null,
+    ) =
         AlarmEventEntity(
             id = id, alarmId = alarm, type = type, timestamp = at,
             metadata = listOfNotNull(
                 scheduledFor?.let { "\"scheduledFor\":\"$it\"" },
                 reason?.let { "\"reason\":\"$it\"" },
+                next?.let { "\"next\":\"$it\"" },
                 if (type == EventType.FIRED) "\"wakeCheck\":\"$wakeCheck\"" else null,
             ).joinToString(",", "{", "}"),
         )
@@ -35,7 +39,7 @@ class ReliabilityRulesTest {
     fun `an alarm due before the phone last started was missed because it was off`() {
         val missedAt = Instant.parse("2026-10-22T06:00:00Z")
         val incident = ReliabilityRules.incidents(listOf(event("e1", EventType.MISSED, boot, missedAt, "not_fired")), boot, now, emptySet()).single()
-        assertEquals(IncidentCause.PHONE_OFF, incident.cause)
+        assertEquals(IncidentCause.PHONE_OFF, (incident as Incident.Missed).cause)
     }
 
     @Test
@@ -59,6 +63,24 @@ class ReliabilityRulesTest {
         val late = ReliabilityRules.incidents(events, boot, now, emptySet()).single() as Incident.Late
         assertEquals("late", late.eventId)
         assertEquals(Duration.ofMinutes(7), late.lateBy)
+    }
+
+    @Test
+    fun `a ring whose sound fell back is one incident showing what finally played`() {
+        val due = Instant.parse("2026-10-22T10:00:00Z")
+        val other = Instant.parse("2026-10-22T11:00:00Z")
+        val events = listOf(
+            event("f1", EventType.SOUND_FALLBACK, due, due, "could_not_play", next = "classic"),
+            event("f2", EventType.SOUND_FALLBACK, due, due, "could_not_play", next = "system_sound"),
+            event("g", EventType.SOUND_FALLBACK, other, other, "file_missing", next = "classic"),
+        )
+        assertEquals(
+            listOf(
+                Incident.SoundFailed("g", "a", other, "file_missing", "classic"),
+                Incident.SoundFailed("f2", "a", due, "could_not_play", "system_sound"),
+            ),
+            ReliabilityRules.incidents(events, boot, now, emptySet()),
+        )
     }
 
     @Test

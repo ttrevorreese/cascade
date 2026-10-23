@@ -45,7 +45,6 @@ class AlarmRulesTest {
         assertEquals(6 to 30, a.hour to a.minute)
         assertEquals(weekdays, a.daysOfWeek)
         assertEquals(2, a.positionInGroup)
-        assertEquals(45, a.volumeRampSeconds)
         assertEquals(10, a.timeoutMinutes)
     }
 
@@ -77,9 +76,7 @@ class AlarmRulesTest {
     }
 
     @Test
-    fun `ramp and timeout are clamped to the spec ranges`() {
-        assertEquals(120, AlarmRules.clampRamp(500))
-        assertEquals(0, AlarmRules.clampRamp(-3))
+    fun `timeout is clamped to the spec range`() {
         assertEquals(1, AlarmRules.clampTimeout(0))
         assertEquals(60, AlarmRules.clampTimeout(999))
     }

@@ -145,4 +145,39 @@ class MigrationTest {
             }
         }
     }
+
+    @Test
+    fun v6GroupsGetClassicAndTheirFirstAlarmsRampInTheNewRange() {
+        helper.createDatabase(db, 6).use { v6 ->
+            val group = "INSERT INTO alarm_groups (id, name, colorHex, iconKey, isArmed, sortOrder, createdAt, shiftWithFirst, " +
+                "wakeCheckEnabled, wakeCheckDelayMinutes, escalationPolicy) VALUES "
+            v6.execSQL("$group ('quick', 'Quick', '#000000', 'default', 1, 0, 0, 1, 0, 3, '{}')")
+            v6.execSQL("$group ('slow', 'Slow', '#000000', 'default', 1, 1, 0, 1, 0, 3, '{}')")
+            v6.execSQL("$group ('mid', 'Mid', '#000000', 'default', 1, 2, 0, 1, 0, 3, '{}')")
+            v6.execSQL("$group ('empty', 'Empty', '#000000', 'default', 1, 3, 0, 1, 0, 3, '{}')")
+            val alarm = "INSERT INTO alarms (id, groupId, positionInGroup, hour, minute, daysOfWeek, label, isEnabled, " +
+                "volumeRampSeconds, timeoutMinutes) VALUES "
+            // The first alarm by position decides, whatever the insertion order.
+            v6.execSQL("$alarm ('q1', 'quick', 1, 6, 10, 31, NULL, 1, 90, 15), ('q0', 'quick', 0, 6, 0, 31, NULL, 1, 0, 15)")
+            v6.execSQL("$alarm ('s0', 'slow', 0, 6, 0, 31, NULL, 1, 120, 15)")
+            v6.execSQL("$alarm ('m0', 'mid', 0, 6, 0, 31, NULL, 1, 40, 15)")
+        }
+        helper.runMigrationsAndValidate(db, 7, true, Migrations.MIGRATION_6_7).use { v7 ->
+            v7.query("SELECT id, sound, rampSeconds, rampStartPercent FROM alarm_groups ORDER BY sortOrder").use { c ->
+                val rows = buildList {
+                    while (c.moveToNext()) add(listOf(c.getString(0), c.getString(1), c.getInt(2), c.getInt(3)))
+                }
+                val classic = """{"type":"builtin","toneKey":"classic"}"""
+                assertEquals(
+                    listOf(
+                        listOf("quick", classic, 30, 15),
+                        listOf("slow", classic, 60, 15),
+                        listOf("mid", classic, 40, 15),
+                        listOf("empty", classic, 45, 15),
+                    ),
+                    rows,
+                )
+            }
+        }
+    }
 }

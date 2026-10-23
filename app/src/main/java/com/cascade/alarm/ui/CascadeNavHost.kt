@@ -12,6 +12,7 @@ import com.cascade.alarm.ui.escalation.EscalationScreen
 import com.cascade.alarm.ui.group.GroupScreen
 import com.cascade.alarm.ui.home.HomeScreen
 import com.cascade.alarm.ui.reliability.ReliabilityScreen
+import com.cascade.alarm.ui.sound.SoundScreen
 
 object Routes {
     const val HOME = "home"
@@ -19,9 +20,11 @@ object Routes {
     const val ALARM = "alarm/{groupId}?alarmId={alarmId}"
     const val RELIABILITY = "reliability"
     const val ESCALATION = "escalation/{groupId}"
+    const val SOUND = "sound/{groupId}"
 
     fun group(groupId: String) = "group/${Uri.encode(groupId)}"
     fun escalation(groupId: String) = "escalation/${Uri.encode(groupId)}"
+    fun sound(groupId: String) = "sound/${Uri.encode(groupId)}"
     fun alarm(groupId: String, alarmId: String?) =
         "alarm/${Uri.encode(groupId)}" + (alarmId?.let { "?alarmId=${Uri.encode(it)}" } ?: "")
 }
@@ -42,6 +45,7 @@ fun CascadeNavHost() {
                 onBack = { nav.popBackStack() },
                 onOpenAlarm = { alarmId -> nav.navigate(Routes.alarm(groupId, alarmId)) },
                 onOpenEscalation = { nav.navigate(Routes.escalation(groupId)) },
+                onOpenSound = { nav.navigate(Routes.sound(groupId)) },
             )
         }
         composable(
@@ -59,6 +63,9 @@ fun CascadeNavHost() {
         }
         composable(Routes.ESCALATION, arguments = listOf(navArgument("groupId") { type = NavType.StringType })) {
             EscalationScreen(onDone = { nav.popBackStack() })
+        }
+        composable(Routes.SOUND, arguments = listOf(navArgument("groupId") { type = NavType.StringType })) {
+            SoundScreen(onDone = { nav.popBackStack() })
         }
         composable(Routes.RELIABILITY) { ReliabilityScreen(onBack = { nav.popBackStack() }) }
     }

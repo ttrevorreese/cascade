@@ -20,26 +20,29 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
-import com.cascade.alarm.R
+import com.cascade.alarm.data.sound.SoundConfig
 import com.cascade.alarm.engine.EngineLog
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import java.io.File
 import android.media.AudioAttributes as PlatformAudioAttributes
 
 /**
  * Plays the alarm on the alarm stream (USAGE_ALARM), which is what makes it audible in silent
  * mode and exempt from Android 17's background-audio restrictions. Layers, in order of trust:
- * vibration (starts first, needs nothing), the bundled tone via Media3, and the system default
- * alarm sound if the bundled tone fails to play.
+ * vibration (starts first, needs nothing), the group's sound via Media3, Classic if that cannot
+ * play, and the system default alarm sound if Classic fails too.
  *
  * Must be used from the main thread (ExoPlayer's application thread).
  */
 class ExoAlarmSoundPlayer(
     private val context: Context,
     private val scope: CoroutineScope,
+    /** Finds a copied audio file ([com.cascade.alarm.data.sound.SoundFiles.file]). */
+    private val fileFor: (String) -> File?,
 ) : AlarmSoundPlayer {
     private val audioManager = context.getSystemService(AudioManager::class.java)
     private val vibrator: Vibrator =
@@ -59,42 +62,31 @@ class ExoAlarmSoundPlayer(
     private var rampJob: Job? = null
     private var focusRequest: AudioFocusRequest? = null
     private var volumeToRestore: Int? = null
+    /** Sources still to try if the current one fails. */
+    private var remaining = ArrayDeque<SoundSource>()
+    private var reportFallback: (String, String) -> Unit = { _, _ -> }
     /** Volume from the ramp, and the share of it kept while ducked; the player gets their product. */
     private var rampGain = 0f
     private var duckFactor = 1f
 
-    override fun start(rampSeconds: Int) {
+    override fun start(sound: RingSound, onFallback: (reason: String, next: String) -> Unit) {
         startVibration()
         ensureAlarmStreamAudible()
         requestFocus()
-        try {
-            player = ExoPlayer.Builder(context).build().apply {
-                // Focus is requested manually above with GAIN_TRANSIENT_EXCLUSIVE (SPEC §4.2).
-                setAudioAttributes(
-                    AudioAttributes.Builder()
-                        .setUsage(C.USAGE_ALARM)
-                        .setContentType(C.AUDIO_CONTENT_TYPE_SONIFICATION)
-                        .build(),
-                    false,
-                )
-                repeatMode = Player.REPEAT_MODE_ONE
-                volume = VolumeRamp.gain(0, rampSeconds)
-                addListener(object : Player.Listener {
-                    override fun onPlayerError(error: PlaybackException) {
-                        EngineLog.e("bundled tone failed; using system alarm sound", error)
-                        playFallback()
-                    }
-                })
-                setMediaItem(MediaItem.fromUri(bundledToneUri()))
-                prepare()
-                play()
-            }
-            EngineLog.i("audio started ramp=${rampSeconds}s")
+        reportFallback = onFallback
+        val floor = VolumeRamp.startGain(sound.startPercent)
+        rampGain = floor
+        val plan = try {
+            SoundPlan.of(sound.sound, fileFor)
         } catch (e: Exception) {
-            EngineLog.e("could not start player; using system alarm sound", e)
-            playFallback()
+            EngineLog.e("cannot resolve sound; using Classic", e)
+            SoundPlan.of(SoundConfig.DEFAULT) { null }.copy(skipped = "unreadable")
         }
-        startRamp(rampSeconds)
+        plan.skipped?.let { report(it, "classic") }
+        remaining = ArrayDeque(plan.sources)
+        playNext()
+        EngineLog.i("audio started sound=${sound.sound} ramp=${sound.rampSeconds}s start=${sound.startPercent}%")
+        startRamp(sound.rampSeconds, floor)
     }
 
     override fun startWakeCheck() {
@@ -107,6 +99,8 @@ class ExoAlarmSoundPlayer(
         rampJob = null
         player?.release()
         player = null
+        remaining.clear()
+        reportFallback = { _, _ -> }
         fallback?.stop()
         fallback = null
         vibrator.cancel()
@@ -126,17 +120,59 @@ class ExoAlarmSoundPlayer(
         EngineLog.i("audio ducked=$ducked")
     }
 
+    /** Plays the next source in the plan, or the system alarm sound once the plan is used up. */
+    private fun playNext() {
+        val source = remaining.removeFirstOrNull()
+        if (source == null) {
+            playSystemSound()
+            return
+        }
+        try {
+            val exo = player ?: ExoPlayer.Builder(context).build().apply {
+                // Focus is requested manually above with GAIN_TRANSIENT_EXCLUSIVE (SPEC §4.2).
+                setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(C.USAGE_ALARM)
+                        .setContentType(C.AUDIO_CONTENT_TYPE_SONIFICATION)
+                        .build(),
+                    false,
+                )
+                repeatMode = Player.REPEAT_MODE_ONE
+                addListener(object : Player.Listener {
+                    override fun onPlayerError(error: PlaybackException) {
+                        EngineLog.e("sound failed to play; trying the next", error)
+                        report("could_not_play", if (remaining.isEmpty()) "system_sound" else "classic")
+                        playNext()
+                    }
+                })
+                player = this
+            }
+            exo.volume = rampGain * duckFactor
+            exo.setMediaItem(MediaItem.fromUri(uriFor(source)))
+            exo.prepare()
+            exo.play()
+        } catch (e: Exception) {
+            EngineLog.e("could not start player; trying the next", e)
+            report("could_not_play", if (remaining.isEmpty()) "system_sound" else "classic")
+            playNext()
+        }
+    }
+
+    private fun report(reason: String, next: String) {
+        runCatching { reportFallback(reason, next) }
+    }
+
     private fun applyVolume() {
         val volume = rampGain * duckFactor
         player?.volume = volume
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) fallback?.volume = volume
     }
 
-    private fun startRamp(rampSeconds: Int) {
+    private fun startRamp(rampSeconds: Int, floor: Float) {
         val startedAt = SystemClock.elapsedRealtime()
         rampJob = scope.launch {
             while (isActive) {
-                rampGain = VolumeRamp.gain(SystemClock.elapsedRealtime() - startedAt, rampSeconds)
+                rampGain = VolumeRamp.gain(SystemClock.elapsedRealtime() - startedAt, rampSeconds, floor)
                 applyVolume()
                 if (rampGain >= 1f) break
                 delay(RAMP_STEP_MILLIS)
@@ -173,7 +209,7 @@ class ExoAlarmSoundPlayer(
         if (result != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) EngineLog.e("audio focus not granted (result=$result)")
     }
 
-    private fun playFallback() {
+    private fun playSystemSound() {
         player?.release()
         player = null
         if (fallback != null) return
@@ -183,12 +219,14 @@ class ExoAlarmSoundPlayer(
             RingtoneManager.getRingtone(context, uri)?.apply {
                 audioAttributes = alarmAttributes
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) isLooping = true
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) volume = rampGain * duckFactor
                 play()
             }
         } catch (e: Exception) {
             EngineLog.e("system alarm sound failed too; vibration only", e)
             null
         }
+        if (fallback == null) report("system_sound_failed", "vibration")
     }
 
     private fun startVibration() {
@@ -201,14 +239,19 @@ class ExoAlarmSoundPlayer(
         }
     }
 
-    private fun bundledToneUri(): Uri = Uri.Builder()
-        .scheme(ContentResolver.SCHEME_ANDROID_RESOURCE)
-        .authority(context.packageName)
-        .path(R.raw.alarm_default.toString())
-        .build()
+    private fun uriFor(source: SoundSource): Uri = when (source) {
+        is SoundSource.Bundled -> rawUri(context, source.res)
+        is SoundSource.LocalFile -> Uri.fromFile(source.file)
+    }
 
-    private companion object {
-        const val RAMP_STEP_MILLIS = 200L
-        val VIBRATION_PATTERN = longArrayOf(0, 800, 600)
+    companion object {
+        private const val RAMP_STEP_MILLIS = 200L
+        private val VIBRATION_PATTERN = longArrayOf(0, 800, 600)
+
+        fun rawUri(context: Context, res: Int): Uri = Uri.Builder()
+            .scheme(ContentResolver.SCHEME_ANDROID_RESOURCE)
+            .authority(context.packageName)
+            .path(res.toString())
+            .build()
     }
 }

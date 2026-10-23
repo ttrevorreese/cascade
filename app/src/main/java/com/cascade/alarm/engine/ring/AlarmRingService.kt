@@ -7,6 +7,7 @@ import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.ServiceCompat
+import com.cascade.alarm.data.sound.SoundFiles
 import com.cascade.alarm.engine.EngineLog
 import com.cascade.alarm.engine.TimeSource
 import dagger.hilt.android.AndroidEntryPoint
@@ -30,6 +31,7 @@ class AlarmRingService : Service(), RingPresenter {
     @Inject lateinit var store: RingStore
     @Inject lateinit var ringState: RingState
     @Inject lateinit var time: TimeSource
+    @Inject lateinit var soundFiles: SoundFiles
 
     private val scope = CoroutineScope(
         SupervisorJob() + Dispatchers.Main.immediate +
@@ -49,7 +51,7 @@ class AlarmRingService : Service(), RingPresenter {
         notifications = RingNotifications(this)
         wakeLock = AndroidRingWakeLock(this)
         screenWaker = ScreenWaker(this)
-        sound = ExoAlarmSoundPlayer(this, scope)
+        sound = ExoAlarmSoundPlayer(this, scope, soundFiles::file)
         coordinator = RingCoordinator(scope, store, time::now, sound, wakeLock, this, ringState)
     }
 

@@ -28,6 +28,7 @@ import com.cascade.alarm.data.challenge.ChallengeConfig
 import com.cascade.alarm.data.challenge.Escalation
 import com.cascade.alarm.data.challenge.EscalationPolicy
 import com.cascade.alarm.ui.ChallengeText
+import com.cascade.alarm.ui.sound.SoundText
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -118,6 +119,7 @@ fun GroupScreen(
     onBack: () -> Unit,
     onOpenAlarm: (alarmId: String?) -> Unit,
     onOpenEscalation: () -> Unit,
+    onOpenSound: () -> Unit,
     viewModel: GroupViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -138,6 +140,7 @@ fun GroupScreen(
         onShift = viewModel::shift,
         onWakeCheckChange = viewModel::setWakeCheck,
         onOpenEscalation = onOpenEscalation,
+        onOpenSound = onOpenSound,
     )
 }
 
@@ -156,6 +159,7 @@ fun GroupContent(
     onShift: (minutes: Long) -> Unit,
     onWakeCheckChange: (enabled: Boolean, delayMinutes: Int) -> Unit,
     onOpenEscalation: () -> Unit = {},
+    onOpenSound: () -> Unit = {},
 ) {
     val c = cascadeColors
     val policy = group.escalationPolicy
@@ -254,6 +258,7 @@ fun GroupContent(
             }
             if (alarms.isNotEmpty()) {
                 item { EscalationSummary(policy, onOpenEscalation) }
+                item { SoundSummary(group, onOpenSound) }
             }
             // Settings go below the alarms so the sequence itself stays on screen.
             if (alarms.isNotEmpty()) {
@@ -364,6 +369,23 @@ private fun EscalationSummary(policy: EscalationPolicy, onOpen: () -> Unit) {
             )
         }
         SecondaryButton(if (policy.steps.isEmpty()) "Set up" else "Edit", onOpen, small = true)
+    }
+}
+
+@Composable
+private fun SoundSummary(group: AlarmGroupEntity, onOpen: () -> Unit) {
+    val c = cascadeColors
+    Row(Modifier.fillMaxWidth().padding(top = CascadeSpace.l), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f).padding(end = CascadeSpace.m)) {
+            Text("Sound", style = CascadeType.rowLabel, color = c.textPrimary)
+            Text(
+                "${SoundText.name(group.sound)}, full volume after ${group.rampSeconds} s",
+                style = CascadeType.body,
+                color = c.textSecondary,
+                modifier = Modifier.testTag("sound-summary"),
+            )
+        }
+        SecondaryButton("Change", onOpen, small = true, modifier = Modifier.testTag("change-sound"))
     }
 }
 

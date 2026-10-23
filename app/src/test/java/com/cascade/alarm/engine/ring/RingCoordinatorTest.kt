@@ -6,6 +6,7 @@ import com.cascade.alarm.data.challenge.EscalationPolicy
 import com.cascade.alarm.data.db.ActiveRingEntity
 import com.cascade.alarm.data.db.AlarmEntity
 import com.cascade.alarm.data.db.EventType
+import com.cascade.alarm.data.sound.SoundConfig
 import com.cascade.alarm.engine.schedule.Reconciler.FireResult
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
@@ -26,10 +27,9 @@ class RingCoordinatorTest {
     private val epoch = Instant.parse("2026-10-19T11:00:00Z")
     private val scheduled = epoch
 
-    private fun alarm(id: String = "a", timeout: Int = 15, ramp: Int = 30) = AlarmEntity(
+    private fun alarm(id: String = "a", timeout: Int = 15) = AlarmEntity(
         id = id, groupId = "g", positionInGroup = 0, hour = 7, minute = 0, daysOfWeek = emptySet(),
-        label = "Wake", isEnabled = true,
-        volumeRampSeconds = ramp, timeoutMinutes = timeout,
+        label = "Wake", isEnabled = true, timeoutMinutes = timeout,
     )
 
     private class FakeStore : RingStore {
@@ -84,15 +84,28 @@ class RingCoordinatorTest {
             if (failSequence) error("db unavailable")
             return sequence
         }
+        var sound = RingSound(SoundConfig.BuiltIn("klaxon"), rampSeconds = 60, startPercent = 30)
+        var failSound = false
+        val soundReads = mutableListOf<String>()
+        override suspend fun soundFor(alarm: AlarmEntity): RingSound {
+            soundReads += alarm.id
+            if (failSound) error("db unavailable")
+            return sound
+        }
         fun types() = events.map { it.first }
     }
 
     private class FakeSound : AlarmSoundPlayer {
         var playing = false
-        var lastRamp: Int? = null
+        var last: RingSound? = null
         var starts = 0
         var checking = false
-        override fun start(rampSeconds: Int) { playing = true; lastRamp = rampSeconds; starts++ }
+        /** Reports a fallback as the real player would; set to simulate an unplayable sound. */
+        var fallbackOnStart: Pair<String, String>? = null
+        override fun start(sound: RingSound, onFallback: (reason: String, next: String) -> Unit) {
+            playing = true; last = sound; starts++
+            fallbackOnStart?.let { (reason, next) -> onFallback(reason, next) }
+        }
         var quieted = false
         override fun startWakeCheck() { checking = true }
         override fun setDucked(ducked: Boolean) { quieted = ducked }
@@ -150,7 +163,7 @@ class RingCoordinatorTest {
     fun `fire starts sound, holds the wake lock and persists the ring`() = harness {
         coordinator.onFire("a", scheduled)
         assertRinging()
-        assertEquals(30, sound.lastRamp)
+        assertEquals(store.sound, sound.last)
         assertEquals(ActiveRingEntity(alarmId = "a", scheduledFor = scheduled, startedAt = epoch), store.active)
         assertEquals(Duration.ofMinutes(16), wakeLock.lastTimeout) // 15 min timeout + 1 min margin
     }
@@ -197,13 +210,40 @@ class RingCoordinatorTest {
     }
 
     @Test
-    fun `per-alarm timeout and ramp are honoured`() = harness {
-        store.alarms["a"] = alarm(timeout = 5, ramp = 90)
+    fun `the alarm's timeout and its group's sound are honoured`() = harness {
+        store.alarms["a"] = alarm(timeout = 5)
         coordinator.onFire("a", scheduled)
-        assertEquals(90, sound.lastRamp)
+        assertEquals(store.sound, sound.last)
         scope.advanceTimeBy(Duration.ofMinutes(5).toMillis() + 1)
         scope.runCurrent()
         assertStopped()
+    }
+
+    @Test
+    fun `if the group's sound cannot be read the alarm still rings, with the defaults`() = harness {
+        store.failSound = true
+        coordinator.onFire("a", scheduled)
+        assertRinging()
+        assertEquals(RingSound(), sound.last)
+    }
+
+    @Test
+    fun `a sound that cannot play is recorded with what plays instead`() = harness {
+        sound.fallbackOnStart = "file_missing" to "classic"
+        coordinator.onFire("a", scheduled)
+        scope.runCurrent()
+        assertRinging()
+        val fallback = store.events.single { it.first == EventType.SOUND_FALLBACK }.second
+        assertEquals(mapOf("scheduledFor" to scheduled, "reason" to "file_missing", "next" to "classic"), fallback)
+    }
+
+    @Test
+    fun `a wake-up check reads no sound and plays none`() = harness {
+        store.wakeChecks += "a" to scheduled
+        coordinator.onFire("a", scheduled)
+        assertTrue(sound.checking)
+        assertEquals(0, sound.starts)
+        assertTrue(store.soundReads.isEmpty())
     }
 
     @Test
@@ -239,7 +279,7 @@ class RingCoordinatorTest {
         store.failWrites = true
         coordinator.onFire("a", scheduled)
         assertRinging()
-        assertEquals(RingDefaults.RAMP_SECONDS, sound.lastRamp)
+        assertEquals(RingSound(), sound.last)
         scope.advanceTimeBy(Duration.ofMinutes(RingDefaults.TIMEOUT_MINUTES.toLong()).toMillis() + 1)
         scope.runCurrent()
         assertStopped() // the timeout still fires even though nothing could be logged
@@ -249,7 +289,7 @@ class RingCoordinatorTest {
     fun `unknown alarm still rings with defaults`() = harness {
         coordinator.onFire("ghost", scheduled)
         assertRinging()
-        assertEquals(RingDefaults.RAMP_SECONDS, sound.lastRamp)
+        assertEquals(RingSound(), sound.last)
     }
 
     @Test

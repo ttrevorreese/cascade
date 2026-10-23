@@ -4,6 +4,8 @@ import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import com.cascade.alarm.data.challenge.EscalationPolicy
+import com.cascade.alarm.data.sound.SoundConfig
+import com.cascade.alarm.data.sound.SoundSettings
 import java.time.Instant
 
 /**
@@ -31,4 +33,13 @@ data class AlarmGroupEntity(
     /** The challenge ladder by position (SPEC §5). Empty: no challenges unless an alarm sets one. */
     @ColumnInfo(defaultValue = "{}")
     val escalationPolicy: EscalationPolicy = EscalationPolicy(),
+    /** What every alarm in the group plays (decided 2026-10-23: one sound per group). */
+    @ColumnInfo(defaultValue = SoundConfig.DEFAULT_JSON)
+    val sound: SoundConfig = SoundConfig.DEFAULT,
+    /** Seconds from [rampStartPercent] to full volume ([SoundSettings]: 30–60). */
+    @ColumnInfo(defaultValue = "45") // SoundSettings.DEFAULT_RAMP_SECONDS
+    val rampSeconds: Int = SoundSettings.DEFAULT_RAMP_SECONDS,
+    /** Perceived loudness the ramp starts from, in percent of full. */
+    @ColumnInfo(defaultValue = "15") // SoundSettings.DEFAULT_START_PERCENT
+    val rampStartPercent: Int = SoundSettings.DEFAULT_START_PERCENT,
 )

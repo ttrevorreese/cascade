@@ -158,10 +158,22 @@ class RingCoordinator(
             challenge = if (ring.isWakeCheck) null else challengeFor(alarm),
             startedAt = ring.startedAt,
         )
+        // Read before anything audible changes; a failure here means the defaults, never silence.
+        val ringSound = if (ring.isWakeCheck) null else soundFor(alarm)
         state.set(ringing)
         presenter.show(ringing)
         sound.stop()
-        if (ring.isWakeCheck) sound.startWakeCheck() else sound.start(alarm?.volumeRampSeconds ?: RingDefaults.RAMP_SECONDS)
+        if (ringSound == null) {
+            sound.startWakeCheck()
+        } else {
+            sound.start(ringSound) { reason, next ->
+                scope.launch {
+                    bestEffort {
+                        store.log(ring.alarmId, EventType.SOUND_FALLBACK, "scheduledFor" to ring.scheduledFor, "reason" to reason, "next" to next)
+                    }
+                }
+            }
+        }
         EngineLog.i("ringing alarm=${ring.alarmId} deadline=$deadline wakeCheck=${ring.isWakeCheck}")
 
         timeoutJob?.cancel()
@@ -187,6 +199,17 @@ class RingCoordinator(
         } catch (e: Exception) {
             EngineLog.e("cannot resolve escalation alarm=${alarm.id}", e)
             alarm.challengeOverride?.takeUnless { it == ChallengeConfig.None }
+        }
+    }
+
+    /** Fail open: the group's sound if it can be read, else Classic with the default ramp. */
+    private suspend fun soundFor(alarm: AlarmEntity?): RingSound {
+        alarm ?: return RingSound()
+        return try {
+            store.soundFor(alarm)
+        } catch (e: Exception) {
+            EngineLog.e("cannot read sound alarm=${alarm.id}", e)
+            RingSound()
         }
     }
 

@@ -100,6 +100,14 @@ Register receivers for `BOOT_COMPLETED`, `MY_PACKAGE_REPLACED`, `TIMEZONE_CHANGE
 
 **Audio:** play on `AudioManager.STREAM_ALARM`. This stream bypasses silent mode and Do Not Disturb by design, which is exactly the intended behavior. Request `AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE`. Implement volume ramp as a gradual increase over a configurable 0–120 second window, starting at a configurable floor.
 
+**Decided 2026-10-23 (M6):**
+- **Sound is set per group, not per alarm**: every alarm in a sequence sounds the same. The group holds `sound`, `rampSeconds` and `rampStartPercent`; the alarm's old `volumeRampSeconds` column stays unused (SQLite cannot drop it before API 34).
+- **Ramp: 30–60 s** to full volume (owner's choice; default 45 s), rising linearly in decibels. **Start at: 5–60% of full**, in *perceived* loudness (half as loud = −10 dB), default 15% (≈ the M1 floor). Full volume is the phone's alarm-stream volume; a muted alarm stream is raised to a third for the ring and restored.
+- **Eight built-in tones**, gentlest first: Dawn, Chimes, Marimba, Classic (the M1 tone, default), Pulse, Digital, Rising, Klaxon. Synthesised by `scripts/make_tones.py` (no licensing), WAV so they loop without a gap. Keys are stored; never rename one.
+- **A file from the phone** is picked with the system file picker and **copied** into device-protected storage (`files/sounds/`, max 20 MB, checked to play as audio), so it plays before the first unlock after a reboot and survives the original being moved. Copies no group uses are deleted on the next sound save, group delete, or visit to the sound screen.
+- **Fallback chain at ring time:** the group's sound → Classic → the phone's default alarm sound, vibration throughout. Each step is logged as `SOUND_FALLBACK` (reason, what played instead) and shows once on Home as "Your 6:00 alarm could not play its sound", until acknowledged.
+- **Preview** plays on the alarm stream through the real ramp (start level up to full), stops by itself 5 s after full volume and whenever the screen is left.
+
 **Timeout:** if the user does not dismiss within N minutes (default 15, configurable), stop audio, log a `MISSED` event, and release the wake lock. Never let a service run indefinitely.
 
 ### 4.3 Reliability hardening
@@ -142,6 +150,9 @@ data class AlarmGroup(
     val colorHex: String,
     val iconKey: String,
     val isArmed: Boolean,                 // master toggle for all child alarms
+    val sound: SoundConfig,               // per group since 2026-10-23 (§4.2)
+    val rampSeconds: Int,                 // 30–60
+    val rampStartPercent: Int,            // 5–60, perceived loudness
     val themeId: String?,                 // null = follow the app theme; see design/DESIGN.md §11 (M7)
     val escalationPolicy: EscalationPolicy,
     val sortOrder: Int,
@@ -158,16 +169,14 @@ data class Alarm(
     val daysOfWeek: Set<DayOfWeek>,        // empty = one-shot
     val label: String?,
     val isEnabled: Boolean,               // individual toggle, ANDed with group.isArmed
-    val sound: SoundConfig,
     val challengeOverride: ChallengeConfig?, // null = inherit from group escalation
     val snoozeConfig: SnoozeConfig,
-    val volumeRampSeconds: Int,
-    val timeoutMinutes: Int
+    val timeoutMinutes: Int               // sound and ramp moved to the group (§4.2)
 )
 
 sealed interface SoundConfig {
     data class BuiltIn(val toneKey: String) : SoundConfig
-    data class DeviceAudio(val uri: String) : SoundConfig
+    data class DeviceAudio(val fileName: String, val displayName: String) : SoundConfig  // app's own copy
     data class SpotifyPlaylist(
         val playlistUri: String,
         val playlistName: String,
@@ -285,8 +294,8 @@ These correct or sharpen the sections above, after checking them against current
 ## 7. Screens
 
 1. **Home** — list of alarm groups as cards. Each shows name, color, next fire time, child alarm count, and a prominent master toggle. Reordering by drag. FAB to create a group.
-2. **Group detail** — ordered list of alarms in the group, each showing time, resolved challenge type, and individual toggle. Drag to reorder (reordering changes `positionInGroup`, which re-resolves escalation — show this clearly). Edit escalation policy here.
-3. **Alarm editor** — time picker, day-of-week selector, label, sound picker, challenge override, snooze config, volume ramp, timeout.
+2. **Group detail** — ordered list of alarms in the group, each showing time, resolved challenge type, and individual toggle. Drag to reorder (reordering changes `positionInGroup`, which re-resolves escalation — show this clearly). Edit escalation policy and the group's sound here.
+3. **Alarm editor** — time picker, day-of-week selector, label, challenge override, snooze config, timeout. (Sound and ramp are the group's, on its own Sound screen: tones, a file from the phone, ramp length, start level, preview.)
 4. **Escalation editor** — visual ladder showing position → challenge mapping, with the ability to set each rung. This screen is the product's signature; give it real design attention.
 5. **Alarm firing screen** — full-screen over lock screen. Time, label, challenge UI, snooze button if permitted.
 6. **Reliability Check** — per §4.3.
@@ -310,8 +319,8 @@ Each milestone should end in a working, installable app.
 | M3 | Challenges | Interface + math, type-phrase, barcode. Then steps, photo match, memory |
 | M4 | Escalation | Policy resolution, escalation editor screen, reorder semantics |
 | M5 | Reliability | Reliability Check, missed-alarm detector, test alarm, OEM guidance, event logging |
-| M6 | Audio | Built-in tones, device audio picker, volume ramp, then Spotify behind a feature flag |
-| M7 | Polish | Stats, settings, all fifty-two themes generated from `design/assets/themes.json`, the Appearance screen (its grid generated from the JSON too), per-group themes, the theme-pack purchase, onboarding, accessibility pass |
+| M6 | Audio | Built-in tones, device audio picker, volume ramp. **Updated 2026-10-23:** sound is per group; Spotify moved to M7 |
+| M7 | Polish | Spotify behind a feature flag (§9, moved from M6 on 2026-10-23), stats, settings, all fifty-two themes generated from `design/assets/themes.json`, the Appearance screen (its grid generated from the JSON too), per-group themes, the theme-pack purchase, onboarding, accessibility pass |
 | M8 | Release prep | Play Store listing, permission justifications, privacy policy, closed testing |
 
 **Estimate:** 11–14 weeks of focused solo work to a shipped Play Store release. M1 and M5 together are roughly 40% of the total and are where the difficulty actually lives. The challenge screens look like the bulk of the work but are the easy part. Fifty-two themes cost almost nothing beyond the first two if the token system is built properly at M2 and both the colour table and the picker grid are generated from `design/assets/themes.json`; the single in-app purchase at M7 is a few days. The one real cost is visual QA, since the firing screens want eyeballing per theme.
@@ -328,6 +337,7 @@ Each milestone should end in a working, installable app.
 - Use the Spotify Android SDK's app-remote, which requires the Spotify app installed. Playback is offloaded to that app.
 - Playlist browsing and search use the Web API with OAuth PKCE; store tokens in `EncryptedSharedPreferences`.
 - Surface a clear setup state in the UI when Spotify is selected but not connected.
+- **Before starting (M7):** the owner registers an app on the Spotify developer dashboard and supplies the Client ID; they enter the redirect URI and debug-key SHA-1 we give them. Where it plugs in: `SoundPlan` (engine/ring) turns a group's sound into local sources to play; a Spotify config should resolve to its `fallback`'s sources, which start first, with the handoff attempted alongside. Testing the real handoff needs the S22 (the emulator has no logged-in Spotify), so it goes on the §10 list.
 
 ---
 
@@ -342,6 +352,7 @@ Each milestone should end in a working, installable app.
   - Photo match: reference of a real object (toothbrush), match in morning light, rejection of a different object, behaviour right after a reboot before unlock (name shown, matching still works). Tune `PhotoHash.DEFAULT_THRESHOLD` from these.
   - Steps: the counter reports promptly with the screen on; 20 steps completes; permission flow, including the dialog when "Use the suggested ladder" adds a walking rung, and the app-settings route after a refusal (the emulator has no step counter).
   - Reliability Check on One UI 8: the Samsung card's steps match the real settings (Never sleeping apps), "Open the settings" reaches the battery screen rather than app info, and the Fix this buttons land where their text says.
+  - Sound (M6): listen to all eight tones at a low and a high alarm volume (levels differ by design, gentle ones are quieter; none should clip or click at the loop point); pick a song from the phone and let it ring; reboot without unlocking and check the picked song still plays (it is copied into device-protected storage); the 30–60 s ramp and the "Start at" level sound right on the S22's speaker.
   - Launcher icon crop on One UI; the light and pastel themes, and Pewter/Loam on OLED at low brightness (DESIGN.md §2.1, §8).
   - The manual matrix above: Doze, DND, silent mode, after reboot, after update, battery optimisation on and off.
 

@@ -4,6 +4,10 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import app.cash.turbine.test
 import com.cascade.alarm.data.db.CascadeDatabase
+import com.cascade.alarm.data.sound.SoundConfig
+import com.cascade.alarm.data.sound.SoundFiles
+import com.cascade.alarm.data.sound.SoundSettings
+import com.cascade.alarm.engine.ring.RingSound
 import com.cascade.alarm.engine.EventLog
 import com.cascade.alarm.engine.TimeSource
 import com.cascade.alarm.engine.schedule.AlarmScheduler
@@ -59,7 +63,7 @@ class AlarmRepositoryTest {
         scheduler = FakeScheduler()
         time = FakeTime(now)
         reconciler = Reconciler(db, scheduler, time, EventLog(db.alarmEventDao(), time))
-        repo = AlarmRepository(db, reconciler, time)
+        repo = AlarmRepository(db, reconciler, time, SoundFiles(ApplicationProvider.getApplicationContext()))
     }
 
     @After
@@ -161,11 +165,11 @@ class AlarmRepositoryTest {
         val (groupId, ids) = sequence("Workday", 6 to 0)
         val fired = Instant.parse("2026-10-18T10:00:00Z")
         db.alarmDao().upsert(alarms(groupId).single().copy(lastFiredFor = fired))
-        repo.saveAlarm(alarms(groupId).single().copy(hour = 7, label = "  Up  ", volumeRampSeconds = 999, positionInGroup = 9))
+        repo.saveAlarm(alarms(groupId).single().copy(hour = 7, label = "  Up  ", timeoutMinutes = 999, positionInGroup = 9))
         val saved = repo.alarm(ids[0])!!
         assertEquals(fired, saved.lastFiredFor)
         assertEquals("Up", saved.label)
-        assertEquals(120, saved.volumeRampSeconds)
+        assertEquals(60, saved.timeoutMinutes)
         assertEquals(0, saved.positionInGroup) // position only changes via moveAlarm
         assertEquals(Instant.parse("2026-10-19T11:00:00Z"), scheduler.scheduled[ids[0]])
     }
@@ -334,5 +338,69 @@ class AlarmRepositoryTest {
     fun `blank group names get a placeholder`() = runBlocking {
         val id = repo.createGroup("   ")
         assertEquals("Untitled group", db.alarmGroupDao().get(id)!!.name)
+    }
+
+    // --- Sound (M6) ---
+
+    private val soundDir get() = java.io.File(
+        ApplicationProvider.getApplicationContext<android.content.Context>().createDeviceProtectedStorageContext().filesDir,
+        SoundFiles.DIR_NAME,
+    )
+
+    private fun copiedFile(name: String) = java.io.File(soundDir.apply { mkdirs() }, name).apply { writeText("audio") }
+
+    @Test
+    fun `a group's sound is saved within range and the ring reads it`() = runBlocking {
+        val (groupId, ids) = sequence("Workday", 6 to 0)
+        repo.setGroupSound(groupId, SoundConfig.BuiltIn("klaxon"), rampSeconds = 500, startPercent = 0)
+        val store = RoomRingStore(reconciler, db.alarmDao(), db.alarmGroupDao(), db.activeRingDao(), EventLog(db.alarmEventDao(), time))
+        assertEquals(RingSound(SoundConfig.BuiltIn("klaxon"), 60, 5), store.soundFor(repo.alarm(ids[0])!!))
+    }
+
+    @Test
+    fun `a new group plays Classic, reaching full volume after 45 s from 15 percent`() = runBlocking {
+        val id = repo.createGroup("Workday")
+        assertEquals(RingSound(SoundConfig.DEFAULT, 45, 15), RingSound.of(db.alarmGroupDao().get(id)!!))
+    }
+
+    @Test
+    fun `a row written without the sound columns reads as the defaults`() = runBlocking {
+        db.openHelper.writableDatabase.execSQL(
+            "INSERT INTO alarm_groups (id, name, colorHex, iconKey, isArmed, sortOrder, createdAt) VALUES ('old', 'Old', '#000000', 'default', 1, 0, 0)",
+        )
+        val group = db.alarmGroupDao().get("old")!!
+        assertEquals(RingSound(SoundConfig.DEFAULT, SoundSettings.DEFAULT_RAMP_SECONDS, SoundSettings.DEFAULT_START_PERCENT), RingSound.of(group))
+    }
+
+    @Test
+    fun `replacing or deleting a group's file deletes the copy, but not one another group plays`() = runBlocking {
+        val (a, _) = sequence("A", 6 to 0)
+        val (b, _) = sequence("B", 7 to 0)
+        copiedFile("first.mp3"); copiedFile("abandoned.mp3")
+        repo.setGroupSound(a, SoundConfig.DeviceAudio("first.mp3", "First"), 45, 15)
+        assertFalse("a picked file that was never saved is cleared", java.io.File(soundDir, "abandoned.mp3").exists())
+        assertTrue(java.io.File(soundDir, "first.mp3").exists())
+        copiedFile("shared.mp3")
+        repo.setGroupSound(b, SoundConfig.DeviceAudio("shared.mp3", "Shared"), 45, 15)
+        assertTrue(java.io.File(soundDir, "first.mp3").exists())
+
+        repo.setGroupSound(a, SoundConfig.BuiltIn("dawn"), 45, 15)
+        assertFalse(java.io.File(soundDir, "first.mp3").exists())
+        assertTrue(java.io.File(soundDir, "shared.mp3").exists())
+
+        repo.deleteGroup(b)
+        assertFalse(java.io.File(soundDir, "shared.mp3").exists())
+    }
+
+    @Test
+    fun `copied files are only found inside the sounds folder`() {
+        val files = SoundFiles(ApplicationProvider.getApplicationContext())
+        copiedFile("song.mp3")
+        assertEquals("song.mp3", files.file("song.mp3")?.name)
+        assertNull(files.file("missing.mp3"))
+        assertNull(files.file("../databases/cascade.db"))
+        assertEquals(".mp3", SoundFiles.extension("Morning Song.MP3"))
+        assertEquals("", SoundFiles.extension("no extension"))
+        assertEquals("", SoundFiles.extension("weird.m p3"))
     }
 }

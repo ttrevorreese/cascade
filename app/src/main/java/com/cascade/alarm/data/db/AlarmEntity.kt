@@ -10,7 +10,7 @@ import java.time.Instant
 import java.time.LocalTime
 
 /**
- * SPEC §5 `Alarm`; sound, challenge and snooze columns arrive in later milestones. The last four
+ * SPEC §5 `Alarm`; sound and ramp are the group's ([AlarmGroupEntity.sound]). The last four
  * columns are engine bookkeeping, not user configuration.
  */
 @Entity(
@@ -37,7 +37,11 @@ data class AlarmEntity(
     val label: String?,
     /** The alarm's own switch. It rings only if this AND its group's isArmed are true. */
     val isEnabled: Boolean,
-    val volumeRampSeconds: Int,
+    /**
+     * Unused since schema v7: the ramp belongs to the group ([AlarmGroupEntity.rampSeconds]).
+     * Kept because SQLite cannot drop a column before API 34; migration 6→7 read it once.
+     */
+    val volumeRampSeconds: Int = 30,
     val timeoutMinutes: Int,
     /** What dismissing it takes; null = just tap Dismiss. From M4 it overrides the group's policy. */
     val challengeOverride: ChallengeConfig? = null,

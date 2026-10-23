@@ -41,4 +41,7 @@ class RoomRingStore @Inject constructor(
         val policy = groupDao.get(alarm.groupId)?.escalationPolicy ?: EscalationPolicy()
         return Escalation.resolve(alarm, policy, Escalation.position(alarm, alarmDao.inGroup(alarm.groupId)))
     }
+
+    override suspend fun soundFor(alarm: AlarmEntity): RingSound =
+        groupDao.get(alarm.groupId)?.let(RingSound::of) ?: RingSound()
 }

@@ -17,6 +17,7 @@
                 <action android:name="com.cascade.alarm.debug.SEED_DEMO" />
                 <action android:name="com.cascade.alarm.debug.RING_POSITION" />
                 <action android:name="com.cascade.alarm.debug.SET_CHALLENGE" />
+                <action android:name="com.cascade.alarm.debug.SET_SOUND" />
             </intent-filter>
         </receiver>
     </application>

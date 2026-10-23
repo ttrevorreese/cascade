@@ -9,10 +9,11 @@ under conventions). It is how the next session knows where to pick up.
 
 ## Resume here
 
-- **Last finished:** M5 Reliability (2026-10-22): Reliability Check screen, missed/late-alarm cards
-  on Home, test-alarm result, phone-maker guidance, shareable event log. Decisions: `spec.md` §4.3.
-- **Next:** M6 Audio — built-in tones, device audio picker, volume ramp (exists since M1), then
-  Spotify behind a feature flag (SPEC §9). Start with a plan for the owner.
+- **Last finished:** M6 Audio (2026-10-23): sound per group (8 tones, a file from the phone copied
+  into device-protected storage), 30–60 s ramp with a "Start at" level, preview, fallback chain
+  with `SOUND_FALLBACK` events and a Home card. Decisions: `spec.md` §4.2.
+- **Next:** M7 Polish, which now also holds Spotify (SPEC §9; needs the owner's Spotify Client ID
+  first). Start with a plan for the owner.
 - Before starting a milestone: give the owner a short plan and wait for approval (their kickoff
   notes in `design/CLAUDE_CODE_PROMPT.md`), unless they have said to go ahead.
 
@@ -28,8 +29,8 @@ under conventions). It is how the next session knows where to pick up.
 | M3a/M3b Challenges | done | sums, phrase, QR/barcode, photo match, steps, memory; give-up; anti-circumvention |
 | M4 Escalation | done | per-group ladder, resolved at fire time, escalation editor |
 | M5 Reliability | done | Reliability Check (problems first), missed/late cards with cause from boot time, test result, OEM guidance, event log share |
-| M6 Audio | **next** | |
-| M7 Polish | | stats, settings, Appearance screen + 52 themes picker, per-group themes, theme purchase, onboarding |
+| M6 Audio | done | per-group sound, tones from `scripts/make_tones.py`, picked files copied in, ramp 30–60 s + start level, fallback logged and shown on Home |
+| M7 Polish | **next** | Spotify (moved from M6), stats, settings, Appearance screen + 52 themes picker, per-group themes, theme purchase, onboarding |
 | M8 Release prep | | Play listing, permission declarations, privacy policy |
 
 ## Sources of truth
@@ -68,7 +69,12 @@ under conventions). It is how the next session knows where to pick up.
 - Debug-build adb hooks (`DebugCommandReceiver`), e.g.
   `adb shell am broadcast -a com.cascade.alarm.debug.SEED_DEMO -p com.cascade.alarm`:
   `RING_IN`, `SET_TIMEOUT`, `SET_DAILY`, `DISABLE`, `DISMISS`, `SET_WAKE_CHECK`, `SEED_DEMO`,
-  `RING_POSITION --ei position N`, `SET_CHALLENGE --ei position N --es kind math|phrase|barcode|memory|steps|clear`.
+  `RING_POSITION --ei position N`, `SET_CHALLENGE --ei position N --es kind math|phrase|barcode|memory|steps|clear`,
+  `SET_SOUND --es tone <key> | --es file <name> [--ei ramp S --ei start P]` (first group and the test
+  alarm; a file name that was never copied in exercises the fallback). New debug actions also need
+  an `<action>` line in `app/src/debug/AndroidManifest.xml`.
+- Read the app's database: `adb exec-out run-as com.cascade.alarm cat .../databases/cascade.db`
+  (and `-wal`, `-shm`) into a folder and open with Python's sqlite3. `adb shell cat` mangles binaries.
 - UI checks: screenshot with `adb exec-out screencap -p`, find elements with
   `uiautomator dump`. Screenshot every new screen before calling it done.
 - Missed-alarm detector by hand: `RING_POSITION --ei seconds 20`, `am force-stop com.cascade.alarm`,
@@ -84,3 +90,7 @@ under conventions). It is how the next session knows where to pick up.
 - Permissions are asked at setup (editor), never at alarm time; missing ones fall back.
 - Commit at each working checkpoint with a descriptive message; push only when the owner asks.
 - Copy is plain and slightly dry, sentence case, buttons name their outcome (DESIGN.md §7).
+- Sound is the group's, never the alarm's. Tone keys are stored in the database: add tones, never
+  rename one. Regenerate tones with `python scripts/make_tones.py` (numpy).
+- Anything the ring path plays must be readable before first unlock: bundled, or copied into
+  device-protected storage (`SoundFiles`).

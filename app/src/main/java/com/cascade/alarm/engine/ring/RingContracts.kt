@@ -3,6 +3,9 @@ package com.cascade.alarm.engine.ring
 import com.cascade.alarm.data.challenge.ChallengeConfig
 import com.cascade.alarm.data.db.ActiveRingEntity
 import com.cascade.alarm.data.db.AlarmEntity
+import com.cascade.alarm.data.db.AlarmGroupEntity
+import com.cascade.alarm.data.sound.SoundConfig
+import com.cascade.alarm.data.sound.SoundSettings
 import com.cascade.alarm.data.db.EventType
 import com.cascade.alarm.engine.schedule.Reconciler.FireResult
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -59,10 +62,30 @@ interface RingStore {
 
     /** What dismissing [alarm] takes, from its override or its group's ladder (SPEC §5); null = plain. */
     suspend fun challengeFor(alarm: AlarmEntity): ChallengeConfig?
+
+    /** [alarm]'s group's sound and ramp, read at fire time. */
+    suspend fun soundFor(alarm: AlarmEntity): RingSound
+}
+
+/** What a ring plays and how it gets louder: the group's settings ([AlarmGroupEntity]). */
+data class RingSound(
+    val sound: SoundConfig = SoundConfig.DEFAULT,
+    val rampSeconds: Int = SoundSettings.DEFAULT_RAMP_SECONDS,
+    val startPercent: Int = SoundSettings.DEFAULT_START_PERCENT,
+) {
+    companion object {
+        fun of(group: AlarmGroupEntity) = RingSound(group.sound, group.rampSeconds, group.rampStartPercent)
+    }
 }
 
 interface AlarmSoundPlayer {
-    fun start(rampSeconds: Int)
+    /**
+     * Starts the alarm sound. If [sound]'s choice cannot play, the player moves down the chain
+     * (chosen → Classic → the phone's alarm sound; vibration throughout) and reports each step
+     * to [onFallback] with a short reason and what plays [next] ("classic", "system_sound" or
+     * "vibration"), for the event log.
+     */
+    fun start(sound: RingSound, onFallback: (reason: String, next: String) -> Unit = { _, _ -> })
 
     /** The wake-up check's prompt: vibration only, no alarm sound. */
     fun startWakeCheck()
@@ -93,7 +116,6 @@ interface RingPresenter {
 
 object RingDefaults {
     const val TIMEOUT_MINUTES = 15
-    const val RAMP_SECONDS = 30
 
     /** Held from the moment a fire arrives until the alarm's real timeout is known. */
     val INITIAL_WAKE_LOCK: Duration = Duration.ofMinutes(TIMEOUT_MINUTES + 2L)

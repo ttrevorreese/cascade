@@ -134,4 +134,19 @@ class ReliabilityScreensTest {
         clickIn("incident-m", "Got it")
         assertEquals(listOf("m"), acknowledged)
     }
+
+    @Test
+    fun aSoundThatFellBackSaysWhatPlayedInstead() {
+        val yesterday = Instant.now().minus(1, ChronoUnit.DAYS)
+        compose.setContent {
+            HomeContent(
+                emptyList(), {}, {}, { _, _ -> }, { _, _ -> }, {},
+                incidents = listOf(Incident.SoundFailed("s", "a", yesterday, "file_missing", "classic")),
+                onAcknowledge = {},
+            )
+        }
+        compose.onNodeWithText("alarm yesterday could not play its sound.", substring = true).assertExists()
+        compose.onNodeWithText("Its audio file is missing, so it played Classic instead. Choose its group's sound again.").assertExists()
+        compose.onNodeWithText("Check reliability").assertDoesNotExist()
+    }
 }

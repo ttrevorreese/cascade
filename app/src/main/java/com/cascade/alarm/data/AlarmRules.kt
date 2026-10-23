@@ -6,7 +6,6 @@ import com.cascade.alarm.data.db.AlarmEntity
 import com.cascade.alarm.data.db.AlarmGroupEntity
 import com.cascade.alarm.data.db.time
 import com.cascade.alarm.engine.ring.RingDefaults
-import com.cascade.alarm.engine.ring.VolumeRamp
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalTime
@@ -35,7 +34,7 @@ object AlarmRules {
 
     /**
      * A new alarm appended to a group. Groups are sequences, so it defaults to the next step:
-     * ten minutes after the last alarm, with the same days and ring settings.
+     * ten minutes after the last alarm, with the same days and timeout.
      */
     fun newAlarm(id: String, groupId: String, existing: List<AlarmEntity>): AlarmEntity {
         val last = existing.maxByOrNull { it.positionInGroup }
@@ -49,7 +48,6 @@ object AlarmRules {
             daysOfWeek = last?.daysOfWeek ?: emptySet(),
             label = null,
             isEnabled = true,
-            volumeRampSeconds = last?.volumeRampSeconds ?: RingDefaults.RAMP_SECONDS,
             timeoutMinutes = last?.timeoutMinutes ?: RingDefaults.TIMEOUT_MINUTES,
         )
     }
@@ -101,8 +99,6 @@ object AlarmRules {
     }
 
     fun normalizeLabel(label: String?): String? = label?.trim()?.takeIf { it.isNotEmpty() }
-
-    fun clampRamp(seconds: Int): Int = seconds.coerceIn(0, VolumeRamp.MAX_RAMP_SECONDS)
 
     fun clampTimeout(minutes: Int): Int = minutes.coerceIn(MIN_TIMEOUT_MINUTES, MAX_TIMEOUT_MINUTES)
 

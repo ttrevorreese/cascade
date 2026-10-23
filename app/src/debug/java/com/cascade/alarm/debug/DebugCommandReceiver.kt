@@ -6,6 +6,9 @@ import android.content.Intent
 import com.cascade.alarm.data.AlarmRepository
 import com.cascade.alarm.data.SystemTestAlarm
 import com.cascade.alarm.data.challenge.ChallengeConfig
+import com.cascade.alarm.data.sound.SoundConfig
+import com.cascade.alarm.data.sound.SoundSettings
+import com.cascade.alarm.data.sound.Tones
 import com.cascade.alarm.engine.EngineEntryPoint
 import com.cascade.alarm.engine.EngineLog
 import com.cascade.alarm.engine.ring.AlarmRingService
@@ -71,6 +74,21 @@ class DebugCommandReceiver : BroadcastReceiver() {
                             val group = db.alarmGroupDao().all().firstOrNull { it.id != SystemTestAlarm.GROUP_ID } ?: return@mutate
                             val alarm = db.alarmDao().inGroup(group.id).getOrNull(position) ?: return@mutate
                             db.alarmDao().upsert(alarm.copy(oneTimeTriggerAt = at))
+                        }
+                    }
+                    // Sets the first listed group's sound (and the test alarm's): --es tone <key> | --es file <name>
+                    // (a name that was never copied in, to exercise the fallback), --ei ramp, --ei start.
+                    "SET_SOUND" -> {
+                        val sound = intent.getStringExtra("file")?.let { SoundConfig.DeviceAudio(it, it) }
+                            ?: SoundConfig.BuiltIn(intent.getStringExtra("tone") ?: Tones.DEFAULT.key)
+                        val ramp = intent.getIntExtra("ramp", SoundSettings.DEFAULT_RAMP_SECONDS)
+                        val start = intent.getIntExtra("start", SoundSettings.DEFAULT_START_PERCENT)
+                        repository.editTestAlarm("debug_sound_rows") { it }
+                        repository.setGroupSound(SystemTestAlarm.GROUP_ID, sound, ramp, start)
+                        reconciler.mutate("debug_sound") { db ->
+                            db.alarmGroupDao().all().firstOrNull { it.id != SystemTestAlarm.GROUP_ID }?.let {
+                                db.alarmGroupDao().upsert(it.copy(sound = sound, rampSeconds = ramp, rampStartPercent = start))
+                            }
                         }
                     }
                     // Sets the challenge of the alarm at --ei position: --es kind math|phrase|barcode|memory|steps|none,

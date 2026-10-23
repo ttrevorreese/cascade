@@ -2,6 +2,8 @@ package com.cascade.alarm.data.db
 
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.cascade.alarm.data.sound.SoundConfig
+import com.cascade.alarm.data.sound.SoundSettings
 
 /**
  * Every schema change ships with a migration: a wiped alarm database is a set of alarms that
@@ -81,7 +83,25 @@ object Migrations {
         }
     }
 
-    val ALL = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+    /**
+     * v6 → v7: sound and ramp move to the group. Existing groups keep the Classic tone and take
+     * their first alarm's ramp, brought into the new 30–60 s range. The alarms' own ramp column
+     * stays (unused): SQLite cannot drop a column before API 34.
+     */
+    val MIGRATION_6_7 = object : Migration(6, 7) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE `alarm_groups` ADD COLUMN `sound` TEXT NOT NULL DEFAULT '${SoundConfig.DEFAULT_JSON}'")
+            db.execSQL("ALTER TABLE `alarm_groups` ADD COLUMN `rampSeconds` INTEGER NOT NULL DEFAULT 45")
+            db.execSQL("ALTER TABLE `alarm_groups` ADD COLUMN `rampStartPercent` INTEGER NOT NULL DEFAULT 15")
+            db.execSQL(
+                "UPDATE `alarm_groups` SET `rampSeconds` = MAX(?, MIN(?, COALESCE((SELECT a.`volumeRampSeconds` FROM `alarms` a " +
+                    "WHERE a.`groupId` = `alarm_groups`.`id` ORDER BY a.`positionInGroup` LIMIT 1), ?)))",
+                arrayOf<Any>(SoundSettings.MIN_RAMP_SECONDS, SoundSettings.MAX_RAMP_SECONDS, SoundSettings.DEFAULT_RAMP_SECONDS),
+            )
+        }
+    }
+
+    val ALL = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
 }
 
 object AlarmGroupDefaults {

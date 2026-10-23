@@ -343,31 +343,52 @@ private fun IncidentCard(incident: Incident, onCheck: () -> Unit, onAcknowledge:
     val is24Hour = is24HourClock()
     val at = incident.scheduledFor.atZone(ZoneId.systemDefault())
     val alarm = "Your ${TimeText.time(at.hour, at.minute, is24Hour)} alarm ${TimeText.dayInSentence(incident.scheduledFor)}"
-    val missed = incident is Incident.Missed
+    val cause = (incident as? Incident.Missed)?.cause ?: (incident as? Incident.Late)?.cause
+    // A ring that only vibrated is as serious as one that did not happen.
+    val serious = incident is Incident.Missed || (incident is Incident.SoundFailed && incident.next == "vibration")
     val headline = when (incident) {
         is Incident.Missed -> "$alarm did not ring."
         is Incident.Late -> "$alarm rang ${minutes(incident.lateBy)} late."
+        is Incident.SoundFailed -> "$alarm could not play its sound."
     }
-    val cause = when (incident.cause) {
-        IncidentCause.PHONE_OFF -> if (missed) "The phone was off or restarting then." else "The phone was starting up."
-        IncidentCause.APP_STOPPED -> "Android stopped Cascade, probably to save battery."
+    val detail = when (incident) {
+        is Incident.SoundFailed -> soundFailure(incident)
+        else -> when (cause) {
+            IncidentCause.PHONE_OFF -> if (incident is Incident.Missed) "The phone was off or restarting then." else "The phone was starting up."
+            else -> "Android stopped Cascade, probably to save battery."
+        }
     }
     Surface(
         shape = CascadeShapes.medium,
         color = c.surface,
-        border = BorderStroke(if (missed) 1.5.dp else 1.dp, if (missed) c.status.warn else c.line),
+        border = BorderStroke(if (serious) 1.5.dp else 1.dp, if (serious) c.status.warn else c.line),
         modifier = Modifier.fillMaxWidth().testTag("incident-${incident.eventId}"),
     ) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(CascadeSpace.s)) {
             Text(headline, style = CascadeType.rowLabel, color = c.textPrimary)
-            Text(cause, style = CascadeType.body, color = c.textSecondary)
+            Text(detail, style = CascadeType.body, color = c.textSecondary)
             Row(horizontalArrangement = Arrangement.spacedBy(CascadeSpace.s)) {
                 // Only a cause the user can do something about leads to the Reliability Check.
-                if (incident.cause == IncidentCause.APP_STOPPED) SecondaryButton("Check reliability", onCheck, small = true)
+                if (cause == IncidentCause.APP_STOPPED) SecondaryButton("Check reliability", onCheck, small = true)
                 TextButton(onClick = onAcknowledge) { Text("Got it") }
             }
         }
     }
+}
+
+/** Why the sound failed and what played instead, then what to do about it. */
+internal fun soundFailure(incident: Incident.SoundFailed): String {
+    val why = when (incident.reason) {
+        "file_missing" -> "Its audio file is missing"
+        "unknown_tone" -> "Its tone is not in this version of Cascade"
+        else -> "Its sound would not play"
+    }
+    val instead = when (incident.next) {
+        "classic" -> "so it played Classic instead"
+        "system_sound" -> "so it played the phone's alarm sound instead"
+        else -> "and nothing else would play either, so it only vibrated"
+    }
+    return "$why, $instead. Choose its group's sound again."
 }
 
 private fun minutes(d: java.time.Duration): String = d.toMinutes().let { if (it == 1L) "1 minute" else "$it minutes" }

@@ -6,7 +6,7 @@ import androidx.room.PrimaryKey
 import java.time.Instant
 import java.util.UUID
 
-enum class EventType { SCHEDULED, FIRED, DISMISSED, SNOOZED, MISSED, CHEAT_DETECTED, WAKE_CHECK_PASSED, WAKE_CHECK_FAILED, GAVE_UP }
+enum class EventType { SCHEDULED, FIRED, DISMISSED, SNOOZED, MISSED, CHEAT_DETECTED, WAKE_CHECK_PASSED, WAKE_CHECK_FAILED, GAVE_UP, SOUND_FALLBACK }
 
 /** Append-only audit log (SPEC §5). Never updated or deleted by the engine. */
 @Entity(

@@ -3,6 +3,8 @@ package com.cascade.alarm.engine.ring
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import com.cascade.alarm.data.sound.SoundSettings
+import kotlin.math.pow
 import kotlin.math.sqrt
 
 class VolumeRampTest {
@@ -30,6 +32,24 @@ class VolumeRampTest {
     @Test
     fun `rises evenly in decibels so the midpoint is the geometric mean`() =
         assertEquals(sqrt(floor), VolumeRamp.gain(15_000, 30, floor), 1e-4f)
+
+    @Test
+    fun `start level is perceived loudness, so half as loud is -10 dB`() {
+        assertEquals(1f, VolumeRamp.startGain(100), 1e-6f)
+        assertEquals(10.0.pow(-10.0 / 20).toFloat(), VolumeRamp.startGain(50), 1e-4f)
+        assertEquals(10.0.pow(-20.0 / 20).toFloat(), VolumeRamp.startGain(25), 1e-4f)
+    }
+
+    @Test
+    fun `the default start is close to the old fixed floor`() =
+        assertEquals(VolumeRamp.DEFAULT_FLOOR, VolumeRamp.startGain(SoundSettings.DEFAULT_START_PERCENT), 0.01f)
+
+    @Test
+    fun `a higher start is never quieter`() {
+        val gains = (SoundSettings.MIN_START_PERCENT..SoundSettings.MAX_START_PERCENT).map(VolumeRamp::startGain)
+        assertEquals(gains.sorted(), gains)
+        assertTrue(gains.first() > 0f)
+    }
 
     @Test
     fun `is monotonic and bounded`() {

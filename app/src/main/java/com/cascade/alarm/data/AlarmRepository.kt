@@ -6,6 +6,9 @@ import com.cascade.alarm.data.db.AlarmGroupDefaults
 import com.cascade.alarm.data.db.AlarmGroupEntity
 import com.cascade.alarm.data.db.CascadeDatabase
 import com.cascade.alarm.data.db.time
+import com.cascade.alarm.data.sound.SoundConfig
+import com.cascade.alarm.data.sound.SoundFiles
+import com.cascade.alarm.data.sound.SoundSettings
 import com.cascade.alarm.engine.TimeSource
 import com.cascade.alarm.engine.schedule.WakeCheck
 import com.cascade.alarm.engine.schedule.Reconciler
@@ -24,6 +27,7 @@ class AlarmRepository @Inject constructor(
     private val db: CascadeDatabase,
     private val reconciler: Reconciler,
     private val time: TimeSource,
+    private val soundFiles: SoundFiles,
 ) {
     private val groups get() = db.alarmGroupDao()
     private val alarms get() = db.alarmDao()
@@ -90,15 +94,39 @@ class AlarmRepository @Inject constructor(
         groups.upsert(group.copy(escalationPolicy = EscalationPolicy(policy.steps.mapNotNull(AlarmRules::normalizeChallenge))))
     }
 
+    /** Sets what every alarm in the group plays and how it gets louder; drops a replaced file. */
+    suspend fun setGroupSound(id: String, sound: SoundConfig, rampSeconds: Int, startPercent: Int) {
+        reconciler.mutate("group_sound") {
+            val group = groups.get(id) ?: return@mutate
+            groups.upsert(
+                group.copy(
+                    sound = sound,
+                    rampSeconds = SoundSettings.clampRamp(rampSeconds),
+                    rampStartPercent = SoundSettings.clampStart(startPercent),
+                ),
+            )
+        }
+        pruneSoundFiles()
+    }
+
+    /** Deletes copied audio files that no group plays any more (also ones picked but not saved). */
+    suspend fun pruneSoundFiles() {
+        val inUse = groups.all().mapNotNullTo(mutableSetOf()) { (it.sound as? SoundConfig.DeviceAudio)?.fileName }
+        soundFiles.prune(inUse)
+    }
+
     /** Moves every alarm in the group by [minutes] (the group screen's −5 / +5 buttons). */
     suspend fun shiftGroup(id: String, minutes: Long) = reconciler.mutate("group_shift") {
         alarms.upsertAll(alarms.inGroup(id).map { AlarmRules.shifted(it, minutes) })
     }
 
-    suspend fun deleteGroup(id: String) = reconciler.mutate("group_delete") {
-        // Explicit as well as the foreign-key cascade, so it cannot depend on PRAGMA foreign_keys.
-        alarms.deleteInGroup(id)
-        groups.delete(id)
+    suspend fun deleteGroup(id: String) {
+        reconciler.mutate("group_delete") {
+            // Explicit as well as the foreign-key cascade, so it cannot depend on PRAGMA foreign_keys.
+            alarms.deleteInGroup(id)
+            groups.delete(id)
+        }
+        pruneSoundFiles()
     }
 
     suspend fun moveGroup(id: String, delta: Int) = reconciler.mutate("group_move") {
@@ -127,7 +155,6 @@ class AlarmRepository @Inject constructor(
             daysOfWeek = alarm.daysOfWeek,
             label = AlarmRules.normalizeLabel(alarm.label),
             isEnabled = alarm.isEnabled,
-            volumeRampSeconds = AlarmRules.clampRamp(alarm.volumeRampSeconds),
             timeoutMinutes = AlarmRules.clampTimeout(alarm.timeoutMinutes),
             challengeOverride = AlarmRules.normalizeChallenge(alarm.challengeOverride),
         )
