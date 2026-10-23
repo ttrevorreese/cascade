@@ -117,6 +117,13 @@ Also implement a **missed alarm detector**: on every app foreground, compare the
 
 Add a **Test Alarm** button in settings that schedules an alarm 60 seconds out and runs the full real path. Users should be able to verify the app works before trusting it.
 
+**M5 decisions (2026-10-22):**
+- **Battery exemption goes through the settings list, not the direct dialog.** `setAlarmClock()` alarms already fire through Doze, and Play policy forbids requesting a direct Doze exemption unless Doze breaks the core function. The Reliability Check opens the battery settings (no special permission), and the manufacturer cards cover what actually stops alarms: OEM app killing.
+- **Extra check beyond the list above:** Android 11+ "pause app activity if unused" (permission auto-revoke), which can silently break an alarm app that is rarely opened.
+- **Home banner only for real blockers:** notifications, full-screen alarms or exact alarms missing. Battery and manufacturer advice stay on the Reliability Check, marked with a dot on its link.
+- **Missed-alarm cards say why:** the cause is inferred from the boot time (phone off or restarting at the time, versus Cascade being stopped while the phone was on). Alarms that rang more than 2 minutes late get a quieter card. "Got it" dismisses a card for good.
+- The test alarm reports its result ("rang 0.4 s late"); the event log can be shared as text for device testing.
+
 ### 4.4 Wake-up check (added 2026-10-21)
 
 Per group, off by default. When the user dismisses the group's **last** alarm (no enabled alarm later in the group), schedule a check 1–5 minutes later (per group, default 3). The check rides the same AlarmManager path as the alarm itself (`Alarm.wakeCheckAt`, treated like a one-time trigger), so it survives reboots and Doze.
@@ -334,6 +341,7 @@ Each milestone should end in a working, installable app.
   - QR/barcode: scan a printed Cascade code and an existing product barcode; a different code is refused.
   - Photo match: reference of a real object (toothbrush), match in morning light, rejection of a different object, behaviour right after a reboot before unlock (name shown, matching still works). Tune `PhotoHash.DEFAULT_THRESHOLD` from these.
   - Steps: the counter reports promptly with the screen on; 20 steps completes; permission flow, including the dialog when "Use the suggested ladder" adds a walking rung, and the app-settings route after a refusal (the emulator has no step counter).
+  - Reliability Check on One UI 8: the Samsung card's steps match the real settings (Never sleeping apps), "Open the settings" reaches the battery screen rather than app info, and the Fix this buttons land where their text says.
   - Launcher icon crop on One UI; the light and pastel themes, and Pewter/Loam on OLED at low brightness (DESIGN.md §2.1, §8).
   - The manual matrix above: Doze, DND, silent mode, after reboot, after update, battery optimisation on and off.
 

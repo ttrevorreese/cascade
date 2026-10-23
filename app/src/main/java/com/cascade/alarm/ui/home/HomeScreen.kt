@@ -1,5 +1,26 @@
 package com.cascade.alarm.ui.home
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
+import com.cascade.alarm.data.reliability.Incident
+import com.cascade.alarm.data.reliability.IncidentCause
+import com.cascade.alarm.data.reliability.ReliabilityRepository
+import com.cascade.alarm.ui.components.SecondaryButton
+import com.cascade.alarm.ui.reliability.ReliabilityCheck
+import com.cascade.alarm.ui.reliability.ReliabilityChecks
+import com.cascade.alarm.ui.reliability.WarningCard
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -56,9 +77,25 @@ import java.util.Locale
 import javax.inject.Inject
 
 @HiltViewModel
-class HomeViewModel @Inject constructor(private val repository: AlarmRepository) : ViewModel() {
+class HomeViewModel @Inject constructor(
+    private val repository: AlarmRepository,
+    private val reliability: ReliabilityRepository,
+) : ViewModel() {
     val groups: StateFlow<List<GroupSummary>?> = repository.observeGroupSummaries()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    private val mutableIncidents = MutableStateFlow<List<Incident>>(emptyList())
+
+    /** Alarms that did not ring, or rang late, that the user has not dismissed (SPEC §4.3). */
+    val incidents: StateFlow<List<Incident>> = mutableIncidents.asStateFlow()
+
+    /** Called whenever Home comes to the foreground: the detector runs on every app foreground. */
+    fun refreshIncidents() = launch { mutableIncidents.value = reliability.incidents() }
+
+    fun acknowledge(eventId: String) = launch {
+        reliability.acknowledge(eventId)
+        mutableIncidents.value = reliability.incidents()
+    }
 
     fun setArmed(groupId: String, armed: Boolean) = launch { repository.setGroupArmed(groupId, armed) }
     fun move(groupId: String, delta: Int) = launch { repository.moveGroup(groupId, delta) }
@@ -75,17 +112,28 @@ class HomeViewModel @Inject constructor(private val repository: AlarmRepository)
 @Composable
 fun HomeScreen(
     onOpenGroup: (String) -> Unit,
-    onOpenDiagnostics: () -> Unit,
+    onOpenReliability: () -> Unit,
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val groups by viewModel.groups.collectAsStateWithLifecycle()
+    val incidents by viewModel.incidents.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    var checks by remember { mutableStateOf(emptyList<ReliabilityCheck>()) }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        viewModel.refreshIncidents()
+        checks = ReliabilityChecks.check(context)
+    }
     HomeContent(
         groups = groups,
         onOpenGroup = onOpenGroup,
-        onOpenDiagnostics = onOpenDiagnostics,
+        onOpenReliability = onOpenReliability,
         onArmedChange = viewModel::setArmed,
         onMove = viewModel::move,
         onCreate = { name -> viewModel.create(name, onOpenGroup) },
+        incidents = incidents,
+        blockers = checks.filter { it.blocker && !it.passed },
+        adviceOutstanding = checks.any { !it.blocker && !it.passed },
+        onAcknowledge = viewModel::acknowledge,
     )
 }
 
@@ -93,10 +141,16 @@ fun HomeScreen(
 fun HomeContent(
     groups: List<GroupSummary>?,
     onOpenGroup: (String) -> Unit,
-    onOpenDiagnostics: () -> Unit,
+    onOpenReliability: () -> Unit,
     onArmedChange: (String, Boolean) -> Unit,
     onMove: (String, Int) -> Unit,
     onCreate: (String) -> Unit,
+    incidents: List<Incident> = emptyList(),
+    /** Failing checks that stop alarms working: these earn the banner (SPEC §4.3). */
+    blockers: List<ReliabilityCheck> = emptyList(),
+    /** Advice still to act on: a dot on the Reliability link, no banner. */
+    adviceOutstanding: Boolean = false,
+    onAcknowledge: (eventId: String) -> Unit = {},
 ) {
     val c = cascadeColors
     var creating by remember { mutableStateOf(false) }
@@ -125,10 +179,31 @@ fun HomeContent(
             item {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text("Cascade", style = CascadeType.cardTitle, color = c.textSecondary, modifier = Modifier.weight(1f))
-                    TextButton(onClick = onOpenDiagnostics) {
-                        Text("Diagnostics", style = CascadeType.body, color = c.textSecondary)
+                    TextButton(onClick = onOpenReliability, modifier = Modifier.testTag("open-reliability")) {
+                        Text("Reliability", style = CascadeType.body, color = c.textSecondary)
+                        if (adviceOutstanding) {
+                            // Advice, not an emergency: a dot, never a ramp colour (DESIGN.md §1).
+                            Box(
+                                Modifier.padding(start = 6.dp).size(7.dp).clip(CircleShape).background(c.status.warn)
+                                    .semantics { contentDescription = "Advice waiting" },
+                            )
+                        }
                     }
                 }
+            }
+            if (blockers.isNotEmpty()) {
+                item {
+                    WarningCard(
+                        title = if (blockers.size == 1) "${blockers.single().title} is off" else "${blockers.size} settings are stopping your alarms",
+                        detail = blockers.joinToString(" ") { it.consequence },
+                        action = "Fix in Reliability",
+                        onAction = onOpenReliability,
+                        modifier = Modifier.testTag("blocker-banner"),
+                    )
+                }
+            }
+            items(incidents, key = { it.eventId }) { incident ->
+                IncidentCard(incident, onCheck = onOpenReliability, onAcknowledge = { onAcknowledge(incident.eventId) })
             }
             if (groups != null) item { NextAlarm(groups) }
             when {
@@ -257,3 +332,42 @@ fun NameDialog(title: String, initial: String, confirmLabel: String, onConfirm: 
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
 }
+
+/**
+ * One alarm that did not ring, or rang late, with the likely cause (SPEC §4.3). A miss gets the
+ * warning border; a late ring is quieter. "Got it" dismisses it for good.
+ */
+@Composable
+private fun IncidentCard(incident: Incident, onCheck: () -> Unit, onAcknowledge: () -> Unit) {
+    val c = cascadeColors
+    val is24Hour = is24HourClock()
+    val at = incident.scheduledFor.atZone(ZoneId.systemDefault())
+    val alarm = "Your ${TimeText.time(at.hour, at.minute, is24Hour)} alarm ${TimeText.dayInSentence(incident.scheduledFor)}"
+    val missed = incident is Incident.Missed
+    val headline = when (incident) {
+        is Incident.Missed -> "$alarm did not ring."
+        is Incident.Late -> "$alarm rang ${minutes(incident.lateBy)} late."
+    }
+    val cause = when (incident.cause) {
+        IncidentCause.PHONE_OFF -> if (missed) "The phone was off or restarting then." else "The phone was starting up."
+        IncidentCause.APP_STOPPED -> "Android stopped Cascade, probably to save battery."
+    }
+    Surface(
+        shape = CascadeShapes.medium,
+        color = c.surface,
+        border = BorderStroke(if (missed) 1.5.dp else 1.dp, if (missed) c.status.warn else c.line),
+        modifier = Modifier.fillMaxWidth().testTag("incident-${incident.eventId}"),
+    ) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(CascadeSpace.s)) {
+            Text(headline, style = CascadeType.rowLabel, color = c.textPrimary)
+            Text(cause, style = CascadeType.body, color = c.textSecondary)
+            Row(horizontalArrangement = Arrangement.spacedBy(CascadeSpace.s)) {
+                // Only a cause the user can do something about leads to the Reliability Check.
+                if (incident.cause == IncidentCause.APP_STOPPED) SecondaryButton("Check reliability", onCheck, small = true)
+                TextButton(onClick = onAcknowledge) { Text("Got it") }
+            }
+        }
+    }
+}
+
+private fun minutes(d: java.time.Duration): String = d.toMinutes().let { if (it == 1L) "1 minute" else "$it minutes" }

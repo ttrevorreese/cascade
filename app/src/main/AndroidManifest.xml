@@ -23,6 +23,18 @@
     <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
     <uses-feature android:name="android.hardware.sensor.stepcounter" android:required="false" />
 
+    <!-- Android 11+ hides other apps unless declared: the Reliability Check's links to phone
+         makers' battery and autostart screens (OemGuidance) need to see these to use them. -->
+    <queries>
+        <package android:name="com.samsung.android.lool" />
+        <package android:name="com.samsung.android.sm" />
+        <package android:name="com.miui.securitycenter" />
+        <package android:name="com.huawei.systemmanager" />
+        <package android:name="com.coloros.safecenter" />
+        <package android:name="com.oplus.battery" />
+        <package android:name="com.vivo.permissionmanager" />
+    </queries>
+
     <application
         android:name=".CascadeApp"
         android:allowBackup="false"

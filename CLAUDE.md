@@ -9,9 +9,10 @@ under conventions). It is how the next session knows where to pick up.
 
 ## Resume here
 
-- **Current milestone:** M5 — Reliability (in progress, started 2026-10-22). Plan and decisions:
-  `spec.md` §4.3 "M5 decisions".
-- **Next after M5:** M6 Audio (built-in tones, device audio picker, Spotify behind a flag; SPEC §9).
+- **Last finished:** M5 Reliability (2026-10-22): Reliability Check screen, missed/late-alarm cards
+  on Home, test-alarm result, phone-maker guidance, shareable event log. Decisions: `spec.md` §4.3.
+- **Next:** M6 Audio — built-in tones, device audio picker, volume ramp (exists since M1), then
+  Spotify behind a feature flag (SPEC §9). Start with a plan for the owner.
 - Before starting a milestone: give the owner a short plan and wait for approval (their kickoff
   notes in `design/CLAUDE_CODE_PROMPT.md`), unless they have said to go ahead.
 
@@ -26,8 +27,8 @@ under conventions). It is how the next session knows where to pick up.
 | M2.5 Design system | done | tokens generated from `design/assets/themes.json` (52 themes), Sora, spine, firing palette |
 | M3a/M3b Challenges | done | sums, phrase, QR/barcode, photo match, steps, memory; give-up; anti-circumvention |
 | M4 Escalation | done | per-group ladder, resolved at fire time, escalation editor |
-| M5 Reliability | **in progress** | Reliability Check, missed-alarm detector, test alarm result, OEM guidance |
-| M6 Audio | next | |
+| M5 Reliability | done | Reliability Check (problems first), missed/late cards with cause from boot time, test result, OEM guidance, event log share |
+| M6 Audio | **next** | |
 | M7 Polish | | stats, settings, Appearance screen + 52 themes picker, per-group themes, theme purchase, onboarding |
 | M8 Release prep | | Play listing, permission declarations, privacy policy |
 
@@ -70,6 +71,9 @@ under conventions). It is how the next session knows where to pick up.
   `RING_POSITION --ei position N`, `SET_CHALLENGE --ei position N --es kind math|phrase|barcode|memory|steps|clear`.
 - UI checks: screenshot with `adb exec-out screencap -p`, find elements with
   `uiautomator dump`. Screenshot every new screen before calling it done.
+- Missed-alarm detector by hand: `RING_POSITION --ei seconds 20`, `am force-stop com.cascade.alarm`,
+  wait 2.5 min, reopen: the catch-up rings late and Home shows the "rang late" card.
+- The emulator sometimes puts a Google sign-in screen in front after installs; press Back/Home.
 
 ## Conventions
 

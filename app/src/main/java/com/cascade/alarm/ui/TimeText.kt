@@ -21,13 +21,18 @@ object TimeText {
     fun nextRing(instant: Instant, is24Hour: Boolean, zone: ZoneId = ZoneId.systemDefault()): String =
         instant.atZone(zone).format(DateTimeFormatter.ofPattern("EEE " + pattern(is24Hour)))
 
-    /** "Today", "Tomorrow", or the weekday, for the home screen's next alarm. */
+    /** "Today", "Tomorrow", "Yesterday", or the weekday. */
     fun day(instant: Instant, zone: ZoneId = ZoneId.systemDefault(), today: LocalDate = LocalDate.now(zone)): String =
         when (val date = instant.atZone(zone).toLocalDate()) {
             today -> "Today"
             today.plusDays(1) -> "Tomorrow"
+            today.minusDays(1) -> "Yesterday"
             else -> date.format(DateTimeFormatter.ofPattern("EEEE"))
         }
+
+    /** The day as it reads mid-sentence: "yesterday", "on Tuesday". */
+    fun dayInSentence(instant: Instant, zone: ZoneId = ZoneId.systemDefault()): String =
+        day(instant, zone).let { if (it in setOf("Today", "Tomorrow", "Yesterday")) it.lowercase() else "on $it" }
 }
 
 @Composable
