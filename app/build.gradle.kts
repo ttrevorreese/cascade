@@ -117,11 +117,16 @@ abstract class GenerateThemesTask : DefaultTask() {
             val firing = t["firing"] as? List<*> ?: error("themes.json: $id.firing is missing")
             require(ramp.size == 5) { "themes.json: $id.ramp needs 5 stops" }
             require(firing.size == 3) { "themes.json: $id.firing needs 3 stops" }
+            val direction = t["rampDirection"] ?: "ascend"
+            require(direction == "ascend" || direction == "descend") { "themes.json: $id.rampDirection is $direction" }
+            val isFree = t["tier"] == "free"
+            require(isFree == (id.toString() in free)) { "themes.json: $id.tier disagrees with the top-level free list" }
             out.appendLine("        ThemeSpec(")
             out.appendLine("            id = ${str(id)}, name = ${str(t["name"])}, descriptor = ${str(t["descriptor"])},")
-            out.appendLine("            isFree = ${id.toString() in free}, note = ${str(t["note"])},")
+            out.appendLine("            isFree = $isFree, note = ${str(t["note"])},")
             out.appendLine("            colors = CascadeColors(")
             out.appendLine("                isLight = $light,")
+            out.appendLine("                rampDescends = ${direction == "descend"},")
             tokens.forEach { out.appendLine("                $it = ${color(t[it], "$id.$it")},") }
             out.appendLine("                ramp = listOf(${ramp.mapIndexed { i, c -> color(c, "$id.ramp[$i]") }.joinToString()}),")
             out.appendLine("                firing = listOf(${firing.mapIndexed { i, c -> color(c, "$id.firing[$i]") }.joinToString()}),")

@@ -21,14 +21,40 @@ class ThemeContrastTest {
     }
 
     @Test
-    fun `there are twenty themes in five families of four, Forest default, Forest and Night free`() {
-        assertEquals(20, CascadeThemes.all.size)
-        assertEquals(5, CascadeThemes.families.size)
+    fun `fifty-two themes in thirteen families of four, Forest default`() {
+        assertEquals(52, CascadeThemes.all.size)
+        assertEquals(13, CascadeThemes.families.size)
         CascadeThemes.families.forEach { assertEquals(4, it.themeIds.size, it.label) }
-        assertEquals(CascadeThemes.all.map { it.id }.toSet(), CascadeThemes.families.flatMap { it.themeIds }.toSet())
+        val listed = CascadeThemes.families.flatMap { it.themeIds }
+        assertEquals(listed.size, listed.toSet().size, "a theme is in two families")
+        assertEquals(CascadeThemes.all.map { it.id }.toSet(), listed.toSet())
         assertEquals("forest", CascadeThemes.default.id)
-        assertEquals(setOf("forest", "night"), CascadeThemes.all.filter { it.isFree }.map { it.id }.toSet())
-        assertEquals(setOf("paper", "sand", "chalk", "blush"), CascadeThemes.all.filter { it.colors.isLight }.map { it.id }.toSet())
+    }
+
+    @Test
+    fun `free themes are Forest, Night and the four Clarity themes`() {
+        // DESIGN.md §2.5, decided 2026-10-22: legibility is never sold.
+        assertEquals(
+            setOf("forest", "night", "beacon", "lantern", "hazard", "compass"),
+            CascadeThemes.all.filter { it.isFree }.map { it.id }.toSet(),
+        )
+    }
+
+    @Test
+    fun `the ten light themes, and the two that descend`() {
+        assertEquals(
+            setOf("paper", "sand", "chalk", "blush", "meadow", "mist", "linen", "apricot", "lantern", "marble"),
+            CascadeThemes.all.filter { it.colors.isLight }.map { it.id }.toSet(),
+        )
+        assertEquals(setOf("lantern", "marble"), CascadeThemes.all.filter { it.colors.rampDescends }.map { it.id }.toSet())
+    }
+
+    @Test
+    fun `Clarity themes reach AAA on body text`() {
+        listOf("beacon", "lantern", "hazard", "compass").map(CascadeThemes::byId).forEach { t ->
+            assertTrue(contrast(t.colors.textPrimary, t.colors.ground) >= 7.0, "${t.id} textPrimary")
+            assertTrue(contrast(t.colors.textSecondary, t.colors.ground) >= 7.0, "${t.id} textSecondary")
+        }
     }
 
     @Test
@@ -47,10 +73,12 @@ class ThemeContrastTest {
     }
 
     @Test
-    fun `the ramp climbs in luminance at every stop, not just in hue`() {
+    fun `the ramp moves in luminance at every stop, in the theme's own direction`() {
         CascadeThemes.all.forEach { t ->
             val l = t.colors.ramp.map(::luminance)
-            l.zipWithNext().forEachIndexed { i, (a, b) -> assertTrue(b > a, "${t.id} ramp${i + 1} -> ramp${i + 2}") }
+            l.zipWithNext().forEachIndexed { i, (a, b) ->
+                assertTrue(if (t.colors.rampDescends) b < a else b > a, "${t.id} ramp${i + 1} -> ramp${i + 2}")
+            }
         }
     }
 

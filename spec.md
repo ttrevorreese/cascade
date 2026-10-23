@@ -16,7 +16,7 @@ Layered on top of that is **escalation**: each alarm's position in its sequence 
 
 **Design principle:** the app must be more reliable than the stock Clock app. Every architectural decision defers to that. A missed alarm is a catastrophic bug, not a defect.
 
-**Visual design lives in `design/DESIGN.md`**, with colour values in `design/assets/themes.json` and icon assets in `design/assets/icons/`. Read it before writing any UI. Two things from it affect architecture rather than styling, so they are repeated here: the app ships **twenty themes** (Forest default, Night free, eighteen behind one non-consumable purchase, none tied to the system dark-mode setting), generated from the JSON rather than hand-transcribed; and an alarm's position in its sequence maps to a five-stop colour ramp through a single shared function that needs unit tests. The launcher icon is fixed and does not vary by theme.
+**Visual design lives in `design/DESIGN.md`**, with colour values in `design/assets/themes.json` and icon assets in `design/assets/icons/`. Read it before writing any UI. Three things from it affect architecture rather than styling, so they are repeated here: the app ships **fifty-two themes** in thirteen families (Forest default; Night and the four Clarity themes free; forty-six behind one non-consumable purchase; none tied to the system dark-mode setting), generated from the JSON rather than hand-transcribed; an alarm's position in its sequence maps to a five-stop colour ramp through a single shared function that needs unit tests; and **each alarm group can carry its own theme**, which adds a field to the data model and changes how the firing screen resolves colour — see `design/DESIGN.md` §11. The launcher icon is fixed and does not vary by theme. Run `design/assets/theme_audit.py` after any colour change; CI runs it too.
 
 ---
 
@@ -37,8 +37,8 @@ Layered on top of that is **escalation**: each alarm's position in its sequence 
 - Wear OS
 - Sleep tracking, sleep cycle detection, smart wake windows
 - Accounts, cloud sync, social features
-- Subscriptions. Billing is limited to **one non-consumable in-app purchase** unlocking the eighteen pack themes (`design/DESIGN.md` §11). Build it at M7, not before, and never gate alarm behaviour behind it.
-- A user-switchable launcher icon. Considered and dropped; `design/DESIGN.md` §11.1 says why, so it does not get reinvented.
+- Subscriptions. Billing is limited to **one non-consumable in-app purchase** unlocking the forty-six pack themes (`design/DESIGN.md` §12). Build it at M7, not before, and never gate alarm behaviour behind it.
+- A user-switchable launcher icon. Considered and dropped; `design/DESIGN.md` §12.1 says why, so it does not get reinvented.
 
 ### Deferred to v1.1
 Local backup/restore via JSON export, widget, Tasker integration, additional challenge types.
@@ -135,6 +135,7 @@ data class AlarmGroup(
     val colorHex: String,
     val iconKey: String,
     val isArmed: Boolean,                 // master toggle for all child alarms
+    val themeId: String?,                 // null = follow the app theme; see design/DESIGN.md §11 (M7)
     val escalationPolicy: EscalationPolicy,
     val sortOrder: Int,
     val createdAt: Instant
@@ -194,6 +195,8 @@ data class AlarmEvent(                   // append-only audit log
 **Effective-enabled rule:** an alarm fires only if `group.isArmed && alarm.isEnabled`. The group toggle does not mutate child `isEnabled` values, so a user who disabled one alarm inside a group keeps that state when re-arming the group. This is the behavior organized users expect and most apps get wrong.
 
 **Shift with first (added 2026-10-21):** `AlarmGroup.shiftWithFirst` (default on). Changing the time of the alarm at position 0 moves every other alarm in the group by the same amount, taking the short way round the clock (23:50 → 00:10 is +20 min). An alarm moved across midnight takes its repeat days with it. Editing any other alarm moves only that alarm. The group screen also has −5 / +5 min buttons that shift the whole group.
+
+**Theme resolution:** `group.themeId ?? appThemeId ?? "forest"`, in one shared function, resolved at fire time rather than cached. An unowned or unknown `themeId` falls back to the app theme silently — never block an alarm or show a paywall on the firing screen. `design/DESIGN.md` §11.1 has the full rules.
 
 **Escalation resolution:** `alarm.challengeOverride ?: group.escalationPolicy.steps.getOrElse(alarm.positionInGroup) { steps.last() }`.
 
@@ -290,15 +293,15 @@ Each milestone should end in a working, installable app.
 | M0 | Skeleton | Project setup, Hilt, Room, Compose nav, CI running tests |
 | M1 | **Alarm engine** | One hardcoded alarm fires reliably, shows full-screen over lock screen, plays audio, dismisses, survives reboot. No UI polish. **Do not proceed until this is bulletproof.** |
 | M2 | CRUD + groups | Create/edit/delete groups and alarms, master toggle, Room persistence, reconciliation on all triggers |
-| M2.5 | Design system | Added 2026-10-21, after M2 shipped on stock Material. Retrofit `design/DESIGN.md` before M3 adds more screens: theme tokens for all twenty generated from `themes.json` at build time (Forest applied; the picker and Night wait for M7), Sora type scale, `rampStopFor`, flat chrome, re-skinned home / group (spine) / editor / firing screens, launcher and notification icons, voice pass |
+| M2.5 | Design system | Added 2026-10-21, after M2 shipped on stock Material. Retrofit `design/DESIGN.md` before M3 adds more screens: theme tokens for all twenty generated from `themes.json` at build time (Forest applied; the picker and Night wait for M7), Sora type scale, `rampStopFor`, flat chrome, re-skinned home / group (spine) / editor / firing screens, launcher and notification icons, voice pass. **Updated 2026-10-22 to the v2 design:** 52 themes in 13 families, ramp direction, Clarity themes free, theme audit in CI; per-group themes added to M7 |
 | M3 | Challenges | Interface + math, type-phrase, barcode. Then steps, photo match, memory |
 | M4 | Escalation | Policy resolution, escalation editor screen, reorder semantics |
 | M5 | Reliability | Reliability Check, missed-alarm detector, test alarm, OEM guidance, event logging |
 | M6 | Audio | Built-in tones, device audio picker, volume ramp, then Spotify behind a feature flag |
-| M7 | Polish | Stats, settings, all twenty themes generated from `design/assets/themes.json`, the Appearance screen, the theme-pack purchase, onboarding, accessibility pass |
+| M7 | Polish | Stats, settings, all fifty-two themes generated from `design/assets/themes.json`, the Appearance screen (its grid generated from the JSON too), per-group themes, the theme-pack purchase, onboarding, accessibility pass |
 | M8 | Release prep | Play Store listing, permission justifications, privacy policy, closed testing |
 
-**Estimate:** 11–14 weeks of focused solo work to a shipped Play Store release. M1 and M5 together are roughly 40% of the total and are where the difficulty actually lives. The challenge screens look like the bulk of the work but are the easy part. Twenty themes cost almost nothing beyond the first two if the token system is built properly at M2 and generated from `design/assets/themes.json`; the single in-app purchase at M7 is a few days.
+**Estimate:** 11–14 weeks of focused solo work to a shipped Play Store release. M1 and M5 together are roughly 40% of the total and are where the difficulty actually lives. The challenge screens look like the bulk of the work but are the easy part. Fifty-two themes cost almost nothing beyond the first two if the token system is built properly at M2 and both the colour table and the picker grid are generated from `design/assets/themes.json`; the single in-app purchase at M7 is a few days. The one real cost is visual QA, since the firing screens want eyeballing per theme.
 
 ---
 

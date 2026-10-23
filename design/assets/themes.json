@@ -1,13 +1,127 @@
 {
   "$comment": "Cascade theme definitions. Generate the Kotlin CascadeColors table from this file rather than transcribing hex values by hand. See DESIGN.md section 2. 'tier' is free or pack; 'light' themes invert the surface direction (groundDeep and surface are lighter than ground) and carry statusOverride.",
   "default": "forest",
-  "free": ["forest", "night"],
+  "free": [
+    "forest",
+    "night", "beacon", "lantern", "hazard", "compass"],
   "families": {
-    "landscape": { "label": "Landscape", "themes": ["forest", "tide", "moss", "olive"] },
-    "earth": { "label": "Earth", "themes": ["ember", "cocoa", "canyon", "vineyard"] },
-    "afterDark": { "label": "After dark", "themes": ["night", "ink", "dusk", "aurora"] },
-    "stark": { "label": "Stark", "themes": ["eclipse", "tundra", "slate", "signal"] },
-    "daylight": { "label": "Daylight", "themes": ["paper", "sand", "chalk", "blush"] }
+    "landscape": {
+      "label": "Landscape",
+      "themes": [
+        "forest",
+        "tide",
+        "moss",
+        "olive"
+      ]
+    },
+    "earth": {
+      "label": "Earth",
+      "themes": [
+        "ember",
+        "cocoa",
+        "canyon",
+        "vineyard"
+      ]
+    },
+    "afterDark": {
+      "label": "After dark",
+      "themes": [
+        "night",
+        "ink",
+        "dusk",
+        "aurora"
+      ]
+    },
+    "stark": {
+      "label": "Stark",
+      "themes": [
+        "eclipse",
+        "tundra",
+        "slate",
+        "signal"
+      ]
+    },
+    "daylight": {
+      "label": "Daylight",
+      "themes": [
+        "paper",
+        "sand",
+        "chalk",
+        "blush"
+      ]
+    },
+    "terminal": {
+      "label": "Terminal",
+      "themes": [
+        "phosphor",
+        "amber",
+        "cathode",
+        "plasma"
+      ]
+    },
+    "neon": {
+      "label": "Neon",
+      "themes": [
+        "arcade",
+        "vapor",
+        "citrus",
+        "koi"
+      ]
+    },
+    "quiet": {
+      "label": "Quiet",
+      "themes": [
+        "fog",
+        "sage",
+        "pewter",
+        "loam"
+      ]
+    },
+    "pastel": {
+      "label": "Pastel",
+      "themes": [
+        "meadow",
+        "mist",
+        "linen",
+        "apricot"
+      ]
+    },
+    "clarity": {
+      "label": "Clarity",
+      "themes": [
+        "beacon",
+        "lantern",
+        "hazard",
+        "compass"
+      ]
+    },
+    "retro": {
+      "label": "Retro",
+      "themes": [
+        "betamax",
+        "formica",
+        "kodachrome",
+        "atomic"
+      ]
+    },
+    "royal": {
+      "label": "Royal",
+      "themes": [
+        "regalia",
+        "sapphire",
+        "emerald",
+        "garnet"
+      ]
+    },
+    "mineral": {
+      "label": "Mineral",
+      "themes": [
+        "basalt",
+        "verdigris",
+        "marble",
+        "pyrite"
+      ]
+    }
   },
   "status": {
     "pass": "#4ECB8F",
@@ -25,60 +139,140 @@
       "descriptor": "Dawn through trees",
       "tier": "free",
       "light": false,
-      "ground": "#123524", "groundDeep": "#0E2A1C", "surface": "#1A4532",
-      "surfaceHigh": "#235741", "surfaceMuted": "#16402C", "line": "#2E6B50",
-      "textPrimary": "#ECF5EE", "textSecondary": "#92B8A0", "textQuiet": "#5D8069",
-      "ramp": ["#2E8C72", "#4FA95C", "#93C13C", "#FCB05B", "#FFC94A"],
+      "ground": "#123524",
+      "groundDeep": "#0E2A1C",
+      "surface": "#1A4532",
+      "surfaceHigh": "#235741",
+      "surfaceMuted": "#16402C",
+      "line": "#2E6B50",
+      "textPrimary": "#ECF5EE",
+      "textSecondary": "#92B8A0",
+      "textQuiet": "#5D8069",
+      "ramp": [
+        "#2E8B71",
+        "#4CA258",
+        "#89B338",
+        "#FCAA4E",
+        "#FFCA4F"
+      ],
       "onRamp5": "#1C2A10",
-      "firing": ["#1E6349", "#15402C", "#0D2A1B"]
+      "firing": [
+        "#1E6349",
+        "#15402C",
+        "#0D2A1B"
+      ]
     },
     "tide": {
       "name": "Tide",
       "descriptor": "Sea before sunrise",
       "tier": "pack",
       "light": false,
-      "ground": "#0C2432", "groundDeep": "#081A26", "surface": "#14364A",
-      "surfaceHigh": "#1C475E", "surfaceMuted": "#102C3C", "line": "#27586F",
-      "textPrimary": "#E6F2F5", "textSecondary": "#8FB3C2", "textQuiet": "#5F8396",
-      "ramp": ["#26657F", "#2186A0", "#27AEAE", "#6CCF9E", "#C4E88C"],
+      "ground": "#0C2432",
+      "groundDeep": "#081A26",
+      "surface": "#14364A",
+      "surfaceHigh": "#1C475E",
+      "surfaceMuted": "#102C3C",
+      "line": "#27586F",
+      "textPrimary": "#E6F2F5",
+      "textSecondary": "#8FB3C2",
+      "textQuiet": "#5F8396",
+      "ramp": [
+        "#26657F",
+        "#2186A0",
+        "#27AEAE",
+        "#6CCF9E",
+        "#C4E88C"
+      ],
       "onRamp5": "#16290C",
-      "firing": ["#1A5570", "#0F3044", "#081A26"]
+      "firing": [
+        "#1A5570",
+        "#0F3044",
+        "#081A26"
+      ]
     },
     "moss": {
       "name": "Moss",
       "descriptor": "Forest with the lights off",
       "tier": "pack",
       "light": false,
-      "ground": "#0F1A14", "groundDeep": "#0A120E", "surface": "#1A2A20",
-      "surfaceHigh": "#24382C", "surfaceMuted": "#132017", "line": "#2F4738",
-      "textPrimary": "#E8F0EA", "textSecondary": "#9AB2A2", "textQuiet": "#6C8276",
-      "ramp": ["#3A6A58", "#4F8464", "#6E9C62", "#94B068", "#C2C882"],
+      "ground": "#0F1A14",
+      "groundDeep": "#0A120E",
+      "surface": "#1A2A20",
+      "surfaceHigh": "#24382C",
+      "surfaceMuted": "#132017",
+      "line": "#2F4738",
+      "textPrimary": "#E8F0EA",
+      "textSecondary": "#9AB2A2",
+      "textQuiet": "#6C8276",
+      "ramp": [
+        "#3A6A58",
+        "#4F8464",
+        "#6E9C62",
+        "#94B068",
+        "#C2C882"
+      ],
       "onRamp5": "#1A2010",
-      "firing": ["#255043", "#13261C", "#0A120E"]
+      "firing": [
+        "#255043",
+        "#13261C",
+        "#0A120E"
+      ]
     },
     "olive": {
       "name": "Olive",
       "descriptor": "Dry grass at noon",
       "tier": "pack",
       "light": false,
-      "ground": "#1D2012", "groundDeep": "#14160C", "surface": "#2E3320",
-      "surfaceHigh": "#3D432B", "surfaceMuted": "#222616", "line": "#4D5436",
-      "textPrimary": "#F0F2E2", "textSecondary": "#B4BA94", "textQuiet": "#848A68",
-      "ramp": ["#5A6B22", "#7A8E2C", "#A4B438", "#CBD455", "#EFE68A"],
+      "ground": "#1D2012",
+      "groundDeep": "#14160C",
+      "surface": "#2E3320",
+      "surfaceHigh": "#3D432B",
+      "surfaceMuted": "#222616",
+      "line": "#4D5436",
+      "textPrimary": "#F0F2E2",
+      "textSecondary": "#B4BA94",
+      "textQuiet": "#848A68",
+      "ramp": [
+        "#5A6B22",
+        "#7A8E2C",
+        "#A4B438",
+        "#CBD455",
+        "#EFE68A"
+      ],
       "onRamp5": "#22260A",
-      "firing": ["#46541C", "#262A14", "#14160C"]
+      "firing": [
+        "#46541C",
+        "#262A14",
+        "#14160C"
+      ]
     },
     "ember": {
       "name": "Ember",
       "descriptor": "A banked fire",
       "tier": "pack",
       "light": false,
-      "ground": "#241310", "groundDeep": "#1A0D0A", "surface": "#3A201A",
-      "surfaceHigh": "#4D2B22", "surfaceMuted": "#2E1915", "line": "#5E382C",
-      "textPrimary": "#F7EAE2", "textSecondary": "#C9A596", "textQuiet": "#96705F",
-      "ramp": ["#A34A2B", "#C55C2A", "#E07B2C", "#F5A33C", "#FFCC7A"],
+      "ground": "#241310",
+      "groundDeep": "#1A0D0A",
+      "surface": "#3A201A",
+      "surfaceHigh": "#4D2B22",
+      "surfaceMuted": "#2E1915",
+      "line": "#5E382C",
+      "textPrimary": "#F7EAE2",
+      "textSecondary": "#C9A596",
+      "textQuiet": "#96705F",
+      "ramp": [
+        "#A34A2B",
+        "#C55C2A",
+        "#E07B2C",
+        "#F5A33C",
+        "#FFCC7A"
+      ],
       "onRamp5": "#2A1206",
-      "firing": ["#6B2D1C", "#3A1A12", "#1A0D0A"],
+      "firing": [
+        "#6B2D1C",
+        "#3A1A12",
+        "#1A0D0A"
+      ],
       "note": "Entirely warm ramp. Difficulty climbs by brightness alone with no hue shift to help. Check against a colour-blindness simulator."
     },
     "cocoa": {
@@ -86,96 +280,224 @@
       "descriptor": "Soft, no sharp edges",
       "tier": "pack",
       "light": false,
-      "ground": "#1F1714", "groundDeep": "#150F0D", "surface": "#33261F",
-      "surfaceHigh": "#43322A", "surfaceMuted": "#261C18", "line": "#543F34",
-      "textPrimary": "#F6EBE2", "textSecondary": "#C4A896", "textQuiet": "#92786A",
-      "ramp": ["#6E4A32", "#8F6440", "#B5854E", "#D9AC70", "#F5D7A6"],
+      "ground": "#1F1714",
+      "groundDeep": "#150F0D",
+      "surface": "#33261F",
+      "surfaceHigh": "#43322A",
+      "surfaceMuted": "#261C18",
+      "line": "#543F34",
+      "textPrimary": "#F6EBE2",
+      "textSecondary": "#C4A896",
+      "textQuiet": "#92786A",
+      "ramp": [
+        "#6E4A32",
+        "#8F6440",
+        "#B5854E",
+        "#D9AC70",
+        "#F5D7A6"
+      ],
       "onRamp5": "#2A1C0A",
-      "firing": ["#4E3524", "#2A1E18", "#150F0D"]
+      "firing": [
+        "#4E3524",
+        "#2A1E18",
+        "#150F0D"
+      ]
     },
     "canyon": {
       "name": "Canyon",
       "descriptor": "Red rock, late light",
       "tier": "pack",
       "light": false,
-      "ground": "#2B1A18", "groundDeep": "#1E1110", "surface": "#412522",
-      "surfaceHigh": "#54312C", "surfaceMuted": "#351F1C", "line": "#684038",
-      "textPrimary": "#F8E9E4", "textSecondary": "#CBA39A", "textQuiet": "#9A7268",
-      "ramp": ["#8E2F3C", "#B8424A", "#D9663F", "#EE9456", "#FFC98C"],
+      "ground": "#2B1A18",
+      "groundDeep": "#1E1110",
+      "surface": "#412522",
+      "surfaceHigh": "#54312C",
+      "surfaceMuted": "#351F1C",
+      "line": "#684038",
+      "textPrimary": "#F8E9E4",
+      "textSecondary": "#CBA39A",
+      "textQuiet": "#9A7268",
+      "ramp": [
+        "#8E2F3C",
+        "#B8424A",
+        "#D9663F",
+        "#EE9456",
+        "#FFC98C"
+      ],
       "onRamp5": "#2E1408",
-      "firing": ["#6E2A2E", "#3A1D1A", "#1E1110"]
+      "firing": [
+        "#6E2A2E",
+        "#3A1D1A",
+        "#1E1110"
+      ]
     },
     "vineyard": {
       "name": "Vineyard",
       "descriptor": "Wine and rose",
       "tier": "pack",
       "light": false,
-      "ground": "#24121A", "groundDeep": "#190C12", "surface": "#381C26",
-      "surfaceHigh": "#4A2632", "surfaceMuted": "#2C161E", "line": "#5C3240",
-      "textPrimary": "#F8E8EC", "textSecondary": "#CA9EAA", "textQuiet": "#966E7A",
-      "ramp": ["#7E2440", "#A63355", "#CA4F62", "#E87B74", "#FFB295"],
+      "ground": "#24121A",
+      "groundDeep": "#190C12",
+      "surface": "#381C26",
+      "surfaceHigh": "#4A2632",
+      "surfaceMuted": "#2C161E",
+      "line": "#5C3240",
+      "textPrimary": "#F8E8EC",
+      "textSecondary": "#CA9EAA",
+      "textQuiet": "#966E7A",
+      "ramp": [
+        "#7E2440",
+        "#A63355",
+        "#CA4F62",
+        "#E87B74",
+        "#FFB295"
+      ],
       "onRamp5": "#2E1008",
-      "firing": ["#65203C", "#35161F", "#190C12"]
+      "firing": [
+        "#65203C",
+        "#35161F",
+        "#190C12"
+      ]
     },
     "night": {
       "name": "Night",
       "descriptor": "City at four in the morning",
       "tier": "free",
       "light": false,
-      "ground": "#171C33", "groundDeep": "#12162A", "surface": "#212845",
-      "surfaceHigh": "#2C3457", "surfaceMuted": "#1D2340", "line": "#363F69",
-      "textPrimary": "#EDEFFA", "textSecondary": "#959FC8", "textQuiet": "#6E78A0",
-      "ramp": ["#3D5BD9", "#7B4FD8", "#C044B0", "#E8456B", "#FFB03B"],
+      "ground": "#171C33",
+      "groundDeep": "#12162A",
+      "surface": "#212845",
+      "surfaceHigh": "#2C3457",
+      "surfaceMuted": "#1D2340",
+      "line": "#363F69",
+      "textPrimary": "#EDEFFA",
+      "textSecondary": "#959FC8",
+      "textQuiet": "#6E78A0",
+      "ramp": [
+        "#3050D6",
+        "#875FDB",
+        "#CE6EC2",
+        "#F18EA5",
+        "#FFB952"
+      ],
       "onRamp5": "#241802",
-      "firing": ["#2E3F8E", "#1D2548", "#141829"]
+      "firing": [
+        "#2E3F8E",
+        "#1D2548",
+        "#141829"
+      ]
     },
     "ink": {
       "name": "Ink",
       "descriptor": "Instruments in the dark",
       "tier": "pack",
       "light": false,
-      "ground": "#0C1220", "groundDeep": "#070B16", "surface": "#162034",
-      "surfaceHigh": "#1F2C45", "surfaceMuted": "#101828", "line": "#2A3A58",
-      "textPrimary": "#E6EDF8", "textSecondary": "#8E9DB8", "textQuiet": "#5F6E88",
-      "ramp": ["#1E4FA8", "#2374C8", "#2A9FD8", "#5FC9E0", "#D8F4FA"],
+      "ground": "#0C1220",
+      "groundDeep": "#070B16",
+      "surface": "#162034",
+      "surfaceHigh": "#1F2C45",
+      "surfaceMuted": "#101828",
+      "line": "#2A3A58",
+      "textPrimary": "#E6EDF8",
+      "textSecondary": "#8E9DB8",
+      "textQuiet": "#5F6E88",
+      "ramp": [
+        "#1E4FA8",
+        "#2374C8",
+        "#2A9FD8",
+        "#5FC9E0",
+        "#D8F4FA"
+      ],
       "onRamp5": "#0A1E26",
-      "firing": ["#15397E", "#0E1628", "#070B16"]
+      "firing": [
+        "#15397E",
+        "#0E1628",
+        "#070B16"
+      ]
     },
     "dusk": {
       "name": "Dusk",
       "descriptor": "The hour after sunset",
       "tier": "pack",
       "light": false,
-      "ground": "#1A1830", "groundDeep": "#121024", "surface": "#272445",
-      "surfaceHigh": "#332F58", "surfaceMuted": "#1E1B38", "line": "#403A68",
-      "textPrimary": "#EDEBF8", "textSecondary": "#A6A0C8", "textQuiet": "#746E98",
-      "ramp": ["#4A54B0", "#6B6AD0", "#9484E0", "#C2A2E8", "#F6D9B8"],
+      "ground": "#1A1830",
+      "groundDeep": "#121024",
+      "surface": "#272445",
+      "surfaceHigh": "#332F58",
+      "surfaceMuted": "#1E1B38",
+      "line": "#403A68",
+      "textPrimary": "#EDEBF8",
+      "textSecondary": "#A6A0C8",
+      "textQuiet": "#746E98",
+      "ramp": [
+        "#4A54B0",
+        "#6B6AD0",
+        "#9484E0",
+        "#C2A2E8",
+        "#F6D9B8"
+      ],
       "onRamp5": "#2A1E10",
-      "firing": ["#383A96", "#1F1C3A", "#121024"]
+      "firing": [
+        "#383A96",
+        "#1F1C3A",
+        "#121024"
+      ]
     },
     "aurora": {
       "name": "Aurora",
       "descriptor": "The loudest of the twenty",
       "tier": "pack",
       "light": false,
-      "ground": "#0D1B2A", "groundDeep": "#081220", "surface": "#142A3E",
-      "surfaceHigh": "#1C3850", "surfaceMuted": "#0F2232", "line": "#27475F",
-      "textPrimary": "#E8F4F8", "textSecondary": "#8FB6C8", "textQuiet": "#5E829A",
-      "ramp": ["#6A3BC4", "#3F6FD8", "#22A8B8", "#3ED68E", "#BFF06A"],
+      "ground": "#0D1B2A",
+      "groundDeep": "#081220",
+      "surface": "#142A3E",
+      "surfaceHigh": "#1C3850",
+      "surfaceMuted": "#0F2232",
+      "line": "#27475F",
+      "textPrimary": "#E8F4F8",
+      "textSecondary": "#8FB6C8",
+      "textQuiet": "#5E829A",
+      "ramp": [
+        "#6A3BC4",
+        "#3F6FD8",
+        "#22A8B8",
+        "#3ED68E",
+        "#BFF06A"
+      ],
       "onRamp5": "#16290A",
-      "firing": ["#1C4F7A", "#10283C", "#081220"]
+      "firing": [
+        "#1C4F7A",
+        "#10283C",
+        "#081220"
+      ]
     },
     "eclipse": {
       "name": "Eclipse",
       "descriptor": "Ends in white light",
       "tier": "pack",
       "light": false,
-      "ground": "#0A0A0C", "groundDeep": "#000000", "surface": "#18181C",
-      "surfaceHigh": "#242429", "surfaceMuted": "#101014", "line": "#32323A",
-      "textPrimary": "#F2F2F5", "textSecondary": "#A0A0AB", "textQuiet": "#6E6E78",
-      "ramp": ["#4A3FB5", "#6B5BE0", "#9B7FF0", "#C9B6FF", "#FFFFFF"],
+      "ground": "#0A0A0C",
+      "groundDeep": "#000000",
+      "surface": "#18181C",
+      "surfaceHigh": "#242429",
+      "surfaceMuted": "#101014",
+      "line": "#32323A",
+      "textPrimary": "#F2F2F5",
+      "textSecondary": "#A0A0AB",
+      "textQuiet": "#6E6E78",
+      "ramp": [
+        "#4A3FB5",
+        "#6B5BE0",
+        "#9B7FF0",
+        "#C9B6FF",
+        "#FFFFFF"
+      ],
       "onRamp5": "#141418",
-      "firing": ["#2E2880", "#15141F", "#000000"],
+      "firing": [
+        "#2E2880",
+        "#15141F",
+        "#000000"
+      ],
       "note": "ramp5 is pure white, so the last alarm is a blank bright screen. Intentional. Honour the system brightness; do not force it up."
     },
     "tundra": {
@@ -183,24 +505,56 @@
       "descriptor": "Cold and unhurried",
       "tier": "pack",
       "light": false,
-      "ground": "#141A1E", "groundDeep": "#0D1215", "surface": "#212A30",
-      "surfaceHigh": "#2D383F", "surfaceMuted": "#192125", "line": "#3A4850",
-      "textPrimary": "#ECF1F4", "textSecondary": "#9BAAB4", "textQuiet": "#6A7A85",
-      "ramp": ["#3E5A6B", "#5B8299", "#86AFC4", "#BCD6E2", "#F2E3A8"],
+      "ground": "#141A1E",
+      "groundDeep": "#0D1215",
+      "surface": "#212A30",
+      "surfaceHigh": "#2D383F",
+      "surfaceMuted": "#192125",
+      "line": "#3A4850",
+      "textPrimary": "#ECF1F4",
+      "textSecondary": "#9BAAB4",
+      "textQuiet": "#6A7A85",
+      "ramp": [
+        "#3E5A6B",
+        "#5B8299",
+        "#86AFC4",
+        "#BCD6E2",
+        "#F2E3A8"
+      ],
       "onRamp5": "#2A2510",
-      "firing": ["#2C4654", "#1A242A", "#0D1215"]
+      "firing": [
+        "#2C4654",
+        "#1A242A",
+        "#0D1215"
+      ]
     },
     "slate": {
       "name": "Slate",
       "descriptor": "Grey until it matters",
       "tier": "pack",
       "light": false,
-      "ground": "#16181B", "groundDeep": "#0F1113", "surface": "#22262A",
-      "surfaceHigh": "#2E3338", "surfaceMuted": "#1C1F22", "line": "#3B4147",
-      "textPrimary": "#ECEEF0", "textSecondary": "#9AA3AA", "textQuiet": "#6B747B",
-      "ramp": ["#3F4A52", "#5E6B75", "#87939C", "#B8C2C9", "#FFC94A"],
+      "ground": "#16181B",
+      "groundDeep": "#0F1113",
+      "surface": "#22262A",
+      "surfaceHigh": "#2E3338",
+      "surfaceMuted": "#1C1F22",
+      "line": "#3B4147",
+      "textPrimary": "#ECEEF0",
+      "textSecondary": "#9AA3AA",
+      "textQuiet": "#6B747B",
+      "ramp": [
+        "#3F4A52",
+        "#5E6B75",
+        "#87939C",
+        "#B8C2C9",
+        "#FFC94A"
+      ],
       "onRamp5": "#1C1703",
-      "firing": ["#343B42", "#1F2327", "#0F1113"],
+      "firing": [
+        "#343B42",
+        "#1F2327",
+        "#0F1113"
+      ],
       "note": "Deliberately near-monochrome until the final stop. If it reads as broken, that is the intent."
     },
     "signal": {
@@ -208,12 +562,28 @@
       "descriptor": "Built for low vision",
       "tier": "pack",
       "light": false,
-      "ground": "#0B0B0D", "groundDeep": "#000000", "surface": "#1A1A1E",
-      "surfaceHigh": "#28282E", "surfaceMuted": "#121216", "line": "#3C3C44",
-      "textPrimary": "#FFFFFF", "textSecondary": "#BFBFC8", "textQuiet": "#8A8A94",
-      "ramp": ["#1F6FE0", "#2BA3E8", "#36D0C4", "#8FE84A", "#FFF04A"],
+      "ground": "#0B0B0D",
+      "groundDeep": "#000000",
+      "surface": "#1A1A1E",
+      "surfaceHigh": "#28282E",
+      "surfaceMuted": "#121216",
+      "line": "#3C3C44",
+      "textPrimary": "#FFFFFF",
+      "textSecondary": "#BFBFC8",
+      "textQuiet": "#8A8A94",
+      "ramp": [
+        "#1F6FE0",
+        "#2BA3E8",
+        "#36D0C4",
+        "#8FE84A",
+        "#FFF04A"
+      ],
       "onRamp5": "#1A1A00",
-      "firing": ["#1A4FA8", "#12161F", "#000000"],
+      "firing": [
+        "#1A4FA8",
+        "#12161F",
+        "#000000"
+      ],
       "note": "Tuned for maximum luminance separation between ramp stops rather than for looks. Surface this one in the accessibility settings as well as the theme picker."
     },
     "paper": {
@@ -221,48 +591,1020 @@
       "descriptor": "Plain and bright",
       "tier": "pack",
       "light": true,
-      "ground": "#F0F1EE", "groundDeep": "#FFFFFF", "surface": "#FFFFFF",
-      "surfaceHigh": "#E0E6DC", "surfaceMuted": "#E7EBE3", "line": "#CBD4C6",
-      "textPrimary": "#1B2A20", "textSecondary": "#4F6356", "textQuiet": "#7D8C83",
-      "ramp": ["#1F7A5E", "#2E9348", "#6D9C1E", "#D58B42", "#E0A008"],
+      "ground": "#F0F1EE",
+      "groundDeep": "#FFFFFF",
+      "surface": "#FFFFFF",
+      "surfaceHigh": "#E0E6DC",
+      "surfaceMuted": "#E7EBE3",
+      "line": "#CBD4C6",
+      "textPrimary": "#1B2A20",
+      "textSecondary": "#4F6356",
+      "textQuiet": "#7D8C83",
+      "ramp": [
+        "#1F7A5E",
+        "#2E9348",
+        "#6D9C1E",
+        "#D58B42",
+        "#E0A008"
+      ],
       "onRamp5": "#2A1E00",
-      "firing": ["#FFFFFF", "#F3F6F0", "#E4EADE"]
+      "firing": [
+        "#FFFFFF",
+        "#F3F6F0",
+        "#E4EADE"
+      ]
     },
     "sand": {
       "name": "Sand",
       "descriptor": "Warm paper, warmer light",
       "tier": "pack",
       "light": true,
-      "ground": "#F3EBDC", "groundDeep": "#FFFFFF", "surface": "#FFFFFF",
-      "surfaceHigh": "#E6DAC4", "surfaceMuted": "#EDE3D1", "line": "#D2C2A6",
-      "textPrimary": "#2A2114", "textSecondary": "#5E5240", "textQuiet": "#8C7E68",
-      "ramp": ["#2E5A48", "#6B6A1C", "#9A6E14", "#BE8418", "#D2A000"],
+      "ground": "#F3EBDC",
+      "groundDeep": "#FFFFFF",
+      "surface": "#FFFFFF",
+      "surfaceHigh": "#E6DAC4",
+      "surfaceMuted": "#EDE3D1",
+      "line": "#D2C2A6",
+      "textPrimary": "#2A2114",
+      "textSecondary": "#5E5240",
+      "textQuiet": "#8C7E68",
+      "ramp": [
+        "#2E5A48",
+        "#6B6A1C",
+        "#9A6E14",
+        "#BE8418",
+        "#D2A000"
+      ],
       "onRamp5": "#2A2000",
-      "firing": ["#FFFFFF", "#F7F1E6", "#E9DFCC"]
+      "firing": [
+        "#FFFFFF",
+        "#F7F1E6",
+        "#E9DFCC"
+      ]
     },
     "chalk": {
       "name": "Chalk",
       "descriptor": "Cool and clinical",
       "tier": "pack",
       "light": true,
-      "ground": "#ECEFF2", "groundDeep": "#FFFFFF", "surface": "#FFFFFF",
-      "surfaceHigh": "#DCE2E8", "surfaceMuted": "#E3E8ED", "line": "#C4CDD6",
-      "textPrimary": "#16202A", "textSecondary": "#4A5A68", "textQuiet": "#78889A",
-      "ramp": ["#1B4F86", "#1D6E96", "#2A8C8C", "#D27406", "#C99000"],
+      "ground": "#ECEFF2",
+      "groundDeep": "#FFFFFF",
+      "surface": "#FFFFFF",
+      "surfaceHigh": "#DCE2E8",
+      "surfaceMuted": "#E3E8ED",
+      "line": "#C4CDD6",
+      "textPrimary": "#16202A",
+      "textSecondary": "#4A5A68",
+      "textQuiet": "#78889A",
+      "ramp": [
+        "#1B4F86",
+        "#1D6E96",
+        "#2A8C8C",
+        "#D27406",
+        "#C99000"
+      ],
       "onRamp5": "#241A00",
-      "firing": ["#FFFFFF", "#F1F4F7", "#E0E6EC"]
+      "firing": [
+        "#FFFFFF",
+        "#F1F4F7",
+        "#E0E6EC"
+      ]
     },
     "blush": {
       "name": "Blush",
       "descriptor": "Soft, not sweet",
       "tier": "pack",
       "light": true,
-      "ground": "#F7EDEC", "groundDeep": "#FFFFFF", "surface": "#FFFFFF",
-      "surfaceHigh": "#EDDCDA", "surfaceMuted": "#F2E4E2", "line": "#DCC4C1",
-      "textPrimary": "#2A1A1C", "textSecondary": "#6A4C4E", "textQuiet": "#98787A",
-      "ramp": ["#8E2448", "#AE3A58", "#C85C48", "#D98A2C", "#D9A800"],
+      "ground": "#F7EDEC",
+      "groundDeep": "#FFFFFF",
+      "surface": "#FFFFFF",
+      "surfaceHigh": "#EDDCDA",
+      "surfaceMuted": "#F2E4E2",
+      "line": "#DCC4C1",
+      "textPrimary": "#2A1A1C",
+      "textSecondary": "#6A4C4E",
+      "textQuiet": "#98787A",
+      "ramp": [
+        "#8E2448",
+        "#AE3A58",
+        "#C85C48",
+        "#D98A2C",
+        "#D9A800"
+      ],
       "onRamp5": "#2A1C00",
-      "firing": ["#FFFFFF", "#FAF2F1", "#F0E2E0"]
+      "firing": [
+        "#FFFFFF",
+        "#FAF2F1",
+        "#F0E2E0"
+      ]
+    },
+    "phosphor": {
+      "name": "Phosphor",
+      "descriptor": "Green screen, 1983",
+      "tier": "pack",
+      "light": false,
+      "ground": "#080C08",
+      "groundDeep": "#000200",
+      "surface": "#121A12",
+      "surfaceHigh": "#1C281C",
+      "surfaceMuted": "#0D140D",
+      "line": "#28382A",
+      "textPrimary": "#D6F5D6",
+      "textSecondary": "#85B585",
+      "textQuiet": "#5A805C",
+      "ramp": [
+        "#1C6B2A",
+        "#2A8F38",
+        "#3FBF4A",
+        "#6EE05C",
+        "#B8FF8A"
+      ],
+      "onRamp5": "#0A1F08",
+      "firing": [
+        "#14401A",
+        "#0C1E0E",
+        "#000200"
+      ],
+      "note": "Single-hue ramp: difficulty reads by brightness alone, with no hue shift at all. The whole Terminal family works this way."
+    },
+    "amber": {
+      "name": "Amber",
+      "descriptor": "The other kind of CRT",
+      "tier": "pack",
+      "light": false,
+      "ground": "#0D0A06",
+      "groundDeep": "#050300",
+      "surface": "#1A1409",
+      "surfaceHigh": "#261D0E",
+      "surfaceMuted": "#120E07",
+      "line": "#382A14",
+      "textPrimary": "#F5E6C8",
+      "textSecondary": "#BFA37A",
+      "textQuiet": "#8A7352",
+      "ramp": [
+        "#8A4F08",
+        "#B36A0A",
+        "#D9900F",
+        "#F0B840",
+        "#FFE08A"
+      ],
+      "onRamp5": "#241A02",
+      "firing": [
+        "#5C3A06",
+        "#1E1408",
+        "#050300"
+      ]
+    },
+    "cathode": {
+      "name": "Cathode",
+      "descriptor": "Cold blue glow",
+      "tier": "pack",
+      "light": false,
+      "ground": "#060A0E",
+      "groundDeep": "#000306",
+      "surface": "#101A22",
+      "surfaceHigh": "#18262F",
+      "surfaceMuted": "#0B1218",
+      "line": "#24363F",
+      "textPrimary": "#D0EEF8",
+      "textSecondary": "#7FAEC0",
+      "textQuiet": "#567C8C",
+      "ramp": [
+        "#0E5A7A",
+        "#1180A3",
+        "#15A8C4",
+        "#45CFDE",
+        "#9BF0F5"
+      ],
+      "onRamp5": "#052026",
+      "firing": [
+        "#0B4760",
+        "#081A22",
+        "#000306"
+      ]
+    },
+    "plasma": {
+      "name": "Plasma",
+      "descriptor": "Magenta burn-in",
+      "tier": "pack",
+      "light": false,
+      "ground": "#0C060E",
+      "groundDeep": "#050007",
+      "surface": "#1A0E1E",
+      "surfaceHigh": "#26152B",
+      "surfaceMuted": "#120A15",
+      "line": "#38203E",
+      "textPrimary": "#F2D8F8",
+      "textSecondary": "#BA8AC4",
+      "textQuiet": "#866092",
+      "ramp": [
+        "#6E0E7A",
+        "#96119E",
+        "#BE19BC",
+        "#DE52D2",
+        "#F49BE8"
+      ],
+      "onRamp5": "#240420",
+      "firing": [
+        "#5A0B64",
+        "#1A0A1E",
+        "#050007"
+      ]
+    },
+    "arcade": {
+      "name": "Arcade",
+      "descriptor": "Every colour at once",
+      "tier": "pack",
+      "light": false,
+      "ground": "#0A0812",
+      "groundDeep": "#050410",
+      "surface": "#171229",
+      "surfaceHigh": "#231C3A",
+      "surfaceMuted": "#0F0C1E",
+      "line": "#342A4E",
+      "textPrimary": "#F0ECFF",
+      "textSecondary": "#A89CD0",
+      "textQuiet": "#776B9C",
+      "ramp": [
+        "#6A1FD4",
+        "#2050E8",
+        "#E020A8",
+        "#18D8C8",
+        "#E8FF4A"
+      ],
+      "onRamp5": "#1F2400",
+      "firing": [
+        "#3A1890",
+        "#140F28",
+        "#050410"
+      ],
+      "note": "Highest chroma of the set. The ramp jumps hue hard at every step, so it leans on luminance order to stay readable."
+    },
+    "vapor": {
+      "name": "Vapor",
+      "descriptor": "Pink sunset, cyan sea",
+      "tier": "pack",
+      "light": false,
+      "ground": "#140A1E",
+      "groundDeep": "#0D0614",
+      "surface": "#231433",
+      "surfaceHigh": "#301D44",
+      "surfaceMuted": "#190E26",
+      "line": "#432A5C",
+      "textPrimary": "#F6E9FF",
+      "textSecondary": "#BC9AD4",
+      "textQuiet": "#8A6CA0",
+      "ramp": [
+        "#7A2A9E",
+        "#B03A96",
+        "#E85A8E",
+        "#4FD0E0",
+        "#FFE8B0"
+      ],
+      "onRamp5": "#2A1A00",
+      "firing": [
+        "#5C2080",
+        "#1E1230",
+        "#0D0614"
+      ]
+    },
+    "citrus": {
+      "name": "Citrus",
+      "descriptor": "Sharp and sour",
+      "tier": "pack",
+      "light": false,
+      "ground": "#0E1008",
+      "groundDeep": "#080A04",
+      "surface": "#1A1E0D",
+      "surfaceHigh": "#272C14",
+      "surfaceMuted": "#121508",
+      "line": "#3A4220",
+      "textPrimary": "#F2F8DC",
+      "textSecondary": "#B4C089",
+      "textQuiet": "#818C5E",
+      "ramp": [
+        "#4A7A0E",
+        "#6DA310",
+        "#96C913",
+        "#C6E82A",
+        "#F2FF7A"
+      ],
+      "onRamp5": "#1E2400",
+      "firing": [
+        "#35600C",
+        "#141A0A",
+        "#080A04"
+      ]
+    },
+    "koi": {
+      "name": "Koi",
+      "descriptor": "Dark water, bright fish",
+      "tier": "pack",
+      "light": false,
+      "ground": "#0A1020",
+      "groundDeep": "#050A16",
+      "surface": "#141E34",
+      "surfaceHigh": "#1E2B46",
+      "surfaceMuted": "#0E1628",
+      "line": "#2C3C5A",
+      "textPrimary": "#F0EFE8",
+      "textSecondary": "#9CAAC0",
+      "textQuiet": "#6E7C92",
+      "ramp": [
+        "#24358C",
+        "#B02820",
+        "#E05A1E",
+        "#F09040",
+        "#FFD49A"
+      ],
+      "onRamp5": "#2A1A08",
+      "firing": [
+        "#1C2A78",
+        "#0E1628",
+        "#050A16"
+      ]
+    },
+    "fog": {
+      "name": "Fog",
+      "descriptor": "Nothing shouts",
+      "tier": "pack",
+      "light": false,
+      "ground": "#15181C",
+      "groundDeep": "#0E1114",
+      "surface": "#22272C",
+      "surfaceHigh": "#2E343A",
+      "surfaceMuted": "#1A1E22",
+      "line": "#3A4248",
+      "textPrimary": "#E8ECEF",
+      "textSecondary": "#9AA4AC",
+      "textQuiet": "#6C757C",
+      "ramp": [
+        "#3C4A52",
+        "#566670",
+        "#72838D",
+        "#93A3AC",
+        "#BDCAD2"
+      ],
+      "onRamp5": "#141C22",
+      "firing": [
+        "#2A353E",
+        "#1A2026",
+        "#0E1114"
+      ],
+      "note": "The Quiet family never spikes: ramp5 is pale grey, not a bright accent. The last alarm escalates in audio and challenge, not in colour. Offer these to anyone who finds the brighter themes tiring, and say plainly in the picker that the visual escalation is muted."
+    },
+    "sage": {
+      "name": "Sage",
+      "descriptor": "Dried herbs",
+      "tier": "pack",
+      "light": false,
+      "ground": "#161A16",
+      "groundDeep": "#0F120F",
+      "surface": "#232923",
+      "surfaceHigh": "#2F362F",
+      "surfaceMuted": "#1A1F1A",
+      "line": "#3B443B",
+      "textPrimary": "#E9EEE8",
+      "textSecondary": "#9CA898",
+      "textQuiet": "#6E7A6A",
+      "ramp": [
+        "#3E4E3E",
+        "#586956",
+        "#748672",
+        "#96A792",
+        "#BECEB8"
+      ],
+      "onRamp5": "#161C14",
+      "firing": [
+        "#2C3A2A",
+        "#1A201A",
+        "#0F120F"
+      ]
+    },
+    "pewter": {
+      "name": "Pewter",
+      "descriptor": "Mid-grey, not black",
+      "tier": "pack",
+      "light": false,
+      "ground": "#2C3034",
+      "groundDeep": "#232629",
+      "surface": "#3A3F44",
+      "surfaceHigh": "#474D53",
+      "surfaceMuted": "#31363A",
+      "line": "#555C63",
+      "textPrimary": "#F0F2F4",
+      "textSecondary": "#BAC1C8",
+      "textQuiet": "#949CA3",
+      "ramp": [
+        "#5A6670",
+        "#76838E",
+        "#94A2AC",
+        "#B4C2CB",
+        "#DCE6EC"
+      ],
+      "onRamp5": "#1C2228",
+      "firing": [
+        "#4A5660",
+        "#333A40",
+        "#232629"
+      ],
+      "note": "Mid-tone ground rather than near-black or near-white. The only two themes in that register are Pewter and Loam, and they are the ones to check first on an OLED panel at low brightness."
+    },
+    "loam": {
+      "name": "Loam",
+      "descriptor": "Turned soil",
+      "tier": "pack",
+      "light": false,
+      "ground": "#332C26",
+      "groundDeep": "#28231E",
+      "surface": "#423A32",
+      "surfaceHigh": "#50473D",
+      "surfaceMuted": "#38312A",
+      "line": "#60564A",
+      "textPrimary": "#F5F0EA",
+      "textSecondary": "#C6BBAD",
+      "textQuiet": "#9E9386",
+      "ramp": [
+        "#6E5A42",
+        "#8C7454",
+        "#A8906A",
+        "#C6AE86",
+        "#E8D6B4"
+      ],
+      "onRamp5": "#241C0E",
+      "firing": [
+        "#5A4830",
+        "#3A322A",
+        "#28231E"
+      ]
+    },
+    "meadow": {
+      "name": "Meadow",
+      "descriptor": "Forest in daylight",
+      "tier": "pack",
+      "light": true,
+      "ground": "#E6F0E4",
+      "groundDeep": "#FFFFFF",
+      "surface": "#FFFFFF",
+      "surfaceHigh": "#D4E6D2",
+      "surfaceMuted": "#DDEADB",
+      "line": "#BCD2BA",
+      "textPrimary": "#16261A",
+      "textSecondary": "#425C46",
+      "textQuiet": "#6B8370",
+      "ramp": [
+        "#1A6B4E",
+        "#2A8440",
+        "#5E8E18",
+        "#C08A3E",
+        "#D4A800"
+      ],
+      "onRamp5": "#241A00",
+      "firing": [
+        "#FFFFFF",
+        "#EDF4EC",
+        "#DCE8DA"
+      ]
+    },
+    "mist": {
+      "name": "Mist",
+      "descriptor": "Pale and clear",
+      "tier": "pack",
+      "light": true,
+      "ground": "#E6EDF2",
+      "groundDeep": "#FFFFFF",
+      "surface": "#FFFFFF",
+      "surfaceHigh": "#D2DEE8",
+      "surfaceMuted": "#DCE6ED",
+      "line": "#B8C8D6",
+      "textPrimary": "#14202A",
+      "textSecondary": "#405466",
+      "textQuiet": "#6B7F93",
+      "ramp": [
+        "#19466E",
+        "#1A6480",
+        "#2A8486",
+        "#C27A2E",
+        "#CC9800"
+      ],
+      "onRamp5": "#241A00",
+      "firing": [
+        "#FFFFFF",
+        "#EEF3F7",
+        "#DBE4EC"
+      ]
+    },
+    "linen": {
+      "name": "Linen",
+      "descriptor": "Washed and folded",
+      "tier": "pack",
+      "light": true,
+      "ground": "#F2EEE6",
+      "groundDeep": "#FFFFFF",
+      "surface": "#FFFFFF",
+      "surfaceHigh": "#E4DED2",
+      "surfaceMuted": "#EBE6DB",
+      "line": "#D0C8B8",
+      "textPrimary": "#262219",
+      "textSecondary": "#564E40",
+      "textQuiet": "#837A6B",
+      "ramp": [
+        "#4E5A3E",
+        "#7A6A3A",
+        "#96702A",
+        "#BC8A34",
+        "#CCA400"
+      ],
+      "onRamp5": "#241E00",
+      "firing": [
+        "#FFFFFF",
+        "#F7F4ED",
+        "#E8E2D6"
+      ]
+    },
+    "apricot": {
+      "name": "Apricot",
+      "descriptor": "Warm light, early",
+      "tier": "pack",
+      "light": true,
+      "ground": "#F8EEE6",
+      "groundDeep": "#FFFFFF",
+      "surface": "#FFFFFF",
+      "surfaceHigh": "#EEDDCF",
+      "surfaceMuted": "#F3E6DB",
+      "line": "#DEC6B2",
+      "textPrimary": "#2A1E16",
+      "textSecondary": "#604C3A",
+      "textQuiet": "#8E7664",
+      "ramp": [
+        "#8A3A2A",
+        "#AC4E2E",
+        "#C4682C",
+        "#D89038",
+        "#D9A800"
+      ],
+      "onRamp5": "#2A1C00",
+      "firing": [
+        "#FFFFFF",
+        "#FBF3EE",
+        "#F2E4D8"
+      ]
+    },
+    "beacon": {
+      "name": "Beacon",
+      "descriptor": "Maximum separation, dark",
+      "tier": "free",
+      "light": false,
+      "ground": "#000000",
+      "groundDeep": "#000000",
+      "surface": "#141418",
+      "surfaceHigh": "#22222A",
+      "surfaceMuted": "#0C0C10",
+      "line": "#3A3A46",
+      "textPrimary": "#FFFFFF",
+      "textSecondary": "#D4D4DE",
+      "textQuiet": "#A0A0AE",
+      "ramp": [
+        "#2A5FE0",
+        "#1E90E8",
+        "#16C8B0",
+        "#7CE33C",
+        "#FFF23C"
+      ],
+      "onRamp5": "#1A1A00",
+      "firing": [
+        "#1A3FA0",
+        "#0C0C14",
+        "#000000"
+      ],
+      "note": "Clarity family: text reaches AAA (7:1) rather than AA, and the ramp stops are spread as far apart in luminance as the hue sequence allows. Offer this family from the accessibility settings as well as the picker."
+    },
+    "lantern": {
+      "name": "Lantern",
+      "descriptor": "Maximum separation, light",
+      "tier": "free",
+      "light": true,
+      "rampDirection": "descend",
+      "ground": "#FFFFFF",
+      "groundDeep": "#FFFFFF",
+      "surface": "#F2F2F4",
+      "surfaceHigh": "#E2E2E6",
+      "surfaceMuted": "#F8F8FA",
+      "line": "#C4C4CC",
+      "textPrimary": "#000000",
+      "textSecondary": "#2A2A32",
+      "textQuiet": "#55555F",
+      "ramp": [
+        "#A8C8F0",
+        "#6E9FE0",
+        "#3A72C8",
+        "#204C96",
+        "#0A2A5E"
+      ],
+      "onRamp5": "#FFFFFF",
+      "firing": [
+        "#FFFFFF",
+        "#F4F4F6",
+        "#E6E6EA"
+      ],
+      "note": "Descending ramp: on a white ground difficulty climbs by getting DARKER, so the last alarm is a deep navy screen with light text rather than a pale one. This is the only honest way to keep a high-contrast light theme monotonic."
+    },
+    "hazard": {
+      "name": "Hazard",
+      "descriptor": "High-vis amber on black",
+      "tier": "free",
+      "light": false,
+      "ground": "#0A0A08",
+      "groundDeep": "#000000",
+      "surface": "#1A1A14",
+      "surfaceHigh": "#28281E",
+      "surfaceMuted": "#121210",
+      "line": "#3E3E2E",
+      "textPrimary": "#FFFBE8",
+      "textSecondary": "#E0D8B0",
+      "textQuiet": "#A89E78",
+      "ramp": [
+        "#7A4A00",
+        "#A86800",
+        "#D48C00",
+        "#F0B41A",
+        "#FFE04A"
+      ],
+      "onRamp5": "#1A1400",
+      "firing": [
+        "#5A3600",
+        "#1A1408",
+        "#000000"
+      ],
+      "note": "Single-hue amber, the classic low-vision pairing. No hue discrimination required at all."
+    },
+    "compass": {
+      "name": "Compass",
+      "descriptor": "Safe for colour blindness",
+      "tier": "free",
+      "light": false,
+      "ground": "#0A0E18",
+      "groundDeep": "#050710",
+      "surface": "#161C2C",
+      "surfaceHigh": "#242C40",
+      "surfaceMuted": "#0E1220",
+      "line": "#343E56",
+      "textPrimary": "#F4F6FA",
+      "textSecondary": "#C0C8D8",
+      "textQuiet": "#8C96AA",
+      "ramp": [
+        "#1C4AA8",
+        "#2270C8",
+        "#4A9AD8",
+        "#A8C4E8",
+        "#FFE866"
+      ],
+      "onRamp5": "#1A1800",
+      "firing": [
+        "#163A88",
+        "#0C1020",
+        "#050710"
+      ],
+      "note": "Blue-to-yellow only, with no red or green anywhere in the ramp. The blue-yellow axis survives protanopia, deuteranopia and tritanopia, so this is the theme to recommend when someone says the colours all look the same."
+    },
+    "betamax": {
+      "name": "Betamax",
+      "descriptor": "Dust on the tape",
+      "tier": "pack",
+      "light": false,
+      "ground": "#1A1620",
+      "groundDeep": "#120F16",
+      "surface": "#28222E",
+      "surfaceHigh": "#362E3E",
+      "surfaceMuted": "#1E1924",
+      "line": "#48404E",
+      "textPrimary": "#F0E8E4",
+      "textSecondary": "#B6A8AE",
+      "textQuiet": "#847880",
+      "ramp": [
+        "#6E4A7A",
+        "#A8486E",
+        "#D4685A",
+        "#E8A05E",
+        "#F0D4A0"
+      ],
+      "onRamp5": "#2A2008",
+      "firing": [
+        "#543860",
+        "#1E1A24",
+        "#120F16"
+      ]
+    },
+    "formica": {
+      "name": "Formica",
+      "descriptor": "Diner counter, 1957",
+      "tier": "pack",
+      "light": false,
+      "ground": "#16211F",
+      "groundDeep": "#0F1817",
+      "surface": "#223230",
+      "surfaceHigh": "#2E423F",
+      "surfaceMuted": "#1A2726",
+      "line": "#3C524F",
+      "textPrimary": "#EDF4F0",
+      "textSecondary": "#A8BCB6",
+      "textQuiet": "#7A8C88",
+      "ramp": [
+        "#1F6E66",
+        "#CF5F58",
+        "#45AE92",
+        "#F2A868",
+        "#F8DC8A"
+      ],
+      "onRamp5": "#2A2208",
+      "firing": [
+        "#17504A",
+        "#1A2524",
+        "#0F1817"
+      ]
+    },
+    "kodachrome": {
+      "name": "Kodachrome",
+      "descriptor": "Faded warm film",
+      "tier": "pack",
+      "light": false,
+      "ground": "#1C1512",
+      "groundDeep": "#140E0C",
+      "surface": "#2C2320",
+      "surfaceHigh": "#3A2F2A",
+      "surfaceMuted": "#211A17",
+      "line": "#4C3E36",
+      "textPrimary": "#F6ECE2",
+      "textSecondary": "#C4ACA0",
+      "textQuiet": "#927C72",
+      "ramp": [
+        "#8A3A28",
+        "#B8562E",
+        "#D4823A",
+        "#E0AC62",
+        "#EED9A8"
+      ],
+      "onRamp5": "#2A1E08",
+      "firing": [
+        "#6E2E20",
+        "#221A16",
+        "#140E0C"
+      ]
+    },
+    "atomic": {
+      "name": "Atomic",
+      "descriptor": "Turquoise and mustard",
+      "tier": "pack",
+      "light": false,
+      "ground": "#1A1D1E",
+      "groundDeep": "#131617",
+      "surface": "#272B2C",
+      "surfaceHigh": "#353A3B",
+      "surfaceMuted": "#1E2223",
+      "line": "#474D4E",
+      "textPrimary": "#F2F0EA",
+      "textSecondary": "#B4B2A8",
+      "textQuiet": "#84827A",
+      "ramp": [
+        "#1E7E86",
+        "#D4702A",
+        "#35A8A0",
+        "#E8A830",
+        "#F0D468"
+      ],
+      "onRamp5": "#2A2208",
+      "firing": [
+        "#165E64",
+        "#1C2122",
+        "#131617"
+      ]
+    },
+    "regalia": {
+      "name": "Regalia",
+      "descriptor": "Amethyst and gold",
+      "tier": "pack",
+      "light": false,
+      "ground": "#1E1030",
+      "groundDeep": "#160B24",
+      "surface": "#2E1A46",
+      "surfaceHigh": "#3C2458",
+      "surfaceMuted": "#241338",
+      "line": "#4E3270",
+      "textPrimary": "#F4EAFC",
+      "textSecondary": "#BCA4D4",
+      "textQuiet": "#8C76A4",
+      "ramp": [
+        "#5A2A9E",
+        "#7E3AC0",
+        "#A860D8",
+        "#D4A838",
+        "#F2D468"
+      ],
+      "onRamp5": "#2A2008",
+      "firing": [
+        "#46208A",
+        "#201230",
+        "#160B24"
+      ],
+      "note": "Royal family: a jewel ground and a ramp that always ends in gold. The last two stops are shared across all four, which is what makes them read as a set."
+    },
+    "sapphire": {
+      "name": "Sapphire",
+      "descriptor": "Deep blue and gold",
+      "tier": "pack",
+      "light": false,
+      "ground": "#0E1830",
+      "groundDeep": "#091022",
+      "surface": "#182645",
+      "surfaceHigh": "#223358",
+      "surfaceMuted": "#101C38",
+      "line": "#2E4270",
+      "textPrimary": "#EAF0FC",
+      "textSecondary": "#A4B8D8",
+      "textQuiet": "#7689AC",
+      "ramp": [
+        "#1E3EA8",
+        "#2A5ECC",
+        "#4A8AE0",
+        "#D4A838",
+        "#F2D468"
+      ],
+      "onRamp5": "#2A2008",
+      "firing": [
+        "#182E96",
+        "#121C34",
+        "#091022"
+      ]
+    },
+    "emerald": {
+      "name": "Emerald",
+      "descriptor": "Deep green and gold",
+      "tier": "pack",
+      "light": false,
+      "ground": "#0C2018",
+      "groundDeep": "#081710",
+      "surface": "#143026",
+      "surfaceHigh": "#1C4032",
+      "surfaceMuted": "#0E2620",
+      "line": "#26543E",
+      "textPrimary": "#E8F6EE",
+      "textSecondary": "#A0C4B0",
+      "textQuiet": "#729486",
+      "ramp": [
+        "#126E4A",
+        "#17925E",
+        "#2EB878",
+        "#D4A838",
+        "#F2D468"
+      ],
+      "onRamp5": "#2A2008",
+      "firing": [
+        "#0E5A3C",
+        "#0E2218",
+        "#081710"
+      ]
+    },
+    "garnet": {
+      "name": "Garnet",
+      "descriptor": "Deep red and gold",
+      "tier": "pack",
+      "light": false,
+      "ground": "#221014",
+      "groundDeep": "#1A0B0E",
+      "surface": "#341A20",
+      "surfaceHigh": "#44242C",
+      "surfaceMuted": "#281318",
+      "line": "#58323C",
+      "textPrimary": "#FBEAEC",
+      "textSecondary": "#D0A4AC",
+      "textQuiet": "#9E7680",
+      "ramp": [
+        "#8E1A32",
+        "#B22440",
+        "#D44052",
+        "#D4A838",
+        "#F2D468"
+      ],
+      "onRamp5": "#2A2008",
+      "firing": [
+        "#7A1628",
+        "#261318",
+        "#1A0B0E"
+      ]
+    },
+    "basalt": {
+      "name": "Basalt",
+      "descriptor": "Iron, rust, ember",
+      "tier": "pack",
+      "light": false,
+      "ground": "#15171A",
+      "groundDeep": "#0E1012",
+      "surface": "#222529",
+      "surfaceHigh": "#2F3338",
+      "surfaceMuted": "#191C1F",
+      "line": "#3F444A",
+      "textPrimary": "#ECEEF0",
+      "textSecondary": "#A8ADB4",
+      "textQuiet": "#787E85",
+      "ramp": [
+        "#44505A",
+        "#6A5A52",
+        "#96603E",
+        "#C27A38",
+        "#E8A858"
+      ],
+      "onRamp5": "#2A1A06",
+      "firing": [
+        "#343E48",
+        "#1A1E22",
+        "#0E1012"
+      ]
+    },
+    "verdigris": {
+      "name": "Verdigris",
+      "descriptor": "Bronze going green",
+      "tier": "pack",
+      "light": false,
+      "ground": "#1A1812",
+      "groundDeep": "#12110C",
+      "surface": "#28251A",
+      "surfaceHigh": "#363222",
+      "surfaceMuted": "#1E1C14",
+      "line": "#484228",
+      "textPrimary": "#F0EEE0",
+      "textSecondary": "#B4B096",
+      "textQuiet": "#84806A",
+      "ramp": [
+        "#2A6456",
+        "#3A8A6E",
+        "#58AC84",
+        "#A8C47A",
+        "#E0D49A"
+      ],
+      "onRamp5": "#22200A",
+      "firing": [
+        "#1E4C42",
+        "#1C1A14",
+        "#12110C"
+      ]
+    },
+    "marble": {
+      "name": "Marble",
+      "descriptor": "Veined stone",
+      "tier": "pack",
+      "light": true,
+      "rampDirection": "descend",
+      "ground": "#F4F4F2",
+      "groundDeep": "#FFFFFF",
+      "surface": "#FFFFFF",
+      "surfaceHigh": "#E6E6E2",
+      "surfaceMuted": "#EDEDEA",
+      "line": "#CECEC8",
+      "textPrimary": "#1A1A18",
+      "textSecondary": "#46463F",
+      "textQuiet": "#72726A",
+      "ramp": [
+        "#D9B96A",
+        "#B8903C",
+        "#8E6C28",
+        "#5E4518",
+        "#33240C"
+      ],
+      "onRamp5": "#F6F2E6",
+      "firing": [
+        "#FFFFFF",
+        "#F6F6F3",
+        "#E8E8E4"
+      ],
+      "note": "Descending ramp, like Lantern. The last alarm is a near-black screen on an otherwise pale theme, which is the most abrupt escalation in the whole set."
+    },
+    "pyrite": {
+      "name": "Pyrite",
+      "descriptor": "Fool's gold",
+      "tier": "pack",
+      "light": false,
+      "ground": "#34332E",
+      "groundDeep": "#2A2924",
+      "surface": "#434239",
+      "surfaceHigh": "#514F45",
+      "surfaceMuted": "#3A3933",
+      "line": "#625F52",
+      "textPrimary": "#F4F2E8",
+      "textSecondary": "#C6C3B0",
+      "textQuiet": "#A09C8A",
+      "ramp": [
+        "#6A6450",
+        "#887E60",
+        "#A89A6E",
+        "#C8B87E",
+        "#EADC9E"
+      ],
+      "onRamp5": "#241F0A",
+      "firing": [
+        "#585240",
+        "#3C3A32",
+        "#2A2924"
+      ]
     }
   }
 }

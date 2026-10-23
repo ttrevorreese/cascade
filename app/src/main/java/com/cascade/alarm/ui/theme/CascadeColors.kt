@@ -14,6 +14,11 @@ import androidx.compose.ui.graphics.Color
 data class CascadeColors(
     /** Light themes invert the surface direction: groundDeep and surface are lighter than ground. */
     val isLight: Boolean,
+    /**
+     * Difficulty climbs by getting darker instead of brighter (DESIGN.md §2.2a: Lantern, Marble).
+     * Only the ramp-order check cares; the firing screen works the same either way.
+     */
+    val rampDescends: Boolean = false,
     val ground: Color,
     val groundDeep: Color,
     val surface: Color,

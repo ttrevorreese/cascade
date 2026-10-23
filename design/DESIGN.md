@@ -20,19 +20,38 @@ Three rules follow from this, and they are not negotiable:
 
 ## 2. Themes
 
-Twenty themes in five families of four. **Forest is the brand and the default.** Night ships free beside it so the picker is never a one-item list. The other eighteen are the premium pack (§11).
+Fifty-two themes in thirteen families of four. **Forest is the brand and the default.** Night ships free beside it so the picker is never a one-item list, and the four Clarity themes are free too (§2.5). The other forty-six are the premium pack (§12).
 
-| Family | Themes |
-|---|---|
-| Landscape | Forest, Tide, Moss, Olive |
-| Earth | Ember, Cocoa, Canyon, Vineyard |
-| After dark | Night, Ink, Dusk, Aurora |
-| Stark | Eclipse, Tundra, Slate, Signal |
-| Daylight | Paper, Sand, Chalk, Blush |
+| Family | Themes | The idea |
+|---|---|---|
+| Landscape | Forest, Tide, Moss, Olive | Places, cool to dry |
+| Earth | Ember, Cocoa, Canyon, Vineyard | Warm grounds, fire to wine |
+| After dark | Night, Ink, Dusk, Aurora | Blues and violets, calm to loud |
+| Stark | Eclipse, Tundra, Slate, Signal | Austere, minimal hue |
+| Daylight | Paper, Sand, Chalk, Blush | Light grounds, plain |
+| Pastel | Meadow, Mist, Linen, Apricot | Light grounds, softer and tinted |
+| Terminal | Phosphor, Amber, Cathode, Plasma | **Single-hue ramps.** Difficulty by brightness alone, no hue shift at all |
+| Neon | Arcade, Vapor, Citrus, Koi | **Highest chroma.** Hue jumps hard at every step |
+| Quiet | Fog, Sage, Pewter, Loam | **Never spikes.** Low chroma throughout, pale last stop |
+| Clarity | Beacon, Lantern, Hazard, Compass | **AAA text and maximum ramp separation.** See §2.5 |
+| Retro | Betamax, Formica, Kodachrome, Atomic | Period palettes, 1950s to 1980s |
+| Royal | Regalia, Sapphire, Emerald, Garnet | A jewel ground, always ending in gold |
+| Mineral | Basalt, Verdigris, Marble, Pyrite | Stone and metal, oxidation and patina |
+
+The last three families carry an idea rather than a palette, and each has a consequence worth knowing:
+
+- **Terminal** ramps one hue from dark to bright. It is the purest expression of the rule in §1 — nothing but luminance is doing the work — and it is the family to reach for when testing whether the escalation still reads.
+- **Neon** jumps hue at every step, so it depends entirely on the luminance ordering to stay legible. Do not reorder its stops.
+- **Quiet** ends pale rather than bright: the last alarm does **not** flood the screen with colour. Escalation lives in the audio and the challenge instead. This is a deliberate option for people who find the bright themes tiring, and the picker should say so in a line rather than letting someone discover it at 6:35am.
+- **Royal** shares its last two stops — the same gold — across all four themes. That is what makes them read as a set rather than four unrelated jewel tones.
+
+**Pewter** and **Loam** are the only two themes with a mid-tone ground, neither near-black nor near-white. Check those two first on an OLED panel at low brightness, where mid greys band worst.
+
+**Lantern** and **Marble** are the only two with a descending ramp (§2.4).
 
 ### 2.1 Where the values live
 
-**All colour values are in `assets/themes.json`.** Generate the Kotlin colour table from that file — do not transcribe 300 hex values out of this document by hand. The JSON carries, per theme: `name`, `descriptor`, `tier` (`free` or `pack`), `light`, the nine surface and text tokens, a five-entry `ramp`, `onRamp5`, a three-stop `firing` gradient, and a `note` on the three themes that behave unusually.
+**All colour values are in `assets/themes.json`.** Generate the Kotlin colour table from that file — do not transcribe seven hundred hex values out of this document by hand. The JSON carries, per theme: `name`, `descriptor`, `tier` (`free` or `pack`), `light`, the nine surface and text tokens, a five-entry `ramp`, `onRamp5`, a three-stop `firing` gradient, and a `note` on the themes that behave unusually.
 
 The file also carries `default`, `free`, `families`, `status` and `statusLightOverride` at the top level.
 
@@ -56,37 +75,85 @@ Define these as a `CascadeColors` data class provided via `CompositionLocal`. Do
 
 Do not auto-switch by system dark mode. Sixteen of the twenty are dark, so the choice is aesthetic rather than functional, and the four light ones are picked deliberately.
 
-### 2.2 The four light themes
+### 2.2 The ten light themes
 
-Paper, Sand, Chalk and Blush set `"light": true`. Two things change:
+Paper, Sand, Chalk, Blush, Meadow, Mist, Linen, Apricot, Lantern and Marble set `"light": true`. Two things change:
 
 1. **The surface direction inverts.** `groundDeep` and `surface` are *lighter* than `ground`, not darker. Token names describe role, not brightness, so the same code works — but do not assume "deep" means "dark".
 2. **Status colours darken.** Use `statusLightOverride` instead of `status`, or they fail 4.5:1 against the light ground.
 
+### 2.2a Ramp direction
+
+Most themes set no `rampDirection`, which means `ascend`: the ramp climbs in luminance, so the last alarm is the brightest.
+
+**Lantern** and **Marble** set `"rampDirection": "descend"`. On a light ground, ascending compresses the usable range into nothing — `ramp5` ends up a pale wash a couple of points from the background. Descending inverts it: difficulty climbs by getting *darker*, so the last alarm is a deep, near-black screen with light text on an otherwise pale theme. It is the most abrupt escalation in the whole set, and it is the only honest way to build a high-contrast light theme.
+
+Two consequences for the code:
+
+- `onRamp5` is **light** text on a descending theme and dark text on an ascending one. Do not assume it is dark; read the token.
+- The firing-screen interpolation runs the same way in both cases — first alarm from `firing`, last alarm full-bleed `ramp5` — so no special casing is needed there. Only the monotonicity check cares about direction.
+
+The audit validates monotonicity in whichever direction a theme declares.
+
 ### 2.3 Contrast, and what was verified
 
-Every theme was checked programmatically. All of these hold across all twenty:
+Every theme is checked by `assets/theme_audit.py`. Run it after any colour change:
+
+```
+python3 assets/theme_audit.py assets/themes.json
+```
+
+It exits non-zero on failure, so it belongs in CI. It also suggests a hue-preserving replacement colour at the right luminance when a ramp stop breaks the ordering.
+
+All of these hold across all fifty-two:
 
 - `textPrimary` and `textSecondary` reach 4.5:1 against `ground`; `textQuiet` reaches 3:1.
 - `onRamp5` reaches 4.5:1 against `ramp5`.
 - The ramp climbs monotonically in **relative luminance**, not just hue, so difficulty survives colour blindness and a dimmed screen.
+- Every theme appears in exactly one family, and every family entry names a real theme.
 
-Two things did **not** pass and were left deliberately. Both matter when building:
+Two things do **not** pass, deliberately. Both matter when building:
 
-- **`ramp1` sits at 2–3:1 against `ground` in most dark themes** (as low as 1.88:1 in Vineyard). That is the point — the first alarm should not glare at 6am. It is only ever drawn as a 7–16dp dot or bar, never as text, and it always has a text label and a position beside it. **Never let a ramp colour be the only thing carrying meaning.**
-- **On the light themes, `ramp4` and `ramp5` land at 2–2.9:1 against `ground`.** The lightness climb has to compress on a light ground and there is no way around it while keeping the ramp monotonic. Acceptable for a fill; never for text or a thin line. The light themes need looking at on a real screen before they ship.
+- **`ramp1` sits at 2–3:1 against `ground` in most dark themes**, as low as 1.77:1 in Koi. That is the point — the first alarm should not glare at 6am. It is only ever drawn as a 7–16dp dot or bar, never as text, and it always has a text label and a position beside it. **Never let a ramp colour be the only thing carrying meaning.**
+- **On the light themes, `ramp4` and `ramp5` land at 1.9–2.9:1 against `ground`.** The lightness climb has to compress on a light ground and there is no way around it while keeping the ramp monotonic. Acceptable for a fill; never for text or a thin line. The light and pastel families need looking at on a real screen before they ship.
 
-If you change any colour, re-run those three checks. The monotonic one in particular caught a dip at `ramp4` in Forest, Paper and Chalk during design, which is why those three stops look slightly lighter than you might expect.
+The audit prints both of those as warnings rather than failures. Read the list; do not try to drive it to zero, or you will flatten the ramp.
+
+The monotonic check earned its keep during design: it caught a luminance dip at `ramp4` in Forest, Paper and Chalk, which is why those three stops are lighter than you might expect.
+
+**A fourth check, on perceptual evenness.** The audit also measures the gap between neighbouring ramp stops in **L\*** (perceived lightness) rather than relative luminance, because evenly spaced luminance does not look evenly spaced. It warns when any step falls under 6 L\* — close enough that two neighbouring alarms look the same brightness — or when the steps are lopsided by more than 14 L\*.
+
+This caught a real defect in a shipping theme. **Night** originally ran 43.5, 45.3, 50.1, 54.5, 77.7 L\*: its first four stops sat inside eleven points and then leapt twenty-three to amber. The hue shifts carried it for anyone with normal colour vision, but for a colour-blind user Night's escalation was unreadable until the final alarm — in one of the two free themes. Forest had a milder version of the same squeeze at the top. Both were retuned to even steps (10 L\* and 8 L\*) with their hues and saturations preserved, so the change is barely visible side by side but the mechanic now works.
+
+Nine pack themes still carry one tight step, between 4.4 and 5.8 L\*: **apricot, arcade, atomic, chalk, emerald, linen, meadow, paper, slate**. In each, a large hue shift does the work at that step, so they read correctly for most people. They are the weakest themes for a colour-blind user, which is what the Clarity family is for. Worth retuning after the build settles; not worth churning mid-build.
 
 ### 2.4 Firing screen gradients
 
 Each theme's `firing` array is a three-stop radial gradient for the **first** alarm in a sequence, from 8% to 48% to the edge. The **last** alarm is full-bleed `ramp5` with `onRamp5` text. Alarms in between interpolate between the two.
 
-Three themes behave unusually, and their `note` field says so:
+Several themes behave unusually, and their `note` field says so:
 
 - **Eclipse** ends on pure white, so its last alarm is a blank bright screen. Intentional. Honour the system brightness; do not force it up.
 - **Slate** stays near-monochrome until the final stop. If it looks broken, that is the intent.
 - **Signal** is tuned for maximum luminance separation rather than looks. Surface it in the accessibility settings as well as the theme picker.
+- **The Quiet family** ends pale instead of bright, so the last-alarm screen is muted. Do not "fix" this by brightening `ramp5`.
+- **The Terminal family** shifts no hue at all. Do not add an accent to make the last stop pop.
+- **Lantern and Marble** descend, so their last-alarm screen is dark with light text (§2.2a).
+
+### 2.5 The Clarity family
+
+Four themes built for low vision and colour blindness rather than for looks. They are the only themes that clear **AAA (7:1)** on `textPrimary` and `textSecondary` rather than AA, and their ramp stops are spread as far apart in luminance as each hue sequence allows.
+
+| Theme | What it is for |
+|---|---|
+| **Beacon** | Pure black ground, blue through to white. Maximum separation, dark. |
+| **Lantern** | Pure white ground, descending to deep navy. Maximum separation, light. |
+| **Hazard** | Single-hue amber on black — the classic low-vision pairing. No hue discrimination required at all. |
+| **Compass** | Blue to yellow only, with **no red or green anywhere in the ramp.** The blue–yellow axis survives protanopia, deuteranopia and tritanopia. |
+
+**Surface these four from the accessibility settings as well as the theme picker**, and offer them free rather than behind the pack. Charging for legibility is a bad look, and the people who need Compass are not a segment to monetise. **Decided 2026-10-22: all four are free** (`tier: free`, and listed in the JSON's top-level `free`).
+
+When a user says the colours all look the same, Compass is the answer.
 ## 3. Mapping alarms to ramp stops
 
 A group rarely has exactly five alarms, so distribute across the ramp, always anchoring the first and last:
@@ -189,7 +256,7 @@ The Eyes pupil is filled with the **ground colour of the active theme**, not a f
 
 **Android notification icons are alpha silhouettes.** Every ramp colour collapses to one. Use the `-mono` asset for `setSmallIcon`, and never a multi-colour drawable.
 
-**Adaptive icons** need a foreground and background layer on a 108dp canvas with only the centre 66dp guaranteed visible. Put Forest's `ground` in the background layer and the mark in the foreground, scaled to sit inside that 66dp circle — in practice the mark fills about 56% of the tile. Samsung and Xiaomi crop more aggressively than Pixel; check on a real device of each before shipping. The icon does not vary by theme (§11.1).
+**Adaptive icons** need a foreground and background layer on a 108dp canvas with only the centre 66dp guaranteed visible. Put Forest's `ground` in the background layer and the mark in the foreground, scaled to sit inside that 66dp circle — in practice the mark fills about 56% of the tile. Samsung and Xiaomi crop more aggressively than Pixel; check on a real device of each before shipping. The icon does not vary by theme (§12.1).
 
 UI icons elsewhere are 1.7–2dp stroke, rounded caps and joins, drawn on a 24×24 grid, in `textSecondary` unless they carry state.
 
@@ -217,13 +284,59 @@ UI icons elsewhere are 1.7–2dp stroke, rounded caps and joins, drawn on a 24×
 
 ---
 
-## 11. Themes as a premium pack
+## 11. A theme per group
 
-**Free:** Forest and Night. Two options means the picker is a real feature rather than a teaser, and Night is already fully built by Milestone 7 anyway.
+Each alarm group may carry its own theme. Workday Wake in Forest, Gym Day in Citrus, Late Shift in Ink. This is the feature that makes a large theme library worth owning — the themes stop being a wallpaper you pick once and become a way of telling your mornings apart.
 
-**Cascade Plus:** the other eighteen themes. One-time purchase, not a subscription — this is a cosmetic unlock on an app people use once a day, and a recurring charge for colours invites resentment. Use Play Billing's `INAPP` product type, not `SUBS`.
+**The capability is free. Only the themes are paid.** A user with the two free themes can still give two groups different looks.
 
-The Appearance screen groups themes by family with a row of family chips, then a two-column grid of previews. Each preview is drawn in its own theme — ground, a raised surface, a time in `textPrimary`, and the ramp — so the grid sells itself without a screenshot. Twenty flat rows would be unusable; the families are what make it navigable.
+### 11.1 Data and resolution
+
+`AlarmGroup` gains one nullable field: `themeId: String?`, where null means "follow the app theme".
+
+Resolution order, in one shared function: `group.themeId ?? appThemeId ?? "forest"`. Three rules around it:
+
+1. **Resolve at fire time, never cache.** The foreground service looks the theme up when the alarm fires, so changing a theme at 11pm applies to the 6am alarm without rescheduling anything.
+2. **An unowned theme falls back silently.** If `themeId` names a pack theme and the pack is not owned — a refund, a reinstall, a restore that has not completed — resolve to the app theme and carry on. Never block the alarm, never show a paywall on the firing screen. Show the lock in the group editor instead, where there is time to deal with it.
+3. **An unknown `themeId` falls back the same way.** Treat a missing key as null rather than throwing; a typo in a backup file must not stop an alarm.
+
+### 11.2 How far the theme reaches
+
+| Surface | Theme used |
+|---|---|
+| Home background, header, FAB | App theme |
+| Group card on Home | Group theme, with the polarity rule below |
+| Group detail | Group theme, fully |
+| Alarm editor, escalation editor | Group theme, fully |
+| **Firing screen** | **Group theme, fully** |
+| Alarm notification accent | Group theme's `ramp5`, via `setColor()` |
+| Settings, Stats, Reliability Check, Appearance | App theme, always |
+
+**The polarity rule.** A group card on Home uses the group theme's `surface` **only when the group theme's `light` flag matches the app theme's.** When they differ — a light group theme under a dark app theme — the card keeps the app theme's surface and shows the group's identity through the ramp strip plus a small theme swatch. A white card on a dark page reads as a rendering error, not a choice. The artboard shows both cases side by side.
+
+Home keeps one background colour regardless. Twenty cards in twenty themes would be a patchwork; the page stays calm and the cards carry the difference.
+
+### 11.3 Transitions
+
+Navigating from Home into a group changes the theme. Crossfade the background and surfaces over about 200ms rather than cutting, or the change reads as a glitch. Respect `prefers-reduced-motion` by cutting instead.
+
+The firing screen does **not** animate in. It appears already in its theme, at full opacity. Nothing about an alarm should feel gradual.
+
+### 11.4 What this is worth
+
+Fifty-two themes across five groups is not fifty-two choices, it is a combination per group, and that is the honest answer to "is the pack worth it". Put a line in the purchase sheet to that effect — something plain like *a different look for every group* — rather than leading with the number.
+
+---
+
+## 12. Themes as a premium pack
+
+**Free:** Forest and Night, plus the four Clarity themes (§2.5). Two everyday options means the picker is a real feature rather than a teaser, and legibility is never sold.
+
+**Cascade Plus:** the other forty-six themes. One-time purchase, not a subscription — this is a cosmetic unlock on an app people use once a day, and a recurring charge for colours invites resentment. Use Play Billing's `INAPP` product type, not `SUBS`.
+
+The Appearance screen groups themes by family with a horizontally scrolling row of family chips, then a two-column grid of previews for the selected family. Each preview is drawn in its own theme — ground, a raised surface, a time in `textPrimary`, and the ramp — so the grid sells itself without a screenshot. Fifty-two flat rows would be unusable; the thirteen families are what make it navigable, and the family labels are what make the library feel curated rather than padded.
+
+**Build the grid from `assets/themes.json` at runtime, not as fifty-two hand-written composables.** One preview composable taking a theme as a parameter, driven by the families list. Otherwise every future theme is a UI change as well as a data change.
 
 Rules for the paywall:
 
@@ -233,7 +346,7 @@ Rules for the paywall:
 - Never gate anything that affects whether an alarm fires or how it behaves. Reliability is not a premium feature, and selling it would be indefensible in a wake-up app.
 - Restore purchases must work offline against the cached Play entitlement, because a user reinstalling on a new phone at midnight should still get their theme.
 
-### 11.1 The app icon is fixed
+### 12.1 The app icon is fixed
 
 **The launcher icon does not change with the theme, and the user cannot switch it.** This was considered and dropped deliberately — the reasoning is worth keeping, because it will come up again:
 

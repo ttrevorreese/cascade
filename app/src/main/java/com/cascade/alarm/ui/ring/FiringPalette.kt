@@ -13,7 +13,7 @@ import com.cascade.alarm.ui.theme.sequenceProgress
 /**
  * How a firing screen looks at a given point in its sequence (DESIGN.md §2.4, §6). The first
  * alarm is the theme's dark radial glow; the last is full-bleed ramp5 with onRamp5 text; those
- * between interpolate. Text is whichever of textPrimary and onRamp5 reads better on the result.
+ * between interpolate. Text is whichever of the theme's text and ground tokens reads best on the result.
  */
 data class FiringPalette(
     /** Radial gradient stops at 8%, 48% and the edge. */
@@ -25,13 +25,26 @@ data class FiringPalette(
     companion object {
         val STOPS = listOf(0.08f, 0.48f, 1f)
 
+        /** DESIGN.md §9: body-size text needs 4.5:1. */
+        private const val BODY_CONTRAST = 4.5f
+
         fun of(colors: CascadeColors, position: Int, total: Int): FiringPalette {
             val t = sequenceProgress(position, total)
             val last = colors.ramp.last()
-            val gradient = colors.firing.map { lerp(it, last, t) }
+            val blended = colors.firing.map { lerp(it, last, t) }
             // The text sits over the inner part of the gradient; judge it on the worst of those stops.
+            // Text is one of the two the design gives the firing screen (DESIGN.md §2.4).
             val text = listOf(colors.textPrimary, colors.onRamp5).maxBy { candidate ->
-                gradient.take(2).minOf { contrast(candidate, it) }
+                blended.take(2).minOf { contrast(candidate, it) }
+            }
+            val tokens = listOf(colors.textPrimary, colors.onRamp5, colors.ground, colors.groundDeep, last)
+            // Halfway between a dark glow and a bright ramp5 is where text reads worst, whatever its
+            // colour. There, the stops behind the text move toward the theme's most contrasting token
+            // just far enough for body text (4.5:1); the hue and the edge of the glow stay as designed.
+            val away = tokens.maxBy { contrast(it, text) }
+            val gradient = blended.mapIndexed { i, stop ->
+                if (i == blended.lastIndex) stop
+                else (0..20).map { lerp(stop, away, it / 20f) }.first { contrast(text, it) >= BODY_CONTRAST }
             }
             // Light and large at the first alarm, heavier and tighter at the last (DESIGN.md §4).
             val weight = listOf(300, 400, 500, 600).minBy { kotlin.math.abs(it - (300 + 300 * t)) }

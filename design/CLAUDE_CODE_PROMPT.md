@@ -9,7 +9,7 @@ Put `SPEC.md`, `DESIGN.md` and the `assets/` folder into an empty project direct
 ```
 I'm building an Android alarm app called Cascade. The full specification is in
 SPEC.md in this directory — read it completely before doing anything else.
-DESIGN.md holds the visual design system, assets/themes.json holds all twenty
+DESIGN.md holds the visual design system, assets/themes.json holds all fifty-two
 themes' colour values, and assets/icons/ holds the app marks. You won't need
 those until we build UI, so skim DESIGN.md now and read it properly at
 Milestone 2.
@@ -92,7 +92,7 @@ Give me a plan first and wait for approval. Tell me if anything in the
 existing code needs refactoring to support this milestone cleanly.
 ```
 
-**From Milestone 2 onward, add one line:** `Read DESIGN.md in full first and build the theme system from it before any screens, generating the colour table from assets/themes.json rather than transcribing hex values.` Getting the colour tokens wrong early means repainting every screen later, and hand-copying 300 hex values guarantees a typo.
+**From Milestone 2 onward, add one line:** `Read DESIGN.md in full first and build the theme system from it before any screens, generating the colour table AND the theme-picker grid from assets/themes.json rather than transcribing hex values, and run assets/theme_audit.py if you change any colour.` Getting the colour tokens wrong early means repainting every screen later, and hand-copying seven hundred hex values guarantees a typo.
 
 **Keep SPEC.md and DESIGN.md updated as you go.** When you and Claude Code decide something differs from them, edit them. A stale spec is worse than no spec, because every future session reads it as truth.
 
