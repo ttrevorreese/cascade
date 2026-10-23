@@ -1,5 +1,7 @@
 package com.cascade.alarm.ui.escalation
 
+import android.Manifest
+import android.os.Build
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
@@ -23,6 +25,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -34,6 +37,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -52,7 +56,10 @@ import com.cascade.alarm.ui.ChallengeText
 import com.cascade.alarm.ui.alarm.ChallengeEditor
 import com.cascade.alarm.ui.components.CascadeTopBar
 import com.cascade.alarm.ui.components.PrimaryButton
+import com.cascade.alarm.ui.camera.StepSensor
+import com.cascade.alarm.ui.camera.hasCameraPermission
 import com.cascade.alarm.ui.components.SecondaryButton
+import com.cascade.alarm.ui.components.rememberPermissionRequest
 import com.cascade.alarm.ui.theme.CascadeShapes
 import com.cascade.alarm.ui.theme.CascadeSpace
 import com.cascade.alarm.ui.theme.CascadeType
@@ -124,9 +131,22 @@ fun EscalationContent(
     onCancel: () -> Unit,
 ) {
     val c = cascadeColors
+    val context = LocalContext.current
     val rungs = policy.steps
     var selected by rememberSaveable { mutableStateOf<Int?>(null) }
     fun update(steps: List<ChallengeConfig>) = onChange(EscalationPolicy(steps))
+    // Rungs need their permissions asked for here, at setup, never at alarm time (SPEC §6.8).
+    val camera = rememberPermissionRequest(Manifest.permission.CAMERA) { hasCameraPermission(context) }
+    val steps = rememberPermissionRequest(
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) Manifest.permission.ACTIVITY_RECOGNITION else null,
+    ) { StepSensor.hasPermission(context) }
+    val hasStepCounter = remember { StepSensor.hasSensor(context) }
+    val walks = rungs.any { it is ChallengeConfig.Steps }
+    val usesCamera = rungs.any { it is ChallengeConfig.BarcodeScan || it is ChallengeConfig.PhotoMatch }
+    val useSuggested = {
+        update(Escalation.SUGGESTED.steps)
+        if (hasStepCounter && !steps.granted) steps.request()
+    }
 
     Scaffold(
         containerColor = c.ground,
@@ -158,7 +178,19 @@ fun EscalationContent(
                         color = c.textPrimary,
                         modifier = Modifier.padding(bottom = CascadeSpace.l),
                     )
-                    PrimaryButton("Use the suggested ladder", { update(Escalation.SUGGESTED.steps) }, Modifier.fillMaxWidth())
+                    PrimaryButton("Use the suggested ladder", useSuggested, Modifier.fillMaxWidth())
+                }
+            }
+            if (walks && !hasStepCounter) {
+                item { PermissionProblem("This phone has no step counter, so walking rungs ask for sums instead.") }
+            } else if (walks && !steps.granted) {
+                item {
+                    PermissionProblem("Walking rungs need step counting. Without it they ask for sums instead.", "Allow step counting", steps.request)
+                }
+            }
+            if (usesCamera && !camera.granted) {
+                item {
+                    PermissionProblem("Scan and photo rungs need the camera. Without it they ask for sums instead.", "Allow the camera", camera.request)
                 }
             }
             itemsIndexed(rungs) { index, rung ->
@@ -268,6 +300,23 @@ private fun RungRow(
                     editor()
                 }
             }
+        }
+    }
+}
+
+/** A problem first, in a bordered warning card with its action (DESIGN.md §6). */
+@Composable
+private fun PermissionProblem(text: String, action: String? = null, onAction: () -> Unit = {}) {
+    val c = cascadeColors
+    Surface(
+        shape = CascadeShapes.medium,
+        color = c.surface,
+        border = BorderStroke(1.5.dp, c.status.warn),
+        modifier = Modifier.fillMaxWidth().padding(bottom = CascadeSpace.m),
+    ) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(CascadeSpace.s)) {
+            Text(text, style = CascadeType.body, color = c.textPrimary)
+            if (action != null) SecondaryButton(action, onAction, small = true)
         }
     }
 }

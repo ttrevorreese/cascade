@@ -333,7 +333,7 @@ Each milestone should end in a working, installable app.
 - **Real-phone checks collected along the way** (the emulator cannot do these; run them on the Galaxy S22 Ultra once the app is complete):
   - QR/barcode: scan a printed Cascade code and an existing product barcode; a different code is refused.
   - Photo match: reference of a real object (toothbrush), match in morning light, rejection of a different object, behaviour right after a reboot before unlock (name shown, matching still works). Tune `PhotoHash.DEFAULT_THRESHOLD` from these.
-  - Steps: the counter reports promptly with the screen on; 20 steps completes; permission flow.
+  - Steps: the counter reports promptly with the screen on; 20 steps completes; permission flow, including the dialog when "Use the suggested ladder" adds a walking rung, and the app-settings route after a refusal (the emulator has no step counter).
   - Launcher icon crop on One UI; the light and pastel themes, and Pewter/Loam on OLED at low brightness (DESIGN.md §2.1, §8).
   - The manual matrix above: Doze, DND, silent mode, after reboot, after update, battery optimisation on and off.
 

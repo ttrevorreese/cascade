@@ -121,4 +121,13 @@ class EscalationScreensTest {
         compose.onNodeWithTag("follow-ladder").performClick()
         assertEquals(null, draft.challengeOverride)
     }
+
+    @Test
+    fun aWalkingRungSaysWhenStepsCannotBeCounted() {
+        var policy by mutableStateOf(EscalationPolicy())
+        compose.setContent { EscalationContent("Workday Wake", 4, policy, { policy = it }, {}, {}) }
+        compose.onNodeWithText("Use the suggested ladder").performClick()
+        // Robolectric has no step counter, like some phones.
+        compose.onNodeWithText("This phone has no step counter, so walking rungs ask for sums instead.").assertExists()
+    }
 }

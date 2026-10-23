@@ -14,8 +14,6 @@ import com.cascade.alarm.ui.camera.StepSensor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -52,6 +50,7 @@ import com.cascade.alarm.data.challenge.Difficulty
 import com.cascade.alarm.ui.camera.BarcodeScanner
 import com.cascade.alarm.ui.camera.hasCameraPermission
 import com.cascade.alarm.ui.components.PrimaryButton
+import com.cascade.alarm.ui.components.rememberPermissionRequest
 import com.cascade.alarm.ui.components.SecondaryButton
 import com.cascade.alarm.ui.theme.CascadeShapes
 import com.cascade.alarm.ui.theme.CascadeSpace
@@ -83,13 +82,10 @@ private val ChallengeConfig.kind: Kind
 fun ChallengeEditor(challenge: ChallengeConfig, onChange: (ChallengeConfig) -> Unit, showIntro: Boolean = true) {
     val c = cascadeColors
     val context = LocalContext.current
-    var cameraGranted by remember { mutableStateOf(hasCameraPermission(context)) }
-    val cameraPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { cameraGranted = it }
-    var stepsGranted by remember { mutableStateOf(StepSensor.hasPermission(context)) }
-    val stepsPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { stepsGranted = it }
-    val askForSteps = {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) stepsPermission.launch(Manifest.permission.ACTIVITY_RECOGNITION)
-    }
+    val camera = rememberPermissionRequest(Manifest.permission.CAMERA) { hasCameraPermission(context) }
+    val steps = rememberPermissionRequest(
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) Manifest.permission.ACTIVITY_RECOGNITION else null,
+    ) { StepSensor.hasPermission(context) }
     var scanning by remember { mutableStateOf(false) }
     var showingQr by remember { mutableStateOf(false) }
     var photographing by remember { mutableStateOf(false) }
@@ -116,8 +112,8 @@ fun ChallengeEditor(challenge: ChallengeConfig, onChange: (ChallengeConfig) -> U
                                 Kind.MEMORY -> ChallengeConfig.Memory()
                             },
                         )
-                        if ((kind == Kind.BARCODE || kind == Kind.PHOTO) && !cameraGranted) cameraPermission.launch(Manifest.permission.CAMERA)
-                        if (kind == Kind.STEPS && !stepsGranted) askForSteps()
+                        if ((kind == Kind.BARCODE || kind == Kind.PHOTO) && !camera.granted) camera.request()
+                        if (kind == Kind.STEPS && !steps.granted) steps.request()
                     },
                     label = { Text(kind.label) },
                     shape = CascadeShapes.small,
@@ -172,13 +168,13 @@ fun ChallengeEditor(challenge: ChallengeConfig, onChange: (ChallengeConfig) -> U
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                if (!cameraGranted) {
+                if (!camera.granted) {
                     Text(
                         "Without camera access this alarm asks for sums instead.",
                         style = CascadeType.body,
                         color = c.status.warn,
                     )
-                    SecondaryButton("Allow the camera", { cameraPermission.launch(Manifest.permission.CAMERA) }, Modifier.fillMaxWidth())
+                    SecondaryButton("Allow the camera", { camera.request() }, Modifier.fillMaxWidth())
                 }
                 if (challenge.expectedPayload.isEmpty()) {
                     Text("Pick a code: one you already have, or one to print.", style = CascadeType.body, color = c.textSecondary)
@@ -187,7 +183,7 @@ fun ChallengeEditor(challenge: ChallengeConfig, onChange: (ChallengeConfig) -> U
                 }
                 SecondaryButton(
                     if (challenge.expectedPayload.isEmpty()) "Scan a code you have" else "Scan a different code",
-                    { if (cameraGranted) scanning = true else cameraPermission.launch(Manifest.permission.CAMERA) },
+                    { if (camera.granted) scanning = true else camera.request() },
                     Modifier.fillMaxWidth(),
                 )
                 SecondaryButton(
@@ -217,9 +213,9 @@ fun ChallengeEditor(challenge: ChallengeConfig, onChange: (ChallengeConfig) -> U
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                if (!cameraGranted) {
+                if (!camera.granted) {
                     Text("Without camera access this alarm asks for sums instead.", style = CascadeType.body, color = c.status.warn)
-                    SecondaryButton("Allow the camera", { cameraPermission.launch(Manifest.permission.CAMERA) }, Modifier.fillMaxWidth())
+                    SecondaryButton("Allow the camera", { camera.request() }, Modifier.fillMaxWidth())
                 }
                 val reference = remember(challenge.referencePhotoId) {
                     challenge.referencePhotoId.takeIf { it.isNotEmpty() }?.let { PhotoStore.load(context, it)?.asImageBitmap() }
@@ -243,7 +239,7 @@ fun ChallengeEditor(challenge: ChallengeConfig, onChange: (ChallengeConfig) -> U
                 )
                 SecondaryButton(
                     if (challenge.signature.isEmpty()) "Take the reference photo" else "Take a new reference photo",
-                    { if (cameraGranted) photographing = true else cameraPermission.launch(Manifest.permission.CAMERA) },
+                    { if (camera.granted) photographing = true else camera.request() },
                     Modifier.fillMaxWidth(),
                 )
                 if (photographing) {
@@ -261,9 +257,9 @@ fun ChallengeEditor(challenge: ChallengeConfig, onChange: (ChallengeConfig) -> U
             is ChallengeConfig.Steps -> {
                 if (!StepSensor.hasSensor(context)) {
                     Text("This phone has no step counter, so this alarm asks for sums instead.", style = CascadeType.body, color = c.status.warn)
-                } else if (!stepsGranted) {
+                } else if (!steps.granted) {
                     Text("Without activity access this alarm asks for sums instead.", style = CascadeType.body, color = c.status.warn)
-                    SecondaryButton("Allow step counting", askForSteps, Modifier.fillMaxWidth())
+                    SecondaryButton("Allow step counting", steps.request, Modifier.fillMaxWidth())
                 }
                 Stepper(
                     "${challenge.count} steps",
