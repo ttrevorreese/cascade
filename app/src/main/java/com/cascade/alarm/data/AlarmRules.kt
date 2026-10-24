@@ -34,7 +34,7 @@ object AlarmRules {
 
     /**
      * A new alarm appended to a group. Groups are sequences, so it defaults to the next step:
-     * ten minutes after the last alarm, with the same days and timeout.
+     * ten minutes after the last alarm, with the same days, timeout and snooze.
      */
     fun newAlarm(id: String, groupId: String, existing: List<AlarmEntity>): AlarmEntity {
         val last = existing.maxByOrNull { it.positionInGroup }
@@ -49,6 +49,9 @@ object AlarmRules {
             label = null,
             isEnabled = true,
             timeoutMinutes = last?.timeoutMinutes ?: RingDefaults.TIMEOUT_MINUTES,
+            snoozeEnabled = last?.snoozeEnabled ?: true,
+            snoozeMinutes = last?.snoozeMinutes ?: Snooze.DEFAULT_MINUTES,
+            snoozeLimit = last?.snoozeLimit ?: Snooze.DEFAULT_LIMIT,
         )
     }
 

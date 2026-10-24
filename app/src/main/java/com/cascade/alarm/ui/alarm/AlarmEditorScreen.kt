@@ -38,6 +38,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.cascade.alarm.data.AlarmRepository
 import com.cascade.alarm.data.AlarmRules
+import com.cascade.alarm.data.Snooze
 import com.cascade.alarm.data.challenge.ChallengeConfig
 import com.cascade.alarm.data.challenge.Escalation
 import com.cascade.alarm.data.challenge.EscalationPolicy
@@ -185,6 +186,8 @@ fun AlarmEditorContent(
 
             AlarmChallenge(draft.challengeOverride, ladderRung) { config -> onEdit { it.copy(challengeOverride = config) } }
 
+            SnoozeSetting(draft, onEdit)
+
             Text("Stop if not dismissed after: ${draft.timeoutMinutes} min", style = CascadeType.rowLabel, color = c.textPrimary)
             Slider(
                 value = draft.timeoutMinutes.toFloat(),
@@ -234,6 +237,52 @@ fun AlarmEditorContent(
             confirmButton = { TextButton(onClick = { confirmingDelete = false; onDelete() }) { Text("Delete alarm") } },
             dismissButton = { TextButton(onClick = { confirmingDelete = false }) { Text("Cancel") } },
         )
+    }
+}
+
+/** Snooze for this alarm: whether, how long, how often. Never offered on the group's last alarm. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun SnoozeSetting(draft: AlarmEntity, onEdit: ((AlarmEntity) -> AlarmEntity) -> Unit) {
+    val c = cascadeColors
+    Column(verticalArrangement = Arrangement.spacedBy(CascadeSpace.s)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f).padding(end = CascadeSpace.m)) {
+                Text("Snooze", style = CascadeType.rowLabel, color = c.textPrimary)
+                Text(
+                    if (draft.snoozeEnabled) {
+                        "${draft.snoozeMinutes} min, up to ${draft.snoozeLimit} ${if (draft.snoozeLimit == 1) "time" else "times"}. Never on the group's last alarm."
+                    } else {
+                        "Off"
+                    },
+                    style = CascadeType.body,
+                    color = c.textSecondary,
+                )
+            }
+            CascadeSwitch(draft.snoozeEnabled, { on -> onEdit { it.copy(snoozeEnabled = on) } }, Modifier.testTag("snooze-enabled"))
+        }
+        if (draft.snoozeEnabled) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Snooze.MINUTE_CHOICES.forEach { minutes ->
+                    FilterChip(
+                        selected = draft.snoozeMinutes == minutes,
+                        onClick = { onEdit { it.copy(snoozeMinutes = minutes) } },
+                        label = { Text("$minutes min") },
+                        modifier = Modifier.testTag("snooze-$minutes"),
+                    )
+                }
+            }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Snooze.LIMIT_CHOICES.forEach { limit ->
+                    FilterChip(
+                        selected = draft.snoozeLimit == limit,
+                        onClick = { onEdit { it.copy(snoozeLimit = limit) } },
+                        label = { Text(if (limit == 1) "Once" else "$limit times") },
+                        modifier = Modifier.testTag("snooze-limit-$limit"),
+                    )
+                }
+            }
+        }
     }
 }
 

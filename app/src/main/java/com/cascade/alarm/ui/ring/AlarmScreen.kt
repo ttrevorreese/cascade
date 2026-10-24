@@ -39,6 +39,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.cascade.alarm.R
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
+import com.cascade.alarm.data.SnoozeState
 import com.cascade.alarm.engine.ring.RingingAlarm
 import com.cascade.alarm.ui.components.SequenceDots
 import com.cascade.alarm.ui.theme.CascadeShapes
@@ -61,9 +67,11 @@ import kotlin.math.max
 @Composable
 fun AlarmScreen(
     ringing: RingingAlarm?,
-    onDismiss: () -> Unit,
-    onGiveUp: () -> Unit = {},
+    /** [misses]: wrong answers the challenge took, for Stats. */
+    onDismiss: (misses: Int) -> Unit,
+    onGiveUp: (misses: Int) -> Unit = {},
     onDuck: (Boolean) -> Unit = {},
+    onSnooze: () -> Unit = {},
 ) {
     var now by remember { mutableStateOf(LocalTime.now()) }
     var instant by remember { mutableStateOf(Instant.now()) }
@@ -185,7 +193,7 @@ fun AlarmScreen(
                     solving = true
                     interact()
                 } else {
-                    onDismiss()
+                    onDismiss(0)
                 }
             },
             enabled = ringing != null,
@@ -200,6 +208,37 @@ fun AlarmScreen(
                 textAlign = TextAlign.Center,
             )
         }
+        SnoozeArea(ringing?.snooze ?: SnoozeState.Off, palette.text, onSnooze)
+    }
+}
+
+/**
+ * Snooze sits below Dismiss and is smaller, so the half-asleep thumb lands on Dismiss first. The
+ * group's last alarm says plainly that there is none (DESIGN.md §7: "Last one. No snooze.").
+ */
+@Composable
+private fun SnoozeArea(state: SnoozeState, onColor: Color, onSnooze: () -> Unit) {
+    when (state) {
+        is SnoozeState.Offer -> {
+            OutlinedButton(
+                onClick = onSnooze,
+                modifier = Modifier.fillMaxWidth().padding(top = 16.dp).heightIn(min = 64.dp).testTag("snooze"),
+                shape = CascadeShapes.firing,
+                border = BorderStroke(2.dp, onColor),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = onColor),
+            ) {
+                Text(stringResource(R.string.ring_snooze, state.minutes), style = CascadeType.button)
+            }
+            Text(
+                pluralStringResource(R.plurals.ring_snoozes_left, state.left, state.left),
+                color = onColor,
+                style = CascadeType.body,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+        }
+        SnoozeState.NotOnLast -> Text(stringResource(R.string.ring_no_snooze), color = onColor, style = CascadeType.rowLabel, modifier = Modifier.padding(top = 16.dp))
+        SnoozeState.UsedUp -> Text(stringResource(R.string.ring_snoozes_used), color = onColor, style = CascadeType.rowLabel, modifier = Modifier.padding(top = 16.dp))
+        SnoozeState.Off -> Unit
     }
 }
 

@@ -6,6 +6,7 @@ import com.cascade.alarm.data.challenge.EscalationPolicy
 import com.cascade.alarm.data.db.ActiveRingEntity
 import com.cascade.alarm.data.db.AlarmEntity
 import com.cascade.alarm.data.db.EventType
+import com.cascade.alarm.data.SnoozeState
 import com.cascade.alarm.data.sound.SoundConfig
 import com.cascade.alarm.engine.schedule.Reconciler.FireResult
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -92,6 +93,14 @@ class RingCoordinatorTest {
             if (failSound) error("db unavailable")
             return sound
         }
+        val snoozed = mutableListOf<Pair<String, Instant>>()
+        val snoozesCleared = mutableListOf<String>()
+        var failSnooze = false
+        override suspend fun snooze(alarmId: String, at: Instant) {
+            if (failSnooze) error("db unavailable")
+            snoozed += alarmId to at
+        }
+        override suspend fun clearSnoozes(alarmId: String) { snoozesCleared += alarmId }
         var theme: String? = "citrus"
         var failTheme = false
         override suspend fun themeFor(alarm: AlarmEntity): String? {
@@ -252,6 +261,57 @@ class RingCoordinatorTest {
         coordinator.onFire("a", scheduled.plusSeconds(60))
         assertRinging()
         assertNull(state.current.value?.groupThemeId)
+    }
+
+    @Test
+    fun `an alarm before the last offers snooze, the last does not`() = harness {
+        store.sequence = SequencePosition(0, 3)
+        coordinator.onFire("a", scheduled)
+        assertEquals(SnoozeState.Offer(5, 3), state.current.value?.snooze)
+        coordinator.dismiss()
+        store.sequence = SequencePosition(2, 3)
+        coordinator.onFire("a", scheduled.plusSeconds(60))
+        assertEquals(SnoozeState.NotOnLast, state.current.value?.snooze)
+    }
+
+    @Test
+    fun `snoozing rings again in its minutes, ends this ring and keeps the count`() = harness {
+        store.sequence = SequencePosition(0, 3)
+        coordinator.onFire("a", scheduled)
+        coordinator.snooze()
+        assertStopped()
+        assertEquals(listOf("a" to epoch.plus(Duration.ofMinutes(5))), store.snoozed)
+        assertEquals(EventType.SNOOZED, store.types().last())
+        assertTrue(store.snoozesCleared.isEmpty(), "a snooze keeps the count")
+    }
+
+    @Test
+    fun `a snooze that cannot be saved keeps the alarm ringing`() = harness {
+        store.sequence = SequencePosition(0, 3)
+        store.failSnooze = true
+        coordinator.onFire("a", scheduled)
+        coordinator.snooze()
+        assertRinging()
+        assertFalse(EventType.SNOOZED in store.types())
+    }
+
+    @Test
+    fun `snooze is ignored where it is not offered`() = harness {
+        coordinator.onFire("a", scheduled) // alone in its group, so it is the last
+        coordinator.snooze()
+        assertRinging()
+        assertTrue(store.snoozed.isEmpty())
+    }
+
+    @Test
+    fun `dismissing resets the snooze count and records the challenge's misses`() = harness {
+        store.alarms["a"] = alarm().copy(challengeOverride = ChallengeConfig.Math())
+        coordinator.onFire("a", scheduled)
+        coordinator.dismiss(misses = 2)
+        assertEquals(listOf("a"), store.snoozesCleared)
+        val dismissed = store.events.last { it.first == EventType.DISMISSED }.second
+        assertEquals("Math", dismissed["challenge"])
+        assertEquals(2, dismissed["misses"])
     }
 
     @Test

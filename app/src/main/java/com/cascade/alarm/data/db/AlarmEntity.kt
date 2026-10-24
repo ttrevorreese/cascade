@@ -1,9 +1,11 @@
 package com.cascade.alarm.data.db
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import com.cascade.alarm.data.Snooze
 import com.cascade.alarm.data.challenge.ChallengeConfig
 import java.time.DayOfWeek
 import java.time.Instant
@@ -53,6 +55,17 @@ data class AlarmEntity(
     val lastFiredFor: Instant? = null,
     /** A pending wake-up check after this alarm was dismissed as the group's last. */
     val wakeCheckAt: Instant? = null,
+    /** Whether this alarm offers snooze; never on the group's last alarm ([com.cascade.alarm.data.Snooze]). */
+    @ColumnInfo(defaultValue = "1")
+    val snoozeEnabled: Boolean = true,
+    @ColumnInfo(defaultValue = "5") // Snooze.DEFAULT_MINUTES
+    val snoozeMinutes: Int = Snooze.DEFAULT_MINUTES,
+    /** How many times one ring may be snoozed. */
+    @ColumnInfo(defaultValue = "3") // Snooze.DEFAULT_LIMIT
+    val snoozeLimit: Int = Snooze.DEFAULT_LIMIT,
+    /** Snoozes used by the ring in progress; engine bookkeeping, back to 0 when the ring ends. */
+    @ColumnInfo(defaultValue = "0")
+    val snoozesUsed: Int = 0,
 )
 
 val AlarmEntity.time: LocalTime get() = LocalTime.of(hour, minute)

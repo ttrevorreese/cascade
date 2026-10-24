@@ -90,8 +90,9 @@ class AlarmRingService : Service(), RingPresenter {
                         ),
                     )
                     ACTION_RESUME -> coordinator.onResume(intent?.getBooleanExtra(EXTRA_AFTER_BOOT, false) ?: false)
-                    ACTION_DISMISS -> coordinator.dismiss()
-                    ACTION_GIVE_UP -> coordinator.dismiss(gaveUp = true)
+                    ACTION_DISMISS -> coordinator.dismiss(misses = intent?.getIntExtra(EXTRA_MISSES, 0) ?: 0)
+                    ACTION_GIVE_UP -> coordinator.dismiss(gaveUp = true, misses = intent?.getIntExtra(EXTRA_MISSES, 0) ?: 0)
+                    ACTION_SNOOZE -> coordinator.snooze()
                     ACTION_LEFT_SCREEN -> coordinator.leftScreen()
                     ACTION_DUCK -> coordinator.duck(intent?.getBooleanExtra(EXTRA_DUCKED, false) ?: false)
                 }
@@ -148,6 +149,8 @@ class AlarmRingService : Service(), RingPresenter {
         const val ACTION_RESUME = "com.cascade.alarm.action.RING_RESUME"
         const val ACTION_DISMISS = "com.cascade.alarm.action.RING_DISMISS"
         const val ACTION_GIVE_UP = "com.cascade.alarm.action.RING_GIVE_UP"
+        const val ACTION_SNOOZE = "com.cascade.alarm.action.RING_SNOOZE"
+        private const val EXTRA_MISSES = "misses"
         const val ACTION_LEFT_SCREEN = "com.cascade.alarm.action.RING_LEFT_SCREEN"
         const val ACTION_DUCK = "com.cascade.alarm.action.RING_DUCK"
         private const val EXTRA_DUCKED = "ducked"
@@ -164,11 +167,15 @@ class AlarmRingService : Service(), RingPresenter {
             Intent(context, AlarmRingService::class.java).setAction(ACTION_RESUME)
                 .putExtra(EXTRA_AFTER_BOOT, afterBoot)
 
-        fun dismissIntent(context: Context): Intent =
-            Intent(context, AlarmRingService::class.java).setAction(ACTION_DISMISS)
+        /** [misses]: wrong answers the challenge took, for Stats. */
+        fun dismissIntent(context: Context, misses: Int = 0): Intent =
+            Intent(context, AlarmRingService::class.java).setAction(ACTION_DISMISS).putExtra(EXTRA_MISSES, misses)
 
-        fun giveUpIntent(context: Context): Intent =
-            Intent(context, AlarmRingService::class.java).setAction(ACTION_GIVE_UP)
+        fun giveUpIntent(context: Context, misses: Int = 0): Intent =
+            Intent(context, AlarmRingService::class.java).setAction(ACTION_GIVE_UP).putExtra(EXTRA_MISSES, misses)
+
+        fun snoozeIntent(context: Context): Intent =
+            Intent(context, AlarmRingService::class.java).setAction(ACTION_SNOOZE)
 
         fun leftScreenIntent(context: Context): Intent =
             Intent(context, AlarmRingService::class.java).setAction(ACTION_LEFT_SCREEN)

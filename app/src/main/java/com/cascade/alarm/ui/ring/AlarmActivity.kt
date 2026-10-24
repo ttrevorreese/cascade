@@ -60,7 +60,8 @@ class AlarmActivity : ComponentActivity() {
                 AlarmScreen(
                     ringing = ringing,
                     onDismiss = ::dismiss,
-                    onGiveUp = { startService(AlarmRingService.giveUpIntent(this)) },
+                    onGiveUp = { misses -> startService(AlarmRingService.giveUpIntent(this, misses)) },
+                    onSnooze = { startService(AlarmRingService.snoozeIntent(this)) },
                     onDuck = { startService(AlarmRingService.duckIntent(this, it)) },
                 )
             }
@@ -92,8 +93,8 @@ class AlarmActivity : ComponentActivity() {
         }
     }
 
-    private fun dismiss() {
-        startService(AlarmRingService.dismissIntent(this))
+    private fun dismiss(misses: Int) {
+        startService(AlarmRingService.dismissIntent(this, misses))
     }
 
     private suspend fun finishWhenNothingRings() {

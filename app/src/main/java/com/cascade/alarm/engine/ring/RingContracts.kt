@@ -1,6 +1,7 @@
 package com.cascade.alarm.engine.ring
 
 import com.cascade.alarm.data.challenge.ChallengeConfig
+import com.cascade.alarm.data.SnoozeState
 import com.cascade.alarm.data.db.ActiveRingEntity
 import com.cascade.alarm.data.db.AlarmEntity
 import com.cascade.alarm.data.db.AlarmGroupEntity
@@ -32,6 +33,8 @@ data class RingingAlarm(
     val startedAt: Instant = scheduledFor,
     /** The group's own theme as stored, read at fire time; the UI resolves it (DESIGN.md §11.1). */
     val groupThemeId: String? = null,
+    /** Whether, and for how long, this ring may be snoozed. */
+    val snooze: SnoozeState = SnoozeState.Off,
 )
 
 data class SequencePosition(val position: Int, val total: Int)
@@ -70,6 +73,12 @@ interface RingStore {
 
     /** [alarm]'s group's own theme id, or null to follow the app theme. */
     suspend fun themeFor(alarm: AlarmEntity): String?
+
+    /** Rings [alarmId] again at [at] and counts one snooze used. */
+    suspend fun snooze(alarmId: String, at: Instant)
+
+    /** The ring ended without a snooze: the next one starts with every snooze available. */
+    suspend fun clearSnoozes(alarmId: String)
 }
 
 /** What a ring plays and how it gets louder: the group's settings ([AlarmGroupEntity]). */

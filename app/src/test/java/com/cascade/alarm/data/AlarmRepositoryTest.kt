@@ -403,4 +403,31 @@ class AlarmRepositoryTest {
         assertEquals("", SoundFiles.extension("no extension"))
         assertEquals("", SoundFiles.extension("weird.m p3"))
     }
+
+    @Test
+    fun `a snoozed one-shot alarm rings again although it switched itself off`() = runBlocking {
+        val groupId = repo.createGroup("Once")
+        val draft = repo.newAlarmDraft(groupId).copy(hour = 6, minute = 0, daysOfWeek = emptySet())
+        repo.saveAlarm(draft)
+        val due = repo.alarm(draft.id)!!.nextTriggerAt!!
+        reconciler.recordFire(draft.id, due)
+        assertFalse("a one-shot switches itself off as it rings", repo.alarm(draft.id)!!.isEnabled)
+        val at = due.plusSeconds(300)
+        reconciler.snooze(draft.id, at)
+        assertEquals(at, scheduler.scheduled[draft.id])
+        assertEquals(1, repo.alarm(draft.id)!!.snoozesUsed)
+        reconciler.clearSnoozes(draft.id)
+        assertEquals(0, repo.alarm(draft.id)!!.snoozesUsed)
+    }
+
+    @Test
+    fun `new alarms take the last alarm's snooze and saving keeps it in range`() = runBlocking {
+        val (groupId, ids) = sequence("Workday", 6 to 0)
+        repo.saveAlarm(repo.alarm(ids[0])!!.copy(snoozeMinutes = 90, snoozeLimit = 9, snoozeEnabled = false))
+        val saved = repo.alarm(ids[0])!!
+        assertEquals(30 to 5, saved.snoozeMinutes to saved.snoozeLimit)
+        val next = repo.newAlarmDraft(groupId)
+        assertEquals(false, next.snoozeEnabled)
+        assertEquals(30, next.snoozeMinutes)
+    }
 }

@@ -121,8 +121,9 @@ fun ChallengeHost(
     config: ChallengeConfig,
     onColor: Color,
     onInteract: () -> Unit,
-    onComplete: () -> Unit,
-    onGiveUp: () -> Unit,
+    /** [misses]: wrong answers along the way, for Stats. */
+    onComplete: (misses: Int) -> Unit,
+    onGiveUp: (misses: Int) -> Unit,
 ) {
     val context = LocalContext.current
     var cameraFailed by rememberSaveable { mutableStateOf(false) }
@@ -142,7 +143,7 @@ fun ChallengeHost(
     val complete = {
         if (!completed) {
             completed = true
-            onComplete()
+            onComplete(misses)
         }
     }
 
@@ -156,7 +157,7 @@ fun ChallengeHost(
             is ChallengeConfig.Memory -> MemoryChallenge(shown, seed, onColor, onInteract, miss, complete)
             ChallengeConfig.None -> LaunchedEffect(Unit) { complete() }
         }
-        if (GiveUp.available(misses, Duration.between(ringing.startedAt, now))) GiveUpHatch(onColor, onGiveUp)
+        if (GiveUp.available(misses, Duration.between(ringing.startedAt, now))) GiveUpHatch(onColor) { onGiveUp(misses) }
     }
 }
 

@@ -236,6 +236,20 @@ class ScreensTest {
         compose.onNodeWithText("Alarm rings again in", substring = true).assertExists()
     }
 
+    @Test
+    fun firingScreenOffersSnoozeBelowDismissAndNoneOnTheLast() {
+        var snoozed = 0
+        var current by mutableStateOf(ringing(0, 3).copy(snooze = com.cascade.alarm.data.SnoozeState.Offer(5, 2)))
+        compose.setContent { AlarmScreen(current, onDismiss = {}, onSnooze = { snoozed++ }) }
+        compose.onNodeWithText("Snooze 5 min").performClick()
+        assertEquals(1, snoozed)
+        compose.onNodeWithText("2 snoozes left").assertExists()
+        current = ringing(2, 3).copy(snooze = com.cascade.alarm.data.SnoozeState.NotOnLast)
+        compose.onNodeWithText("Last one.").assertExists()
+        compose.onNodeWithText("No snooze.").assertExists()
+        compose.onNodeWithText("Snooze 5 min").assertDoesNotExist()
+    }
+
     private fun androidx.compose.ui.test.junit4.ComposeContentTestRule.onAllNodesWithTextCount(text: String) =
         onAllNodes(androidx.compose.ui.test.hasText(text)).fetchSemanticsNodes().size
 }

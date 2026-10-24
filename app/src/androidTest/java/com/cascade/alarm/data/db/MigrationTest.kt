@@ -197,4 +197,24 @@ class MigrationTest {
             }
         }
     }
+
+    @Test
+    fun v8AlarmsGetSnoozeOnWithNoneUsed() {
+        helper.createDatabase(db, 8).use { v8 ->
+            v8.execSQL(
+                "INSERT INTO alarm_groups (id, name, colorHex, iconKey, isArmed, sortOrder, createdAt) " +
+                    "VALUES ('g', 'Workday', '#000000', 'default', 1, 0, 0)",
+            )
+            v8.execSQL(
+                "INSERT INTO alarms (id, groupId, positionInGroup, hour, minute, daysOfWeek, label, isEnabled, " +
+                    "volumeRampSeconds, timeoutMinutes) VALUES ('a', 'g', 0, 6, 0, 31, NULL, 1, 30, 15)",
+            )
+        }
+        helper.runMigrationsAndValidate(db, 9, true, Migrations.MIGRATION_8_9).use { v9 ->
+            v9.query("SELECT snoozeEnabled, snoozeMinutes, snoozeLimit, snoozesUsed FROM alarms WHERE id = 'a'").use { c ->
+                c.moveToFirst()
+                assertEquals(listOf(1, 5, 3, 0), (0..3).map(c::getInt))
+            }
+        }
+    }
 }

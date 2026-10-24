@@ -16,9 +16,14 @@ under conventions). It is how the next session knows where to pick up.
   (theme grid from themes.json, background animation picker, unlock button), per-group themes
   (schema v8, resolved at fire time, Home card polarity rule, firing screen + notification accent),
   Cascade Plus through Play Billing 8 (`PlayPlusStore`, product `cascade_plus`).
-- **Next in M7:** Settings + Stats, onboarding, accessibility pass, then Spotify (needs the owner's
-  Client ID). Open questions for the owner: add snooze in M7? (not built anywhere yet; spec §5 has
-  `snoozeConfig`); Cascade Plus price, and whether a Play Console account exists.
+- **Snooze** (schema v9, 2026-10-23): per alarm on/off, 3–15 min, 1–5 times; never on the group's
+  last alarm; count resets when a ring ends other than by snoozing. Unit-tested (316 JVM tests);
+  **not yet checked on the emulator** (MigrationTest 8→9, e2e, screenshot of the firing screen).
+- **Next in M7:** read the alarm's label aloud (owner request 2026-10-23: per-alarm switch, text to
+  speech on the alarm stream, tone ducks while it speaks, fails open to the plain ring), Settings +
+  Stats (DISMISSED/GAVE_UP now log `challenge` and `misses`), onboarding, accessibility pass, then
+  Spotify (needs the owner's Client ID). Open questions for the owner: Cascade Plus price, and
+  whether a Play Console account exists.
 - Before starting a milestone: give the owner a short plan and wait for approval (their kickoff
   notes in `design/CLAUDE_CODE_PROMPT.md`), unless they have said to go ahead.
 
@@ -35,7 +40,7 @@ under conventions). It is how the next session knows where to pick up.
 | M4 Escalation | done | per-group ladder, resolved at fire time, escalation editor |
 | M5 Reliability | done | Reliability Check (problems first), missed/late cards with cause from boot time, test result, OEM guidance, event log share |
 | M6 Audio | done | per-group sound, tones from `scripts/make_tones.py`, picked files copied in, ramp 30–60 s + start level, fallback logged and shown on Home |
-| M7 Polish | **in progress** | done: Appearance, per-group themes, Plus purchase. Left: Spotify (moved from M6), stats, settings, Appearance screen + 52 themes picker, per-group themes, theme purchase, onboarding |
+| M7 Polish | **in progress** | done: Appearance, per-group themes, Plus purchase, snooze. Left: read label aloud, stats, settings, onboarding, accessibility, Spotify (moved from M6) |
 | M8 Release prep | | Play listing, permission declarations, privacy policy |
 
 ## Sources of truth

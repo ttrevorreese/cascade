@@ -46,4 +46,8 @@ class RoomRingStore @Inject constructor(
         groupDao.get(alarm.groupId)?.let(RingSound::of) ?: RingSound()
 
     override suspend fun themeFor(alarm: AlarmEntity): String? = groupDao.get(alarm.groupId)?.themeId
+
+    override suspend fun snooze(alarmId: String, at: Instant) = reconciler.snooze(alarmId, at)
+
+    override suspend fun clearSnoozes(alarmId: String) = reconciler.clearSnoozes(alarmId)
 }

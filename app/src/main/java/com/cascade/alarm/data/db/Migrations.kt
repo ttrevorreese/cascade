@@ -108,7 +108,17 @@ object Migrations {
         }
     }
 
-    val ALL = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+    /** v8 → v9: snooze (M7). Existing alarms get it on, 5 minutes, 3 times; never on a group's last. */
+    val MIGRATION_8_9 = object : Migration(8, 9) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE `alarms` ADD COLUMN `snoozeEnabled` INTEGER NOT NULL DEFAULT 1")
+            db.execSQL("ALTER TABLE `alarms` ADD COLUMN `snoozeMinutes` INTEGER NOT NULL DEFAULT 5")
+            db.execSQL("ALTER TABLE `alarms` ADD COLUMN `snoozeLimit` INTEGER NOT NULL DEFAULT 3")
+            db.execSQL("ALTER TABLE `alarms` ADD COLUMN `snoozesUsed` INTEGER NOT NULL DEFAULT 0")
+        }
+    }
+
+    val ALL = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
 }
 
 object AlarmGroupDefaults {

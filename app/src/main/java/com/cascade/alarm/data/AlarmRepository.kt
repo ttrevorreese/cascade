@@ -162,6 +162,9 @@ class AlarmRepository @Inject constructor(
             isEnabled = alarm.isEnabled,
             timeoutMinutes = AlarmRules.clampTimeout(alarm.timeoutMinutes),
             challengeOverride = AlarmRules.normalizeChallenge(alarm.challengeOverride),
+            snoozeEnabled = alarm.snoozeEnabled,
+            snoozeMinutes = Snooze.clampMinutes(alarm.snoozeMinutes),
+            snoozeLimit = Snooze.clampLimit(alarm.snoozeLimit),
         )
         alarms.upsert(saved)
         if (existing != null && existing.positionInGroup == 0 && groups.get(saved.groupId)?.shiftWithFirst == true) {

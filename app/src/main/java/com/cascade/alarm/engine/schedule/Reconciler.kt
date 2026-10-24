@@ -84,6 +84,18 @@ class Reconciler @Inject constructor(
         result
     }
 
+    /** The user snoozed [alarmId]: it rings again at [at], through the one-time trigger. */
+    suspend fun snooze(alarmId: String, at: Instant) = mutate("snooze") { db ->
+        val alarm = db.alarmDao().get(alarmId) ?: return@mutate
+        db.alarmDao().upsert(alarm.copy(oneTimeTriggerAt = at, snoozesUsed = alarm.snoozesUsed + 1))
+    }
+
+    /** A ring ended other than by snoozing; its count starts again next time. */
+    suspend fun clearSnoozes(alarmId: String) = mutate("snooze_reset") { db ->
+        val alarm = db.alarmDao().get(alarmId) ?: return@mutate
+        if (alarm.snoozesUsed != 0) db.alarmDao().upsert(alarm.copy(snoozesUsed = 0))
+    }
+
     /** Called when the user dismisses [alarmId]: schedules a wake-up check if it was the group's last. */
     suspend fun scheduleWakeCheck(alarmId: String) = mutate("wake_check") { db ->
         val alarm = db.alarmDao().get(alarmId) ?: return@mutate

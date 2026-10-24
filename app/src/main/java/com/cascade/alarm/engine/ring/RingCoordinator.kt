@@ -1,5 +1,7 @@
 package com.cascade.alarm.engine.ring
 
+import com.cascade.alarm.data.Snooze
+import com.cascade.alarm.data.SnoozeState
 import com.cascade.alarm.data.challenge.ChallengeConfig
 import com.cascade.alarm.data.db.ActiveRingEntity
 import com.cascade.alarm.data.db.AlarmEntity
@@ -107,15 +109,36 @@ class RingCoordinator(
      * wake-up check. With [gaveUp] the alarm was ended through the challenge's escape hatch, which
      * is logged as GAVE_UP; either way the user is up, so the wake-up check still follows.
      */
-    suspend fun dismiss(gaveUp: Boolean = false) = mutex.withLock {
-        val active = state.current.value?.let { it.alarmId to it.isWakeCheck }
+    suspend fun dismiss(gaveUp: Boolean = false, misses: Int = 0) = mutex.withLock {
+        val current = state.current.value
+        val active = current?.let { it.alarmId to it.isWakeCheck }
             ?: try { store.activeRing()?.let { it.alarmId to it.isWakeCheck } } catch (e: Exception) { null }
         if (active?.second == true) {
             finish(EventType.WAKE_CHECK_PASSED, "reason" to "user")
             return@withLock
         }
-        if (gaveUp) finish(EventType.GAVE_UP, "reason" to "user") else finish(EventType.DISMISSED, "reason" to "user")
+        // For Stats: what was asked and how many wrong answers it took.
+        val challenge = current?.challenge?.let { it::class.simpleName }
+        val type = if (gaveUp) EventType.GAVE_UP else EventType.DISMISSED
+        finish(type, "reason" to "user", "challenge" to challenge, "misses" to misses.takeIf { challenge != null })
         if (active != null) bestEffort { store.afterDismiss(active.first) }
+    }
+
+    /**
+     * Rings this alarm again in its snooze minutes, if the ring offers that. Should the snooze not
+     * save, the alarm keeps ringing: going quiet with nothing scheduled would be a missed alarm.
+     */
+    suspend fun snooze() = mutex.withLock {
+        val current = state.current.value ?: return@withLock
+        val offer = current.snooze as? SnoozeState.Offer ?: return@withLock
+        val at = now().plus(Duration.ofMinutes(offer.minutes.toLong()))
+        try {
+            store.snooze(current.alarmId, at)
+        } catch (e: Exception) {
+            EngineLog.e("snooze could not be saved; still ringing alarm=${current.alarmId}", e)
+            return@withLock
+        }
+        finish(EventType.SNOOZED, "minutes" to offer.minutes, "until" to at, "scheduledFor" to current.scheduledFor)
     }
 
     /** The alarm screen went to the background while ringing (SPEC §6.7). Sound returns to full. */
@@ -159,6 +182,7 @@ class RingCoordinator(
             startedAt = ring.startedAt,
             // Only the look; a failure means the app theme, never a delay.
             groupThemeId = alarm?.let { try { store.themeFor(it) } catch (e: Exception) { null } },
+            snooze = alarm?.let { Snooze.state(it, isLast = sequence.position >= sequence.total - 1, isWakeCheck = ring.isWakeCheck) } ?: SnoozeState.Off,
         )
         // Read before anything audible changes; a failure here means the defaults, never silence.
         val ringSound = if (ring.isWakeCheck) null else soundFor(alarm)
@@ -241,6 +265,8 @@ class RingCoordinator(
             // memory always implies "not ringing" on disk.
             bestEffort { store.clearActiveRing() }
             if (alarmId != null) bestEffort { store.log(alarmId, type, *metadata) }
+            // Any end but a snooze: the next ring of this alarm starts with all its snoozes.
+            if (alarmId != null && type != EventType.SNOOZED) bestEffort { store.clearSnoozes(alarmId) }
         } finally {
             state.set(null)
             finishIdle()
