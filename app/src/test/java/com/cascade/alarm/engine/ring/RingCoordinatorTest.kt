@@ -127,6 +127,15 @@ class RingCoordinatorTest {
         override fun stop() { playing = false; checking = false; quieted = false }
     }
 
+    private class FakeSpeaker : LabelSpeaker {
+        val started = mutableListOf<Triple<String, String?, Instant>>()
+        var speaking = false
+        var held = false
+        override fun start(alarmId: String, label: String?, at: Instant) { started += Triple(alarmId, label, at); speaking = true }
+        override fun setPaused(paused: Boolean) { held = paused }
+        override fun stop() { speaking = false; held = false }
+    }
+
     private class FakeWakeLock : RingWakeLock {
         var held = false
         var lastTimeout: Duration? = null
@@ -146,6 +155,7 @@ class RingCoordinatorTest {
         val sound = FakeSound()
         val wakeLock = FakeWakeLock()
         val presenter = FakePresenter()
+        val speaker = FakeSpeaker()
         val state = RingState().also { store.state = it }
         val coordinator = RingCoordinator(
             scope = scope.backgroundScope,
@@ -155,6 +165,7 @@ class RingCoordinatorTest {
             wakeLock = wakeLock,
             presenter = presenter,
             state = state,
+            speaker = speaker,
         )
 
         fun assertRinging() {
@@ -620,5 +631,47 @@ class RingCoordinatorTest {
         coordinator.onFire("a", scheduled)
         assertRinging()
         assertEquals(ChallengeConfig.TypePhrase("up"), state.current.value?.challenge)
+    }
+
+    @Test
+    fun `an alarm set to read aloud says its label from the moment it rings, and stops with it`() = harness {
+        store.alarms["a"] = alarm().copy(readLabelAloud = true, label = "Take your pills")
+        coordinator.onFire("a", scheduled)
+        assertEquals(listOf(Triple("a", "Take your pills", epoch)), speaker.started)
+        assertTrue(speaker.speaking)
+        coordinator.dismiss()
+        assertFalse(speaker.speaking)
+    }
+
+    @Test
+    fun `alarms that do not read aloud, and wake-up checks, stay quiet`() = harness {
+        coordinator.onFire("a", scheduled)
+        assertTrue(speaker.started.isEmpty())
+        coordinator.dismiss()
+        store.alarms["a"] = alarm().copy(readLabelAloud = true)
+        val checkAt = scheduled.plusSeconds(120)
+        store.wakeChecks += "a" to checkAt
+        coordinator.onFire("a", checkAt)
+        assertTrue(state.current.value!!.isWakeCheck)
+        assertTrue(speaker.started.isEmpty(), "a wake-up check only vibrates")
+    }
+
+    @Test
+    fun `reading pauses while a challenge is solved and resumes on leaving the screen`() = harness {
+        store.alarms["a"] = alarm().copy(readLabelAloud = true, challengeOverride = ChallengeConfig.Math())
+        coordinator.onFire("a", scheduled)
+        coordinator.duck(true)
+        assertTrue(speaker.held)
+        coordinator.leftScreen()
+        assertFalse(speaker.held)
+    }
+
+    @Test
+    fun `a snooze stops the reading too`() = harness {
+        store.alarms["a"] = alarm().copy(readLabelAloud = true)
+        store.sequence = SequencePosition(0, 3)
+        coordinator.onFire("a", scheduled)
+        coordinator.snooze()
+        assertFalse(speaker.speaking)
     }
 }

@@ -19,13 +19,13 @@ under conventions). It is how the next session knows where to pick up.
 - **Snooze** (schema v9, 2026-10-23): per alarm on/off, 3–15 min, 1–5 times; never on the group's
   last alarm; count resets when a ring ends other than by snoozing. Unit-tested (316 JVM tests);
   checked on the emulator 2026-10-24 (MigrationTest 8→9, e2e 29/29, snooze button reschedules).
-- **Read aloud, in progress** (schema v10): `data/voice/` (ReadAloud rules, VoicePreferences, Speech,
+- **Read aloud** (schema v10, 2026-10-24): code and JVM tests done; **emulator check pending** (ask the
+  owner first: it rings through their speakers). `data/voice/` (ReadAloud rules, VoicePreferences, Speech,
   SpeechCache + SpeechWarmer so speech exists before first unlock), `AndroidLabelSpeaker` on the ring
-  path (tone drops to 25% while it speaks), editor switch + Hear it. Left: voice picker screen in
-  Settings, tests, emulator check. Later idea: Cascade's own AI voices as a paid add-on (spec M7 row).
-- **Next in M7 (was):** read the alarm's label aloud (owner request 2026-10-23: per-alarm switch, text to
-  speech on the alarm stream, tone ducks while it speaks, fails open to the plain ring), Settings +
-  Stats (DISMISSED/GAVE_UP now log `challenge` and `misses`), onboarding, accessibility pass, then
+  path (tone drops to 25% while it speaks), editor switch + Hear it, Settings > Read-aloud voice
+  (offline voices of every engine, speed, Get more voices). Later idea: Cascade's own AI voices as a
+  paid add-on (spec M7 row).
+- **Next in M7:** Settings + Stats (DISMISSED/GAVE_UP now log `challenge` and `misses`), onboarding, accessibility pass, then
   Spotify (needs the owner's Client ID). Owner decisions (2026-10-24): Cascade Plus is
   $4.99 flat, one-time; no Play Console account yet (create it at M8, then add the `cascade_plus`
   product at that price). Read-aloud must let the owner pick the voice.

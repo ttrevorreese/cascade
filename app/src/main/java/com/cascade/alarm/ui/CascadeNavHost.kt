@@ -20,6 +20,7 @@ import com.cascade.alarm.ui.group.GroupThemed
 import com.cascade.alarm.ui.home.HomeScreen
 import com.cascade.alarm.ui.reliability.ReliabilityScreen
 import com.cascade.alarm.ui.settings.SettingsScreen
+import com.cascade.alarm.ui.voice.VoiceScreen
 import com.cascade.alarm.ui.sound.SoundScreen
 
 object Routes {
@@ -32,6 +33,7 @@ object Routes {
     const val GROUP_THEME = "group-theme/{groupId}"
     const val SETTINGS = "settings"
     const val APPEARANCE = "appearance"
+    const val VOICE = "voice"
 
     fun group(groupId: String) = "group/${Uri.encode(groupId)}"
     fun escalation(groupId: String) = "escalation/${Uri.encode(groupId)}"
@@ -108,9 +110,11 @@ fun CascadeNavHost() {
                 onBack = { nav.popBackStack() },
                 onOpenAppearance = { nav.navigate(Routes.APPEARANCE) },
                 onOpenReliability = { nav.navigate(Routes.RELIABILITY) },
+                onOpenVoice = { nav.navigate(Routes.VOICE) },
             )
         }
         composable(Routes.APPEARANCE) { AppearanceScreen(onBack = { nav.popBackStack() }) }
+        composable(Routes.VOICE) { AmbientBackdrop { VoiceScreen(onBack = { nav.popBackStack() }, is24Hour = is24HourClock()) } }
     }
 }
 

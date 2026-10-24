@@ -22,6 +22,9 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.cascade.alarm.data.voice.ReadAloud
+import com.cascade.alarm.data.voice.VoiceChoice
+import com.cascade.alarm.data.voice.VoicePreferences
 import com.cascade.alarm.ui.components.AnimationChoice
 import com.cascade.alarm.ui.components.CascadeIcons
 import com.cascade.alarm.ui.components.CascadeTopBar
@@ -34,8 +37,9 @@ import kotlinx.coroutines.flow.StateFlow
 import javax.inject.Inject
 
 @HiltViewModel
-class SettingsViewModel @Inject constructor(preferences: UiPreferences) : ViewModel() {
+class SettingsViewModel @Inject constructor(preferences: UiPreferences, voice: VoicePreferences) : ViewModel() {
     val animation: StateFlow<AnimationChoice> = preferences.animation
+    val voice: StateFlow<VoiceChoice> = voice.choice
 }
 
 @Composable
@@ -43,15 +47,24 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onOpenAppearance: () -> Unit,
     onOpenReliability: () -> Unit,
+    onOpenVoice: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val animation by viewModel.animation.collectAsStateWithLifecycle()
-    SettingsContent(animation, onOpenAppearance, onOpenReliability, onBack)
+    val voice by viewModel.voice.collectAsStateWithLifecycle()
+    SettingsContent(animation, onOpenAppearance, onOpenReliability, onBack, voice, onOpenVoice)
 }
 
 /** The way into everything that is not an alarm. SPEC §7. */
 @Composable
-fun SettingsContent(animation: AnimationChoice, onOpenAppearance: () -> Unit, onOpenReliability: () -> Unit, onBack: () -> Unit) {
+fun SettingsContent(
+    animation: AnimationChoice,
+    onOpenAppearance: () -> Unit,
+    onOpenReliability: () -> Unit,
+    onBack: () -> Unit,
+    voice: VoiceChoice = VoiceChoice(),
+    onOpenVoice: () -> Unit = {},
+) {
     val c = cascadeColors
     // Settings is in the app theme, which is what is in effect here (DESIGN.md §11.2).
     val theme = LocalCascadeTheme.current
@@ -66,9 +79,16 @@ fun SettingsContent(animation: AnimationChoice, onOpenAppearance: () -> Unit, on
             contentPadding = PaddingValues(CascadeSpace.gutter, 0.dp, CascadeSpace.gutter, 48.dp),
         ) {
             item { LinkRow("Appearance", "${theme.name} · $animationText", onOpenAppearance, "open-appearance") }
+            item { LinkRow("Read-aloud voice", voiceText(voice), onOpenVoice, "open-voice") }
             item { LinkRow("Reliability Check", "What could stop an alarm on this phone, and a test alarm", onOpenReliability, "open-reliability-check") }
         }
     }
+}
+
+/** "Voice 2 · English (United States) · Normal speed". */
+internal fun voiceText(voice: VoiceChoice): String {
+    val speed = ReadAloud.RATES.firstOrNull { it.first == voice.rate }?.second ?: "Normal"
+    return "${voice.label ?: "Phone's default voice"} · $speed speed"
 }
 
 @Composable
