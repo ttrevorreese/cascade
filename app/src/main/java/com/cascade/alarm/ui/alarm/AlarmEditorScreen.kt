@@ -39,6 +39,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.cascade.alarm.data.AlarmRepository
 import com.cascade.alarm.data.AlarmRules
+import com.cascade.alarm.data.NewAlarmDefaultsPreferences
 import com.cascade.alarm.data.Snooze
 import com.cascade.alarm.data.db.time
 import com.cascade.alarm.data.voice.ReadAloud
@@ -79,6 +80,7 @@ class AlarmEditorViewModel @Inject constructor(
     private val repository: AlarmRepository,
     private val speechPreview: SpeechPreview,
     private val voice: VoicePreferences,
+    private val defaults: NewAlarmDefaultsPreferences,
 ) : ViewModel() {
     val previewStatus: StateFlow<SpeechPreview.Status> = speechPreview.status
 
@@ -98,7 +100,7 @@ class AlarmEditorViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             val existing = alarmId?.let { repository.alarm(it) }
-            val draft = existing ?: repository.newAlarmDraft(groupId)
+            val draft = existing ?: repository.newAlarmDraft(groupId, defaults.value.value)
             val policy = repository.observeGroup(groupId).first()?.escalationPolicy ?: EscalationPolicy()
             val siblings = repository.observeAlarms(groupId).first().filter { it.id != draft.id }
             mutableState.value = AlarmEditorState(

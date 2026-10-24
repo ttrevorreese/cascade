@@ -49,6 +49,18 @@ class AlarmRulesTest {
     }
 
     @Test
+    fun `a group's first alarm takes the defaults from Settings, later ones copy the alarm before`() {
+        val defaults = NewAlarmDefaults(timeoutMinutes = 20, snoozeEnabled = false, snoozeMinutes = 9, snoozeLimit = 1, readLabelAloud = true)
+        val first = AlarmRules.newAlarm("new", "g", emptyList(), defaults)
+        assertEquals(listOf(20, 9, 1), listOf(first.timeoutMinutes, first.snoozeMinutes, first.snoozeLimit))
+        assertEquals(false, first.snoozeEnabled)
+        assertEquals(true, first.readLabelAloud)
+        val next = AlarmRules.newAlarm("next", "g", listOf(alarm("a", 0, 6, 0)), defaults)
+        assertEquals(10, next.timeoutMinutes)
+        assertEquals(false, next.readLabelAloud)
+    }
+
+    @Test
     fun `next alarm wraps past midnight`() {
         val a = AlarmRules.newAlarm("new", "g", listOf(alarm("a", 0, 23, 55)))
         assertEquals(0 to 5, a.hour to a.minute)

@@ -28,7 +28,10 @@ under conventions). It is how the next session knows where to pick up.
 - **Stats** (2026-10-24): Settings > Stats, 7/30 days from the event log (`data/stats/StatsRules`):
   totals, time to dismiss by day, challenges (solved/given up/wrong answers), wake-up checks,
   leaving the screen. JVM-tested; **screenshot pending**.
-- **Next in M7:** rest of Settings, onboarding, accessibility pass, then
+- **Settings** (2026-10-24): Stats, Appearance, Read-aloud voice, Reliability Check, defaults for a new
+  group's first alarm (snooze, timeout, read aloud; `NewAlarmDefaults`), Export everything (JSON via
+  the system file picker, `DataExport`, no photos). JVM-tested; **screenshot pending**.
+- **Next in M7:** onboarding, accessibility pass, then
   Spotify (needs the owner's Client ID). Owner decisions (2026-10-24): Cascade Plus is
   $4.99 flat, one-time; no Play Console account yet (create it at M8, then add the `cascade_plus`
   product at that price). Read-aloud must let the owner pick the voice.

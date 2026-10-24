@@ -34,9 +34,10 @@ object AlarmRules {
 
     /**
      * A new alarm appended to a group. Groups are sequences, so it defaults to the next step:
-     * ten minutes after the last alarm, with the same days, timeout and snooze.
+     * ten minutes after the last alarm, with the same days, timeout, snooze and read-aloud. The
+     * first alarm of a group takes them from [defaults] (Settings).
      */
-    fun newAlarm(id: String, groupId: String, existing: List<AlarmEntity>): AlarmEntity {
+    fun newAlarm(id: String, groupId: String, existing: List<AlarmEntity>, defaults: NewAlarmDefaults = NewAlarmDefaults()): AlarmEntity {
         val last = existing.maxByOrNull { it.positionInGroup }
         val time = last?.time?.plusMinutes(SEQUENCE_STEP_MINUTES)
         return AlarmEntity(
@@ -48,10 +49,11 @@ object AlarmRules {
             daysOfWeek = last?.daysOfWeek ?: emptySet(),
             label = null,
             isEnabled = true,
-            timeoutMinutes = last?.timeoutMinutes ?: RingDefaults.TIMEOUT_MINUTES,
-            snoozeEnabled = last?.snoozeEnabled ?: true,
-            snoozeMinutes = last?.snoozeMinutes ?: Snooze.DEFAULT_MINUTES,
-            snoozeLimit = last?.snoozeLimit ?: Snooze.DEFAULT_LIMIT,
+            timeoutMinutes = last?.timeoutMinutes ?: defaults.timeoutMinutes,
+            snoozeEnabled = last?.snoozeEnabled ?: defaults.snoozeEnabled,
+            snoozeMinutes = last?.snoozeMinutes ?: defaults.snoozeMinutes,
+            snoozeLimit = last?.snoozeLimit ?: defaults.snoozeLimit,
+            readLabelAloud = last?.readLabelAloud ?: defaults.readLabelAloud,
         )
     }
 

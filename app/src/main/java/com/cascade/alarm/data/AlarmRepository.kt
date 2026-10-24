@@ -46,8 +46,8 @@ class AlarmRepository @Inject constructor(
     suspend fun alarm(id: String): AlarmEntity? = alarms.get(id)
 
     /** An unsaved alarm for [groupId], pre-filled as the next step of the sequence. */
-    suspend fun newAlarmDraft(groupId: String): AlarmEntity =
-        AlarmRules.newAlarm(UUID.randomUUID().toString(), groupId, alarms.inGroup(groupId))
+    suspend fun newAlarmDraft(groupId: String, defaults: NewAlarmDefaults = NewAlarmDefaults()): AlarmEntity =
+        AlarmRules.newAlarm(UUID.randomUUID().toString(), groupId, alarms.inGroup(groupId), defaults)
 
     // --- Groups ---
 
