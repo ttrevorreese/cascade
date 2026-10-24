@@ -19,30 +19,34 @@ under conventions). It is how the next session knows where to pick up.
 - **Snooze** (schema v9, 2026-10-23): per alarm on/off, 3–15 min, 1–5 times; never on the group's
   last alarm; count resets when a ring ends other than by snoozing. Unit-tested (316 JVM tests);
   checked on the emulator 2026-10-24 (MigrationTest 8→9, e2e 29/29, snooze button reschedules).
-- **Read aloud** (schema v10, 2026-10-24): code and JVM tests done; **emulator check pending** (ask the
-  owner first: it rings through their speakers). `data/voice/` (ReadAloud rules, VoicePreferences, Speech,
+- **Read aloud** (schema v10, 2026-10-24): done and checked on the emulator 2026-10-24 (speech file made
+  in device-protected storage on save, read 5 s into a real ring and again 30 s later, MigrationTest 9→10). `data/voice/` (ReadAloud rules, VoicePreferences, Speech,
   SpeechCache + SpeechWarmer so speech exists before first unlock), `AndroidLabelSpeaker` on the ring
   path (tone drops to 25% while it speaks), editor switch + Hear it, Settings > Read-aloud voice
   (offline voices of every engine, speed, Get more voices). Later idea: Cascade's own AI voices as a
   paid add-on (spec M7 row).
 - **Stats** (2026-10-24): Settings > Stats, 7/30 days from the event log (`data/stats/StatsRules`):
   totals, time to dismiss by day, challenges (solved/given up/wrong answers), wake-up checks,
-  leaving the screen. JVM-tested; **screenshot pending**.
+  leaving the screen. Screenshot checked 2026-10-24.
 - **Settings** (2026-10-24): Stats, Appearance, Read-aloud voice, Reliability Check, defaults for a new
   group's first alarm (snooze, timeout, read aloud; `NewAlarmDefaults`), Export everything (JSON via
-  the system file picker, `DataExport`, no photos). JVM-tested; **screenshot pending**.
+  the system file picker, `DataExport`, no photos). Checked on the emulator, export saved and valid.
 - **Onboarding** (2026-10-24): shown when there are no groups and it was never finished (`UiPreferences.onboarded`;
   an update with groups counts as onboarded). Welcome → the three blocker permissions with Allow →
   first group from a `StarterPlan` (time, 2–5 alarms, 5/10/15 min apart, weekdays/every day). Every step
-  skippable, Back = skip. JVM-tested; **screenshot pending**. Fixed: editing read-aloud on an existing
+  skippable, Back = skip. Walked through on the emulator; two bugs fixed there (step count read 2 then 3;
+  Back from the new group reopened onboarding: Home's `needsOnboarding` replayed a stale true). Fixed: editing read-aloud on an existing
   alarm was not saved.
 - **Accessibility pass** (2026-10-24): every switch names what it switches (`CascadeSwitch(label =)`),
   screen titles and section labels are headings, challenge feedback ("Not quite") is a live region,
   memory pads are announced as they light, alarm screen checked at 2x font on a 360dp phone
   (`AccessibilityTest`). TalkBack walk-through is on the phone checklist.
-- **M7 code is done** apart from Spotify. Left for the emulator (ask first): screenshots of Stats,
-  Settings, Voice, Onboarding; read-aloud ring check; e2e. Then
-  Spotify (needs the owner's Client ID). Owner decisions (2026-10-24): Cascade Plus is
+- **Emulator pass 2026-10-24:** instrumented 26/26, e2e `--wake-check` all passed, every new screen
+  screenshotted. Also fixed: "Hear it" and the Sound preview passed `handleAudioFocus = true` with
+  USAGE_ALARM, which Media3 1.11 rejects, and a bare `stop()` inside `ExoPlayer.apply {}` called the
+  player's stop, leaving the row on "Stop".
+- **M7 is done apart from Spotify** (needs the owner's Client ID). Next: Spotify when the ID arrives,
+  else plan M8. Owner decisions (2026-10-24): Cascade Plus is
   $4.99 flat, one-time; no Play Console account yet (create it at M8, then add the `cascade_plus`
   product at that price). Read-aloud must let the owner pick the voice.
 - Before starting a milestone: give the owner a short plan and wait for approval (their kickoff
@@ -61,7 +65,7 @@ under conventions). It is how the next session knows where to pick up.
 | M4 Escalation | done | per-group ladder, resolved at fire time, escalation editor |
 | M5 Reliability | done | Reliability Check (problems first), missed/late cards with cause from boot time, test result, OEM guidance, event log share |
 | M6 Audio | done | per-group sound, tones from `scripts/make_tones.py`, picked files copied in, ramp 30–60 s + start level, fallback logged and shown on Home |
-| M7 Polish | **in progress** | done: Appearance, per-group themes, Plus purchase, snooze. Left: read label aloud, stats, settings, onboarding, accessibility, Spotify (moved from M6) |
+| M7 Polish | **in progress** | all done and emulator-checked except Spotify (moved from M6; needs the owner's Client ID) |
 | M8 Release prep | | Play listing, permission declarations, privacy policy |
 
 ## Sources of truth
@@ -100,6 +104,8 @@ under conventions). It is how the next session knows where to pick up.
 - Instrumented (migrations, engine): `./gradlew connectedDebugAndroidTest`.
 - End-to-end alarm path on a device: `bash scripts/e2e-alarm.sh --wake-check` (about 6 min);
   `--all` adds timeout, reboot and power-off (about 14 min). Run before calling engine work done.
+- Media3: `setAudioAttributes(..., handleAudioFocus = true)` throws for USAGE_ALARM; always pass false
+  (the ring player requests focus itself).
 - Debug-build adb hooks (`DebugCommandReceiver`), e.g.
   `adb shell am broadcast -a com.cascade.alarm.debug.SEED_DEMO -p com.cascade.alarm`:
   `RING_IN`, `SET_TIMEOUT`, `SET_DAILY`, `DISABLE`, `DISMISS`, `SET_WAKE_CHECK`, `SEED_DEMO`,

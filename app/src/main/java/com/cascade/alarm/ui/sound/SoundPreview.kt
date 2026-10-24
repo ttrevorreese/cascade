@@ -48,14 +48,15 @@ class SoundPreview @Inject constructor(
         player = ExoPlayer.Builder(context).build().apply {
             setAudioAttributes(
                 AudioAttributes.Builder().setUsage(C.USAGE_ALARM).setContentType(C.AUDIO_CONTENT_TYPE_SONIFICATION).build(),
-                true,
+                // Media3 only handles focus itself for media and games; true fails on the alarm stream.
+                false,
             )
             repeatMode = Player.REPEAT_MODE_ONE
             volume = floor
             addListener(object : Player.Listener {
                 override fun onPlayerError(error: PlaybackException) {
                     EngineLog.e("preview failed", error)
-                    stop()
+                    this@SoundPreview.stop()
                 }
             })
             setMediaItem(MediaItem.fromUri(uriFor(source)))

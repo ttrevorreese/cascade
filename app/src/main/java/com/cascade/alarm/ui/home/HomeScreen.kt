@@ -110,7 +110,8 @@ class HomeViewModel @Inject constructor(
 
     /**
      * True on a fresh install: no groups and onboarding never finished. Anyone who already has
-     * groups (an update from before onboarding existed) counts as onboarded.
+     * groups (an update from before onboarding existed) counts as onboarded. Eager, so it is never
+     * stale: a cached true replayed when Home comes back would open onboarding again.
      */
     val needsOnboarding: StateFlow<Boolean> = combine(groups, preferences.onboarded) { list, done ->
         when {
@@ -121,7 +122,7 @@ class HomeViewModel @Inject constructor(
             }
             else -> true
         }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     private val mutableIncidents = MutableStateFlow<List<Incident>>(emptyList())
 

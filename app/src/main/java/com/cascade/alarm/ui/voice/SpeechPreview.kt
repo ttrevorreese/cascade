@@ -57,16 +57,18 @@ class SpeechPreview @Inject constructor(
             player = ExoPlayer.Builder(context).build().apply {
                 setAudioAttributes(
                     AudioAttributes.Builder().setUsage(C.USAGE_ALARM).setContentType(C.AUDIO_CONTENT_TYPE_SPEECH).build(),
-                    true,
+                    // Media3 only handles focus itself for media and games; true fails on the alarm stream.
+                    false,
                 )
                 addListener(object : Player.Listener {
                     override fun onPlaybackStateChanged(state: Int) {
-                        if (state == Player.STATE_ENDED) stop()
+                        // Qualified: a bare stop() here is the player's own, which leaves the row on "Stop".
+                        if (state == Player.STATE_ENDED) this@SpeechPreview.stop()
                     }
 
                     override fun onPlayerError(error: PlaybackException) {
                         EngineLog.e("speech preview failed", error)
-                        stop()
+                        this@SpeechPreview.stop()
                         mutableStatus.value = Status.Failed
                     }
                 })

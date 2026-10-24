@@ -93,7 +93,8 @@ fun OnboardingScreen(onDone: (String?) -> Unit, viewModel: OnboardingViewModel =
     val context = LocalContext.current
     // Back means "not now"; otherwise Home, still empty, would bring onboarding straight back.
     BackHandler { viewModel.skip { onDone(null) } }
-    var checks by remember { mutableStateOf(emptyList<ReliabilityCheck>()) }
+    // Checked before the first frame: starting empty would count the steps as 2, then 3.
+    var checks by remember { mutableStateOf(ReliabilityChecks.check(context)) }
     // Settings change outside the app; re-check whenever the user comes back.
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { checks = ReliabilityChecks.check(context) }
     val notifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
