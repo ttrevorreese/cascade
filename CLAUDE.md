@@ -25,7 +25,10 @@ under conventions). It is how the next session knows where to pick up.
   path (tone drops to 25% while it speaks), editor switch + Hear it, Settings > Read-aloud voice
   (offline voices of every engine, speed, Get more voices). Later idea: Cascade's own AI voices as a
   paid add-on (spec M7 row).
-- **Next in M7:** Settings + Stats (DISMISSED/GAVE_UP now log `challenge` and `misses`), onboarding, accessibility pass, then
+- **Stats** (2026-10-24): Settings > Stats, 7/30 days from the event log (`data/stats/StatsRules`):
+  totals, time to dismiss by day, challenges (solved/given up/wrong answers), wake-up checks,
+  leaving the screen. JVM-tested; **screenshot pending**.
+- **Next in M7:** rest of Settings, onboarding, accessibility pass, then
   Spotify (needs the owner's Client ID). Owner decisions (2026-10-24): Cascade Plus is
   $4.99 flat, one-time; no Play Console account yet (create it at M8, then add the `cascade_plus`
   product at that price). Read-aloud must let the owner pick the voice.

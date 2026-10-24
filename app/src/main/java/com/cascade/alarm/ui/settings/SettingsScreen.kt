@@ -48,11 +48,12 @@ fun SettingsScreen(
     onOpenAppearance: () -> Unit,
     onOpenReliability: () -> Unit,
     onOpenVoice: () -> Unit,
+    onOpenStats: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val animation by viewModel.animation.collectAsStateWithLifecycle()
     val voice by viewModel.voice.collectAsStateWithLifecycle()
-    SettingsContent(animation, onOpenAppearance, onOpenReliability, onBack, voice, onOpenVoice)
+    SettingsContent(animation, onOpenAppearance, onOpenReliability, onBack, voice, onOpenVoice, onOpenStats)
 }
 
 /** The way into everything that is not an alarm. SPEC §7. */
@@ -64,6 +65,7 @@ fun SettingsContent(
     onBack: () -> Unit,
     voice: VoiceChoice = VoiceChoice(),
     onOpenVoice: () -> Unit = {},
+    onOpenStats: () -> Unit = {},
 ) {
     val c = cascadeColors
     // Settings is in the app theme, which is what is in effect here (DESIGN.md §11.2).
@@ -78,6 +80,7 @@ fun SettingsContent(
             modifier = Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(CascadeSpace.gutter, 0.dp, CascadeSpace.gutter, 48.dp),
         ) {
+            item { LinkRow("Stats", "Rings, snoozes, challenges and wake-up checks", onOpenStats, "open-stats") }
             item { LinkRow("Appearance", "${theme.name} · $animationText", onOpenAppearance, "open-appearance") }
             item { LinkRow("Read-aloud voice", voiceText(voice), onOpenVoice, "open-voice") }
             item { LinkRow("Reliability Check", "What could stop an alarm on this phone, and a test alarm", onOpenReliability, "open-reliability-check") }
