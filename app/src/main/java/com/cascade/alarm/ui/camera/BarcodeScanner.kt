@@ -4,7 +4,9 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import androidx.camera.compose.CameraXViewfinder
+import androidx.annotation.OptIn
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.ExperimentalGetImage
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
 import androidx.camera.core.SurfaceRequest
@@ -39,6 +41,8 @@ fun hasCameraPermission(context: Context): Boolean =
  * model so it works offline and before first unlock (SPEC §6.8). [onUnavailable] is called if the
  * camera cannot be opened, so the caller can fall back rather than leave the user stuck.
  */
+// proxy.image is CameraX opt-in API; ML Kit needs the underlying media image.
+@OptIn(ExperimentalGetImage::class)
 @Composable
 fun BarcodeScanner(onScanned: (String) -> Unit, onUnavailable: () -> Unit, modifier: Modifier = Modifier) {
     val context = LocalContext.current

@@ -49,6 +49,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.Duration
 import java.time.format.TextStyle
+import com.cascade.alarm.ui.currentLocale
 import java.util.Locale
 import javax.inject.Inject
 
@@ -169,6 +170,7 @@ private fun Total(label: String, value: Int, modifier: Modifier) {
 @Composable
 private fun DismissCard(stats: Stats) {
     val c = cascadeColors
+    val locale = currentLocale()
     Card("Time to dismiss") {
         Line(stats.medianToDismiss?.let { "Usually ${StatsText.duration(it)} from the first sound to Dismiss" } ?: "No alarm was dismissed in this time")
         val longest = stats.byDay.mapNotNull { it.medianToDismiss }.maxOrNull()
@@ -176,7 +178,7 @@ private fun DismissCard(stats: Stats) {
             val bar = c.textPrimary
             val empty = c.textSecondary.copy(alpha = 0.3f)
             val described = stats.byDay.joinToString("; ") { day ->
-                "${day.date.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.getDefault())}: " + (day.medianToDismiss?.let(StatsText::duration) ?: "none")
+                "${day.date.dayOfWeek.getDisplayName(TextStyle.FULL, locale)}: " + (day.medianToDismiss?.let(StatsText::duration) ?: "none")
             }
             Canvas(
                 Modifier.fillMaxWidth().height(96.dp).padding(top = CascadeSpace.m).semantics { contentDescription = described },
@@ -199,7 +201,7 @@ private fun DismissCard(stats: Stats) {
                 Row(Modifier.fillMaxWidth()) {
                     stats.byDay.forEach { day ->
                         Text(
-                            day.date.dayOfWeek.getDisplayName(TextStyle.NARROW, Locale.getDefault()),
+                            day.date.dayOfWeek.getDisplayName(TextStyle.NARROW, locale),
                             style = CascadeType.body,
                             color = c.textSecondary,
                             textAlign = TextAlign.Center,
