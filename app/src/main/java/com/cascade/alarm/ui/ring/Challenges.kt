@@ -57,7 +57,9 @@ import androidx.compose.ui.platform.LocalTextToolbar
 import androidx.compose.ui.platform.TextToolbar
 import androidx.compose.ui.platform.TextToolbarStatus
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
@@ -210,6 +212,7 @@ private fun MathChallenge(
         if (wrong) "Not quite. Try again." else " ",
         color = onColor,
         style = CascadeType.rowLabel,
+        modifier = Modifier.announced(),
     )
     val keys = listOf(listOf("1", "2", "3"), listOf("4", "5", "6"), listOf("7", "8", "9"), listOf("⌫", "0", "✓"))
     Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -334,7 +337,7 @@ private fun BarcodeChallenge(
         onUnavailable = onCameraFailed,
         modifier = Modifier.padding(vertical = 16.dp).fillMaxWidth().aspectRatio(1f).clip(CascadeShapes.firing),
     )
-    Text(if (lastWrong != null) "That is a different code." else " ", color = onColor, style = CascadeType.rowLabel)
+    Text(if (lastWrong != null) "That is a different code." else " ", color = onColor, style = CascadeType.rowLabel, modifier = Modifier.announced())
 }
 
 @Composable
@@ -374,6 +377,7 @@ private fun PhotoChallenge(
         color = onColor,
         style = CascadeType.rowLabel,
         textAlign = TextAlign.Center,
+        modifier = Modifier.announced(),
     )
     OutlinedButton(
         onClick = {
@@ -459,14 +463,17 @@ private fun MemoryChallenge(
         showing = false
     }
 
+    val status = when {
+        showing && wrong -> "Not quite. Watch again."
+        showing -> "Watch the sequence."
+        else -> "Repeat it: ${entered.size} of ${sequence.size}"
+    }
     Text(
-        when {
-            showing && wrong -> "Not quite. Watch again."
-            showing -> "Watch the sequence."
-            else -> "Repeat it: ${entered.size} of ${sequence.size}"
-        },
+        status,
         color = onColor,
         style = CascadeType.rowLabel,
+        // A screen reader hears each pad's name as it lights, since the flash itself is only seen.
+        modifier = Modifier.announced(lit?.let { PAD_NAMES[it] } ?: status),
     )
     Column(Modifier.padding(top = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         for (row in 0 until 2) {
@@ -505,6 +512,15 @@ private fun MemoryChallenge(
             }
         }
     }
+}
+
+/**
+ * Read out by screen readers whenever it changes, for feedback that appears without a tap on it
+ * ("Not quite"); [spoken] replaces the visible text when what is heard should differ.
+ */
+private fun Modifier.announced(spoken: String? = null): Modifier = semantics {
+    liveRegion = LiveRegionMode.Polite
+    if (spoken != null) contentDescription = spoken
 }
 
 /** The lit pad's symbol is drawn in the opposite of the pad's fill so it stays visible. */

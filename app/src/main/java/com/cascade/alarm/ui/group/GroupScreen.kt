@@ -39,6 +39,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -217,7 +219,7 @@ fun GroupContent(
             modifier = Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(CascadeSpace.gutter, 0.dp, CascadeSpace.gutter, 112.dp),
         ) {
-            item { Text(group.name, style = CascadeType.screenTitle, color = c.textPrimary, modifier = Modifier.padding(bottom = CascadeSpace.s)) }
+            item { Text(group.name, style = CascadeType.screenTitle, color = c.textPrimary, modifier = Modifier.padding(bottom = CascadeSpace.s).semantics { heading() }) }
             item {
                 SettingRow(
                     title = "Group armed",
@@ -323,7 +325,7 @@ private fun SettingRow(title: String, detail: String, checked: Boolean, onChecke
             Text(title, style = CascadeType.rowLabel, color = c.textPrimary)
             Text(detail, style = CascadeType.body, color = c.textSecondary)
         }
-        CascadeSwitch(checked, onCheckedChange, Modifier.testTag(tag))
+        CascadeSwitch(checked, onCheckedChange, Modifier.testTag(tag), label = title)
     }
 }
 
@@ -489,6 +491,11 @@ private fun AlarmRow(
         CascadeIconButton(CascadeIcons.ChevronUp, "Move alarm ${position + 1} earlier in the sequence", { onMove(-1) }, enabled = position > 0)
         CascadeIconButton(CascadeIcons.ChevronDown, "Move alarm ${position + 1} later in the sequence", { onMove(1) }, enabled = position < total - 1)
         // Shows the alarm's own switch even while the group is disarmed (SPEC §5).
-        CascadeSwitch(alarm.isEnabled, onEnabledChange, Modifier.testTag("alarm-enabled-${alarm.id}"))
+        CascadeSwitch(
+            alarm.isEnabled,
+            onEnabledChange,
+            Modifier.testTag("alarm-enabled-${alarm.id}"),
+            label = "Alarm ${position + 1}, ${TimeText.time(alarm.hour, alarm.minute, is24Hour)}",
+        )
     }
 }

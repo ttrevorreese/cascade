@@ -25,6 +25,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -42,14 +43,17 @@ import com.cascade.alarm.ui.theme.CascadeType
 import com.cascade.alarm.ui.theme.cascadeColors
 import com.cascade.alarm.ui.theme.rampStopFor
 
-/** Armed is ramp1 and disarmed is line; the knob is textPrimary armed, textSecondary disarmed (DESIGN.md §6). */
+/**
+ * Armed is ramp1 and disarmed is line; the knob is textPrimary armed, textSecondary disarmed (DESIGN.md §6).
+ * [label] says what it switches, for screen readers: a bare switch is read as just "On, switch".
+ */
 @Composable
-fun CascadeSwitch(checked: Boolean, onCheckedChange: (Boolean) -> Unit, modifier: Modifier = Modifier) {
+fun CascadeSwitch(checked: Boolean, onCheckedChange: (Boolean) -> Unit, modifier: Modifier = Modifier, label: String? = null) {
     val c = cascadeColors
     Switch(
         checked = checked,
         onCheckedChange = onCheckedChange,
-        modifier = modifier,
+        modifier = if (label != null) modifier.semantics { contentDescription = label } else modifier,
         colors = SwitchDefaults.colors(
             checkedTrackColor = c.ramp[0],
             checkedThumbColor = c.textPrimary,
@@ -112,7 +116,7 @@ fun CascadeIconButton(icon: ImageVector, description: String, onClick: () -> Uni
 fun CascadeTopBar(title: String, onBack: (() -> Unit)? = null, actions: @Composable RowScope.() -> Unit = {}) {
     val c = cascadeColors
     TopAppBar(
-        title = { Text(title, style = CascadeType.screenTitle, color = c.textPrimary) },
+        title = { Text(title, style = CascadeType.screenTitle, color = c.textPrimary, modifier = Modifier.semantics { heading() }) },
         navigationIcon = { if (onBack != null) CascadeIconButton(CascadeIcons.Back, "Back", onBack) },
         actions = actions,
         colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent, scrolledContainerColor = Color.Transparent),

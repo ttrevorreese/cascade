@@ -346,7 +346,7 @@ private fun GroupCard(
                     Text(scheduleLine(summary, is24Hour, locale), style = CascadeType.body, color = c.textSecondary)
                 }
                 if (!samePolarity) ThemeSwatch(group, Modifier.padding(end = CascadeSpace.s).testTag("swatch-${summary.group.id}"))
-                CascadeSwitch(armed, onArmedChange, Modifier.testTag("armed-${summary.group.id}"))
+                CascadeSwitch(armed, onArmedChange, Modifier.testTag("armed-${summary.group.id}"), label = summary.group.name)
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 // A disarmed group loses its ramp preview entirely (DESIGN.md §6).

@@ -28,6 +28,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -315,7 +317,7 @@ private fun SectionLabel(text: String) {
         text,
         style = CascadeType.body,
         color = cascadeColors.textSecondary,
-        modifier = Modifier.padding(top = CascadeSpace.xl, bottom = CascadeSpace.xs),
+        modifier = Modifier.padding(top = CascadeSpace.xl, bottom = CascadeSpace.xs).semantics { heading() },
     )
 }
 

@@ -157,7 +157,7 @@ fun AppearanceContent(
                             color = c.textSecondary,
                         )
                     }
-                    CascadeSwitch(groupThemesOnHome, onGroupThemesOnHome, Modifier.testTag("group-themes-on-home"))
+                    CascadeSwitch(groupThemesOnHome, onGroupThemesOnHome, Modifier.testTag("group-themes-on-home"), label = "Group themes on Home")
                 }
             }
             item { Spacer(Modifier.height(CascadeSpace.xxl)) }

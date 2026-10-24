@@ -36,7 +36,12 @@ under conventions). It is how the next session knows where to pick up.
   first group from a `StarterPlan` (time, 2–5 alarms, 5/10/15 min apart, weekdays/every day). Every step
   skippable, Back = skip. JVM-tested; **screenshot pending**. Fixed: editing read-aloud on an existing
   alarm was not saved.
-- **Next in M7:** accessibility pass, then
+- **Accessibility pass** (2026-10-24): every switch names what it switches (`CascadeSwitch(label =)`),
+  screen titles and section labels are headings, challenge feedback ("Not quite") is a live region,
+  memory pads are announced as they light, alarm screen checked at 2x font on a 360dp phone
+  (`AccessibilityTest`). TalkBack walk-through is on the phone checklist.
+- **M7 code is done** apart from Spotify. Left for the emulator (ask first): screenshots of Stats,
+  Settings, Voice, Onboarding; read-aloud ring check; e2e. Then
   Spotify (needs the owner's Client ID). Owner decisions (2026-10-24): Cascade Plus is
   $4.99 flat, one-time; no Play Console account yet (create it at M8, then add the `cascade_plus`
   product at that price). Read-aloud must let the owner pick the voice.

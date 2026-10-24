@@ -222,7 +222,7 @@ fun AlarmEditorContent(
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Alarm on", style = CascadeType.rowLabel, color = c.textPrimary, modifier = Modifier.weight(1f))
-                CascadeSwitch(draft.isEnabled, { on -> onEdit { it.copy(isEnabled = on) } })
+                CascadeSwitch(draft.isEnabled, { on -> onEdit { it.copy(isEnabled = on) } }, label = "Alarm on")
             }
 
             Text(
@@ -285,7 +285,7 @@ private fun ReadAloudSetting(
                     color = c.textSecondary,
                 )
             }
-            CascadeSwitch(draft.readLabelAloud, { on -> onEdit { it.copy(readLabelAloud = on) } }, Modifier.testTag("read-aloud"))
+            CascadeSwitch(draft.readLabelAloud, { on -> onEdit { it.copy(readLabelAloud = on) } }, Modifier.testTag("read-aloud"), label = "Read aloud")
         }
         if (draft.readLabelAloud) {
             OutlinedButton(onClick = { onHear(spoken) }, modifier = Modifier.testTag("hear-label")) {
@@ -321,7 +321,7 @@ private fun SnoozeSetting(draft: AlarmEntity, onEdit: ((AlarmEntity) -> AlarmEnt
                     color = c.textSecondary,
                 )
             }
-            CascadeSwitch(draft.snoozeEnabled, { on -> onEdit { it.copy(snoozeEnabled = on) } }, Modifier.testTag("snooze-enabled"))
+            CascadeSwitch(draft.snoozeEnabled, { on -> onEdit { it.copy(snoozeEnabled = on) } }, Modifier.testTag("snooze-enabled"), label = "Snooze")
         }
         if (draft.snoozeEnabled) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -373,6 +373,7 @@ private fun AlarmChallenge(override: ChallengeConfig?, ladderRung: ChallengeConf
                 // Starting from the rung makes "same, but harder" one tap away.
                 onCheckedChange = { follow -> onChange(if (follow) null else ladderRung ?: ChallengeConfig.None) },
                 modifier = Modifier.testTag("follow-ladder"),
+                label = "Follow the group's ladder",
             )
         }
         if (override != null) ChallengeEditor(override, onChange, showIntro = false)

@@ -35,6 +35,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
@@ -222,7 +224,7 @@ private fun SwitchRow(title: String, detail: String, checked: Boolean, tag: Stri
             Text(title, style = CascadeType.rowLabel, color = c.textPrimary)
             Text(detail, style = CascadeType.body, color = c.textSecondary)
         }
-        CascadeSwitch(checked, onChange, Modifier.testTag(tag))
+        CascadeSwitch(checked, onChange, Modifier.testTag(tag), label = title)
     }
 }
 
@@ -232,7 +234,7 @@ private fun SectionLabel(text: String) {
         text,
         style = CascadeType.body,
         color = cascadeColors.textSecondary,
-        modifier = Modifier.padding(top = CascadeSpace.xl, bottom = CascadeSpace.xs),
+        modifier = Modifier.padding(top = CascadeSpace.xl, bottom = CascadeSpace.xs).semantics { heading() },
     )
 }
 
