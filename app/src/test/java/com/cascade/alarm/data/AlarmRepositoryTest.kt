@@ -161,6 +161,26 @@ class AlarmRepositoryTest {
     }
 
     @Test
+    fun `onboarding's starter group is made with its alarms and armed`() = runBlocking {
+        val plan = StarterPlan("Mornings", java.time.LocalTime.of(6, 0), count = 3, stepMinutes = 15, days = StarterPlan.EVERY_DAY)
+        val groupId = repo.createStarterGroup(plan, NewAlarmDefaults(snoozeEnabled = false))
+        val made = alarms(groupId).sortedBy { it.positionInGroup }
+        assertEquals(listOf(6 to 0, 6 to 15, 6 to 30), made.map { it.hour to it.minute })
+        assertEquals(listOf(0, 1, 2), made.map { it.positionInGroup })
+        assertEquals(false, made.first().snoozeEnabled)
+        assertEquals(Instant.parse("2026-10-19T10:00:00Z"), scheduler.scheduled[made[0].id])
+    }
+
+    @Test
+    fun `switching read-aloud on an existing alarm is saved`() = runBlocking {
+        val (groupId, ids) = sequence("Workday", 6 to 0)
+        repo.saveAlarm(alarms(groupId).single().copy(readLabelAloud = true))
+        assertEquals(true, repo.alarm(ids[0])!!.readLabelAloud)
+        repo.saveAlarm(alarms(groupId).single().copy(readLabelAloud = false))
+        assertEquals(false, repo.alarm(ids[0])!!.readLabelAloud)
+    }
+
+    @Test
     fun `saving an existing alarm keeps engine bookkeeping and clamps input`() = runBlocking {
         val (groupId, ids) = sequence("Workday", 6 to 0)
         val fired = Instant.parse("2026-10-18T10:00:00Z")

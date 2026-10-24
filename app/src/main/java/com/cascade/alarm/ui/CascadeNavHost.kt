@@ -22,6 +22,7 @@ import com.cascade.alarm.ui.reliability.ReliabilityScreen
 import com.cascade.alarm.ui.settings.SettingsScreen
 import com.cascade.alarm.ui.voice.VoiceScreen
 import com.cascade.alarm.ui.stats.StatsScreen
+import com.cascade.alarm.ui.onboarding.OnboardingScreen
 import com.cascade.alarm.ui.sound.SoundScreen
 
 object Routes {
@@ -36,6 +37,7 @@ object Routes {
     const val APPEARANCE = "appearance"
     const val VOICE = "voice"
     const val STATS = "stats"
+    const val ONBOARDING = "onboarding"
 
     fun group(groupId: String) = "group/${Uri.encode(groupId)}"
     fun escalation(groupId: String) = "escalation/${Uri.encode(groupId)}"
@@ -73,6 +75,7 @@ fun CascadeNavHost() {
                     onOpenGroup = { nav.navigate(Routes.group(it)) },
                     onOpenReliability = { nav.navigate(Routes.RELIABILITY) },
                     onOpenSettings = { nav.navigate(Routes.SETTINGS) },
+                    onOnboard = { nav.navigate(Routes.ONBOARDING) { launchSingleTop = true } },
                 )
             }
         }
@@ -117,6 +120,14 @@ fun CascadeNavHost() {
             )
         }
         composable(Routes.APPEARANCE) { AppearanceScreen(onBack = { nav.popBackStack() }) }
+        composable(Routes.ONBOARDING) {
+            AmbientBackdrop {
+                OnboardingScreen(onDone = { groupId ->
+                    nav.popBackStack(Routes.HOME, inclusive = false)
+                    if (groupId != null) nav.navigate(Routes.group(groupId))
+                })
+            }
+        }
         composable(Routes.STATS) { StatsScreen(onBack = { nav.popBackStack() }) }
         composable(Routes.VOICE) { AmbientBackdrop { VoiceScreen(onBack = { nav.popBackStack() }, is24Hour = is24HourClock()) } }
     }

@@ -52,6 +52,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -107,6 +108,21 @@ class HomeViewModel @Inject constructor(
     val groups: StateFlow<List<GroupSummary>?> = repository.observeGroupSummaries()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
+    /**
+     * True on a fresh install: no groups and onboarding never finished. Anyone who already has
+     * groups (an update from before onboarding existed) counts as onboarded.
+     */
+    val needsOnboarding: StateFlow<Boolean> = combine(groups, preferences.onboarded) { list, done ->
+        when {
+            done || list == null -> false
+            list.isNotEmpty() -> {
+                preferences.markOnboarded()
+                false
+            }
+            else -> true
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
     private val mutableIncidents = MutableStateFlow<List<Incident>>(emptyList())
 
     /** Alarms that did not ring, or rang late, that the user has not dismissed (SPEC §4.3). */
@@ -137,9 +153,12 @@ fun HomeScreen(
     onOpenGroup: (String) -> Unit,
     onOpenReliability: () -> Unit,
     onOpenSettings: () -> Unit = {},
+    onOnboard: () -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val groups by viewModel.groups.collectAsStateWithLifecycle()
+    val needsOnboarding by viewModel.needsOnboarding.collectAsStateWithLifecycle()
+    LaunchedEffect(needsOnboarding) { if (needsOnboarding) onOnboard() }
     val themeFor by viewModel.themeFor.collectAsStateWithLifecycle()
     val incidents by viewModel.incidents.collectAsStateWithLifecycle()
     val context = LocalContext.current

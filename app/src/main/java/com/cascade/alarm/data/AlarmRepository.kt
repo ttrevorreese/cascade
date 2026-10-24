@@ -51,7 +51,16 @@ class AlarmRepository @Inject constructor(
 
     // --- Groups ---
 
-    suspend fun createGroup(name: String): String = reconciler.mutate("group_create") {
+    suspend fun createGroup(name: String): String = reconciler.mutate("group_create") { insertGroup(name) }
+
+    /** Onboarding's first group, with its alarms, in one step so it is armed straight away. */
+    suspend fun createStarterGroup(plan: StarterPlan, defaults: NewAlarmDefaults): String = reconciler.mutate("group_starter") {
+        val id = insertGroup(plan.name)
+        alarms.upsertAll(plan.alarms(id, defaults) { UUID.randomUUID().toString() })
+        id
+    }
+
+    private suspend fun insertGroup(name: String): String {
         val id = UUID.randomUUID().toString()
         val nextOrder = (visibleGroups().maxOfOrNull { it.sortOrder } ?: -1) + 1
         groups.upsert(
@@ -65,7 +74,7 @@ class AlarmRepository @Inject constructor(
                 createdAt = time.now(),
             ),
         )
-        id
+        return id
     }
 
     suspend fun renameGroup(id: String, name: String) = reconciler.mutate("group_rename") {
@@ -165,6 +174,7 @@ class AlarmRepository @Inject constructor(
             snoozeEnabled = alarm.snoozeEnabled,
             snoozeMinutes = Snooze.clampMinutes(alarm.snoozeMinutes),
             snoozeLimit = Snooze.clampLimit(alarm.snoozeLimit),
+            readLabelAloud = alarm.readLabelAloud,
         )
         alarms.upsert(saved)
         if (existing != null && existing.positionInGroup == 0 && groups.get(saved.groupId)?.shiftWithFirst == true) {

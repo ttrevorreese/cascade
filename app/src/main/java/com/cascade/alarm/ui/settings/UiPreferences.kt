@@ -40,6 +40,16 @@ class UiPreferences @Inject constructor(@ApplicationContext context: Context) {
      */
     val groupThemesOnHome: StateFlow<Boolean> = mutableGroupThemesOnHome.asStateFlow()
 
+    private val mutableOnboarded = MutableStateFlow(prefs.getBoolean(ONBOARDED, false))
+
+    /** Onboarding has been finished or skipped; it is only offered while there are no groups. */
+    val onboarded: StateFlow<Boolean> = mutableOnboarded.asStateFlow()
+
+    fun markOnboarded() {
+        prefs.edit().putBoolean(ONBOARDED, true).apply()
+        mutableOnboarded.value = true
+    }
+
     fun setGroupThemesOnHome(on: Boolean) {
         prefs.edit().putBoolean(GROUP_THEMES_ON_HOME, on).apply()
         mutableGroupThemesOnHome.value = on
@@ -69,5 +79,6 @@ class UiPreferences @Inject constructor(@ApplicationContext context: Context) {
         const val OLD_SWITCH = "background_motion"
         const val THEME = "theme"
         const val GROUP_THEMES_ON_HOME = "group_themes_on_home"
+        const val ONBOARDED = "onboarded"
     }
 }
