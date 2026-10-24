@@ -45,6 +45,13 @@ class SoundPlanTest {
     }
 
     @Test
+    fun `a Spotify group rings its backup on the phone`() {
+        val plan = SoundPlan.of(SoundConfig.SpotifyPlaylist("spotify:playlist:x", "Wake up", SoundConfig.BuiltIn("klaxon"))) { null }
+        assertEquals(listOf(SoundSource.Bundled(R.raw.tone_klaxon), classic), plan.sources)
+        assertNull(plan.skipped)
+    }
+
+    @Test
     fun `every built-in tone has a distinct key and sound`() {
         assertEquals(Tones.ALL.size, Tones.ALL.map { it.key }.toSet().size)
         assertEquals(Tones.ALL.size, Tones.ALL.map { it.res }.toSet().size)

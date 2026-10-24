@@ -20,10 +20,19 @@ android {
         versionCode = 1
         versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // Spotify (SPEC §9). The Client ID is public by design (it is not a secret).
+        buildConfigField("String", "SPOTIFY_CLIENT_ID", "\"${providers.gradleProperty("cascade.spotifyClientId").getOrElse("")}\"")
     }
 
     buildTypes {
+        debug {
+            buildConfigField("boolean", "SPOTIFY_ENABLED", "true")
+        }
         release {
+            // Spotify's developer mode allows the owner plus four listed users, so a public build ships
+            // without it; -Pcascade.spotifyInRelease=true builds one for those people.
+            val spotify = providers.gradleProperty("cascade.spotifyInRelease").getOrElse("false")
+            buildConfigField("boolean", "SPOTIFY_ENABLED", spotify)
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
@@ -36,6 +45,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     testOptions {
@@ -180,6 +190,9 @@ dependencies {
     implementation(libs.camerax.compose)
     implementation(libs.mlkit.barcode)
     implementation(libs.zxing.core)
+    // Spotify App Remote 0.8.0 (Apache 2.0), from github.com/spotify/android-sdk releases; not on Maven.
+    implementation(files("libs/spotify-app-remote-release-0.8.0.aar"))
+    implementation(libs.gson)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 

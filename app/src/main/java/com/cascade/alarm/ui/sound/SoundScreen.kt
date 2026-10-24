@@ -1,6 +1,11 @@
 package com.cascade.alarm.ui.sound
 
 import android.media.AudioManager
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import com.cascade.alarm.data.sound.SpotifyLinks
+import com.cascade.alarm.ui.components.CascadeSwitch
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -71,6 +76,9 @@ data class SoundState(
     val importing: Boolean = false,
     /** Why the last picked file was not used, in the app's voice. */
     val problem: String? = null,
+    /** Spotify is wanted; [draft] only holds a Spotify sound once [spotifyLink] is a playable link. */
+    val spotifyOn: Boolean = false,
+    val spotifyLink: String = "",
 )
 
 @HiltViewModel
@@ -79,18 +87,30 @@ class SoundViewModel @Inject constructor(
     private val repository: AlarmRepository,
     private val soundFiles: SoundFiles,
     private val preview: SoundPreview,
+    private val spotify: SpotifyTrial,
 ) : ViewModel() {
     private val groupId: String = checkNotNull(savedState["groupId"])
     private val mutable = MutableStateFlow(SoundState())
     val state: StateFlow<SoundState> = mutable.asStateFlow()
     val previewing: StateFlow<Boolean> = preview.playing
+    val spotifyStatus: StateFlow<SpotifyTrial.Status> = spotify.status
+    val spotifyAvailable: Boolean get() = spotify.isAvailable
+
+    fun spotifyInstalled(): Boolean = spotify.isInstalled()
 
     init {
         viewModelScope.launch {
             // Files picked on an earlier visit and never saved.
             repository.pruneSoundFiles()
             val group = repository.observeGroup(groupId).first() ?: return@launch
-            mutable.value = SoundState(group.name, RingSound.of(group))
+            val sound = RingSound.of(group)
+            val chosen = sound.sound as? SoundConfig.SpotifyPlaylist
+            mutable.value = SoundState(
+                group.name,
+                sound,
+                spotifyOn = chosen != null,
+                spotifyLink = chosen?.let { SpotifyLinks.webLink(it.uri) }.orEmpty(),
+            )
         }
     }
 
@@ -112,7 +132,8 @@ class SoundViewModel @Inject constructor(
         val result = soundFiles.import(uri)
         mutable.update {
             when (result) {
-                is SoundFiles.ImportResult.Imported -> it.copy(importing = false, draft = it.draft.copy(sound = result.sound))
+                is SoundFiles.ImportResult.Imported ->
+                    it.copy(importing = false, draft = it.draft.copy(sound = it.draft.sound.withLocal(result.sound)))
                 SoundFiles.ImportResult.TooLarge ->
                     it.copy(importing = false, problem = "That file is over ${SoundFiles.MAX_MEGABYTES} MB. Pick a shorter one.")
                 SoundFiles.ImportResult.NotAudio -> it.copy(importing = false, problem = "That file does not play as audio. Pick another.")
@@ -122,7 +143,41 @@ class SoundViewModel @Inject constructor(
         if (preview.playing.value) preview.play(state.value.draft, viewModelScope)
     }
 
+    fun setSpotifyOn(on: Boolean) {
+        if (!on) spotify.stop()
+        mutable.update { it.copy(spotifyOn = on, draft = it.draft.copy(sound = spotifySound(on, it.spotifyLink, it.draft.sound))) }
+    }
+
+    fun setSpotifyLink(text: String) {
+        spotify.stop()
+        mutable.update { it.copy(spotifyLink = text, draft = it.draft.copy(sound = spotifySound(it.spotifyOn, text, it.draft.sound))) }
+    }
+
+    fun toggleSpotifyTrial() {
+        val chosen = state.value.draft.sound as? SoundConfig.SpotifyPlaylist ?: return
+        val status = spotify.status.value
+        if (status is SpotifyTrial.Status.Idle || status is SpotifyTrial.Status.Failed) {
+            preview.stop()
+            spotify.play(chosen.uri, viewModelScope)
+        } else {
+            stopSpotify()
+        }
+    }
+
+    /** Stops a trial, keeping the playlist name Spotify gave for the group screen. */
+    fun stopSpotify() {
+        val title = spotify.title()
+        if (title != null) {
+            mutable.update { state ->
+                val chosen = state.draft.sound as? SoundConfig.SpotifyPlaylist ?: return@update state
+                state.copy(draft = state.draft.copy(sound = chosen.copy(name = title)))
+            }
+        }
+        spotify.stop()
+    }
+
     fun save(onDone: () -> Unit) = viewModelScope.launch {
+        stopSpotify()
         preview.stop()
         val draft = state.value.draft
         repository.setGroupSound(groupId, draft.sound, draft.rampSeconds, draft.startPercent)
@@ -131,16 +186,29 @@ class SoundViewModel @Inject constructor(
 
     override fun onCleared() {
         preview.stop()
+        spotify.stop()
     }
+}
+
+/** What the group plays given the Spotify switch and link: Spotify with the local sound as backup, or just the local sound. */
+internal fun spotifySound(on: Boolean, link: String, current: SoundConfig): SoundConfig {
+    val parsed = SpotifyLinks.parse(link) as? SpotifyLinks.Parsed.Playable
+    if (!on || parsed == null) return current.local
+    val previous = current as? SoundConfig.SpotifyPlaylist
+    val name = previous?.name?.takeIf { previous.uri == parsed.uri } ?: parsed.kind.replaceFirstChar { it.uppercase() }
+    return SoundConfig.SpotifyPlaylist(parsed.uri, name, current.local)
 }
 
 @Composable
 fun SoundScreen(onDone: () -> Unit, viewModel: SoundViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val previewing by viewModel.previewing.collectAsStateWithLifecycle()
+    val spotifyStatus by viewModel.spotifyStatus.collectAsStateWithLifecycle()
     val groupName = state.groupName ?: return
-    // Leaving the screen, or the app, stops the preview.
+    // Leaving the screen stops the preview. Not Spotify: its approval screen sends us to the background.
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) { viewModel.stopPreview() }
+    var spotifyInstalled by remember { mutableStateOf(viewModel.spotifyInstalled()) }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { spotifyInstalled = viewModel.spotifyInstalled() }
     val pickFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) viewModel.importFile(uri)
     }
@@ -157,10 +225,35 @@ fun SoundScreen(onDone: () -> Unit, viewModel: SoundViewModel = hiltViewModel())
         onSave = { viewModel.save(onDone) },
         onCancel = {
             viewModel.stopPreview()
+            viewModel.stopSpotify()
             onDone()
+        },
+        spotify = if (viewModel.spotifyAvailable) {
+            SpotifySection(
+                on = state.spotifyOn,
+                link = state.spotifyLink,
+                installed = spotifyInstalled,
+                status = spotifyStatus,
+                onToggle = viewModel::setSpotifyOn,
+                onLink = viewModel::setSpotifyLink,
+                onTry = viewModel::toggleSpotifyTrial,
+            )
+        } else {
+            null
         },
     )
 }
+
+/** The Spotify part of the page; null in builds without Spotify (SPEC §9). */
+class SpotifySection(
+    val on: Boolean,
+    val link: String,
+    val installed: Boolean,
+    val status: SpotifyTrial.Status,
+    val onToggle: (Boolean) -> Unit,
+    val onLink: (String) -> Unit,
+    val onTry: () -> Unit,
+)
 
 /** The alarm stream's volume as (current, max), read once per visit; null if unavailable. */
 @Composable
@@ -191,9 +284,10 @@ fun SoundContent(
     onTogglePreview: () -> Unit,
     onSave: () -> Unit,
     onCancel: () -> Unit,
+    spotify: SpotifySection? = null,
 ) {
     val c = cascadeColors
-    val sound = draft.sound
+    val sound = draft.sound.local
     Scaffold(
         containerColor = Color.Transparent, // the floating dots show through (AmbientBackdrop)
         topBar = {
@@ -229,7 +323,7 @@ fun SoundContent(
                     title = tone.name,
                     detail = tone.description,
                     selected = sound is SoundConfig.BuiltIn && sound.toneKey == tone.key,
-                    onSelect = { onChange(draft.copy(sound = SoundConfig.BuiltIn(tone.key))) },
+                    onSelect = { onChange(draft.copy(sound = draft.sound.withLocal(SoundConfig.BuiltIn(tone.key)))) },
                     tag = "tone-${tone.key}",
                 )
             }
@@ -258,6 +352,10 @@ fun SoundContent(
                     )
                     if (problem != null) Problem(problem)
                 }
+            }
+            if (spotify != null) {
+                item { SectionLabel("Spotify") }
+                item { SpotifySetting(spotify, draft.sound as? SoundConfig.SpotifyPlaylist) }
             }
             item { SectionLabel("Getting louder") }
             item {
@@ -298,6 +396,87 @@ object SoundText {
     fun name(sound: SoundConfig): String = when (sound) {
         is SoundConfig.BuiltIn -> (Tones.byKey(sound.toneKey) ?: Tones.DEFAULT).name
         is SoundConfig.DeviceAudio -> sound.displayName
+        is SoundConfig.SpotifyPlaylist -> "${sound.name} on Spotify"
+    }
+
+    /** What to do when trying Spotify on the Sound page failed. */
+    fun spotifyProblem(reason: String): String = when (reason) {
+        "spotify_not_installed" -> "Spotify is not installed on this phone."
+        "spotify_signed_out" -> "Spotify is signed out. Open Spotify, sign in, then try again."
+        "spotify_not_authorized" ->
+            "Spotify did not allow Cascade. Try again and approve it when Spotify asks. If it never asks, this Spotify account may not be on Cascade's list of testers."
+        "spotify_offline" -> "Spotify is offline. Connect to the internet and try again."
+        "spotify_did_not_play" -> "Spotify connected but did not play that link. Check the playlist still exists and is not private to someone else."
+        "spotify_locked" -> "Unlock the phone first."
+        else -> "Spotify did not answer. Open Spotify once so it is running, then try again."
+    }
+}
+
+@Composable
+private fun SpotifySetting(section: SpotifySection, chosen: SoundConfig.SpotifyPlaylist?) {
+    val c = cascadeColors
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(CascadeSpace.s)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Play from Spotify", style = CascadeType.rowLabel, color = c.textPrimary)
+                Text(
+                    "A playlist or album, played by the Spotify app. The sound chosen above starts first and takes over again if Spotify can't play.",
+                    style = CascadeType.body,
+                    color = c.textSecondary,
+                )
+            }
+            CascadeSwitch(section.on, section.onToggle, Modifier.testTag("spotify-on"), label = "Play from Spotify")
+        }
+        if (!section.on) return@Column
+        if (!section.installed) {
+            Problem("Spotify is not installed on this phone, so alarms in this group will play the sound above.")
+        }
+        OutlinedTextField(
+            value = section.link,
+            onValueChange = section.onLink,
+            label = { Text("Playlist or album link") },
+            placeholder = { Text("In Spotify: Share, then Copy link") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth().testTag("spotify-link"),
+        )
+        val parsed = SpotifyLinks.parse(section.link)
+        when {
+            section.link.isBlank() -> Unit
+            parsed is SpotifyLinks.Parsed.ShortLink ->
+                Problem("That is a short link, which only Spotify's servers can read. Open it in Spotify, then use Share, then Copy link.")
+            parsed is SpotifyLinks.Parsed.NotSpotify -> Problem("That is not a Spotify playlist or album link.")
+        }
+        if (chosen != null && section.installed) {
+            when (val status = section.status) {
+                is SpotifyTrial.Status.Playing -> Text(
+                    "Playing in Spotify${status.title?.let { ": $it" }.orEmpty()}. Alarms in this group will hand over to it.",
+                    style = CascadeType.body,
+                    color = c.textPrimary,
+                    modifier = Modifier.testTag("spotify-playing"),
+                )
+                is SpotifyTrial.Status.Failed -> Problem(SoundText.spotifyProblem(status.reason))
+                else -> Text(
+                    "Try it once: Spotify may ask you to approve Cascade, and alarms can only use Spotify after that.",
+                    style = CascadeType.body,
+                    color = c.textSecondary,
+                )
+            }
+            SecondaryButton(
+                when (section.status) {
+                    SpotifyTrial.Status.Connecting -> "Connecting to Spotify…"
+                    is SpotifyTrial.Status.Playing -> "Stop Spotify"
+                    else -> "Try it in Spotify"
+                },
+                section.onTry,
+                Modifier.testTag("spotify-try"),
+                small = true,
+            )
+            Text(
+                "Spotify plays at media volume. While an alarm rings, Cascade sets it to match the alarm and puts it back afterwards.",
+                style = CascadeType.body,
+                color = c.textSecondary,
+            )
+        }
     }
 }
 

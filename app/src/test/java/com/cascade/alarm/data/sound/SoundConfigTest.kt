@@ -16,6 +16,29 @@ class SoundConfigTest {
     }
 
     @Test
+    fun `a Spotify choice keeps its backup through a round trip`() {
+        val spotify = SoundConfig.SpotifyPlaylist("spotify:playlist:x", "Wake up", SoundConfig.BuiltIn("dawn"))
+        assertEquals(spotify, SoundConfig.decode(SoundConfig.encode(spotify)))
+    }
+
+    @Test
+    fun `the local sound of a Spotify choice is its backup, never another Spotify choice`() {
+        val dawn = SoundConfig.BuiltIn("dawn")
+        assertEquals(dawn, SoundConfig.SpotifyPlaylist("spotify:album:x", "A", dawn).local)
+        val nested = SoundConfig.SpotifyPlaylist("spotify:album:x", "A", SoundConfig.SpotifyPlaylist("spotify:album:y", "B", dawn))
+        assertEquals(SoundConfig.DEFAULT, nested.local)
+        assertEquals(dawn, dawn.local)
+    }
+
+    @Test
+    fun `changing the local sound keeps the Spotify playlist`() {
+        val spotify = SoundConfig.SpotifyPlaylist("spotify:playlist:x", "Wake up", SoundConfig.BuiltIn("dawn"))
+        val file = SoundConfig.DeviceAudio("abc.mp3", "Song.mp3")
+        assertEquals(spotify.copy(fallback = file), spotify.withLocal(file))
+        assertEquals(file, SoundConfig.BuiltIn("dawn").withLocal(file))
+    }
+
+    @Test
     fun `an unreadable config plays the default`() {
         assertEquals(SoundConfig.DEFAULT, SoundConfig.decode("{}"))
         assertEquals(SoundConfig.DEFAULT, SoundConfig.decode("""{"type":"spotify","playlist":"x"}"""))

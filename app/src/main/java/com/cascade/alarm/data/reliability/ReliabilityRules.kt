@@ -38,8 +38,8 @@ sealed interface Incident {
 
     /**
      * The alarm rang, but not with its group's sound (M6): [reason] is why (`file_missing`,
-     * `unknown_tone`, `could_not_play`, `system_sound_failed`), [next] what played instead
-     * (`classic`, `system_sound` or `vibration`).
+     * `unknown_tone`, `could_not_play`, `system_sound_failed`, or a `spotify_…` code), [next] what
+     * played instead (`backup` for a Spotify group's own sound, `classic`, `system_sound` or `vibration`).
      */
     data class SoundFailed(
         override val eventId: String,
@@ -66,7 +66,7 @@ object ReliabilityRules {
     val WINDOW: Duration = Duration.ofDays(7)
 
     /** What a fallback ended on, from best to worst. */
-    private val FALLBACK_ORDER = listOf("classic", "system_sound", "vibration")
+    private val FALLBACK_ORDER = listOf("backup", "classic", "system_sound", "vibration")
 
     fun cause(scheduledFor: Instant, bootTime: Instant): IncidentCause =
         if (scheduledFor.isBefore(bootTime)) IncidentCause.PHONE_OFF else IncidentCause.APP_STOPPED

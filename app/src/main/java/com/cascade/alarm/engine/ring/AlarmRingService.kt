@@ -61,7 +61,13 @@ class AlarmRingService : Service(), RingPresenter {
         notifications = RingNotifications(this) { ringTheme(it.groupThemeId, uiPreferences, entitlements).colors.ramp.last().toArgb() }
         wakeLock = AndroidRingWakeLock(this)
         screenWaker = ScreenWaker(this)
-        sound = ExoAlarmSoundPlayer(this, scope, soundFiles::file)
+        sound = ExoAlarmSoundPlayer(
+            this,
+            scope,
+            soundFiles::file,
+            spotify = if (AppRemoteSpotify.isAvailable()) AppRemoteSpotify(this) else null,
+            music = AndroidMusicStream(this),
+        )
         val speaker = AndroidLabelSpeaker(this, scope, speechCache, { voicePreferences.choice.value }, sound::setSpeaking)
         coordinator = RingCoordinator(scope, store, time::now, sound, wakeLock, this, ringState, speaker)
     }

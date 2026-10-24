@@ -84,6 +84,18 @@ class ReliabilityRulesTest {
     }
 
     @Test
+    fun `Spotify falling back to the backup ranks below the backup failing too`() {
+        val due = Instant.parse("2026-10-22T10:00:00Z")
+        val spotifyOnly = listOf(event("s", EventType.SOUND_FALLBACK, due, due, "spotify_signed_out", next = "backup"))
+        assertEquals(
+            listOf(Incident.SoundFailed("s", "a", due, "spotify_signed_out", "backup")),
+            ReliabilityRules.incidents(spotifyOnly, boot, now, emptySet()),
+        )
+        val both = spotifyOnly + event("c", EventType.SOUND_FALLBACK, due, due, "could_not_play", next = "classic")
+        assertEquals("c", ReliabilityRules.incidents(both, boot, now, emptySet()).single().eventId)
+    }
+
+    @Test
     fun `acknowledged, old and test-alarm events are left out, newest first`() {
         val events = listOf(
             event("seen", EventType.MISSED, now, now.minusSeconds(7200), "not_fired"),

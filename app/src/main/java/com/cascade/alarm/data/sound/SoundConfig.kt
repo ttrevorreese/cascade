@@ -22,6 +22,23 @@ sealed interface SoundConfig {
     @Serializable @SerialName("file")
     data class DeviceAudio(val fileName: String, val displayName: String) : SoundConfig
 
+    /**
+     * A playlist or album played by the Spotify app (SPEC §9, M7). [fallback] is a local sound: it
+     * starts first and keeps ringing whenever Spotify cannot play. [uri] is `spotify:playlist:…`.
+     */
+    @Serializable @SerialName("spotify")
+    data class SpotifyPlaylist(val uri: String, val name: String, val fallback: SoundConfig) : SoundConfig
+
+    /** What plays on the phone itself: this, or a Spotify choice's [SpotifyPlaylist.fallback]. */
+    val local: SoundConfig
+        get() = when (this) {
+            is SpotifyPlaylist -> fallback as? BuiltIn ?: fallback as? DeviceAudio ?: DEFAULT
+            else -> this
+        }
+
+    /** This choice with [local] as the sound on the phone: Spotify keeps its playlist and changes its backup. */
+    fun withLocal(local: SoundConfig): SoundConfig = if (this is SpotifyPlaylist) copy(fallback = local.local) else local.local
+
     companion object {
         val DEFAULT: SoundConfig = BuiltIn(Tones.DEFAULT.key)
 

@@ -28,8 +28,8 @@ import javax.inject.Inject
 
 /**
  * Plays a sound the way an alarm would — on the alarm stream, from the ramp's starting level up
- * to full — so the preview is honest about how loud the morning will be. No vibration, no focus
- * grab beyond Media3's own, and it stops by itself a few seconds after reaching full volume.
+ * to full — so the preview is honest about how loud the morning will be. No vibration and no focus
+ * request, and it stops by itself a few seconds after reaching full volume.
  */
 class SoundPreview @Inject constructor(
     @ApplicationContext private val context: Context,

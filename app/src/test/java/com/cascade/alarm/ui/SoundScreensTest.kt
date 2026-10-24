@@ -19,7 +19,12 @@ import com.cascade.alarm.data.db.AlarmGroupEntity
 import com.cascade.alarm.data.sound.SoundConfig
 import com.cascade.alarm.engine.ring.RingSound
 import com.cascade.alarm.ui.group.GroupContent
+import com.cascade.alarm.data.reliability.Incident
+import com.cascade.alarm.ui.home.soundFailure
 import com.cascade.alarm.ui.sound.SoundContent
+import com.cascade.alarm.ui.sound.SpotifySection
+import com.cascade.alarm.ui.sound.SpotifyTrial
+import com.cascade.alarm.ui.sound.spotifySound
 import com.cascade.alarm.ui.sound.volumeNote
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -113,6 +118,85 @@ class SoundScreensTest {
         compose.onNodeWithText("Play a preview").performClick()
         compose.onNodeWithTag("save-sound").performClick()
         assertEquals(1 to 1, previews to saves)
+    }
+
+    private val playlist = "https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M?si=abc"
+
+    private fun spotifyContent(draft: () -> RingSound, section: () -> SpotifySection, onChange: (RingSound) -> Unit = {}) = compose.setContent {
+        SoundContent(
+            groupName = "Workday Wake", draft = draft(), previewing = false, importing = false, problem = null,
+            alarmVolume = 9 to 15, onChange = onChange, onPickFile = {}, onTogglePreview = {}, onSave = {}, onCancel = {},
+            spotify = section(),
+        )
+    }
+
+    private fun section(on: Boolean, link: String = "", status: SpotifyTrial.Status = SpotifyTrial.Status.Idle, onToggle: (Boolean) -> Unit = {}, onTry: () -> Unit = {}) =
+        SpotifySection(on, link, installed = true, status = status, onToggle = onToggle, onLink = {}, onTry = onTry)
+
+    @Test
+    fun spotifyIsOffUntilSwitchedOn() {
+        var toggled: Boolean? = null
+        spotifyContent({ RingSound() }, { section(on = false, onToggle = { toggled = it }) })
+        scrollTo("spotify-on")
+        compose.onNodeWithTag("spotify-link").assertDoesNotExist()
+        compose.onNodeWithTag("spotify-on").performClick()
+        assertEquals(true, toggled)
+    }
+
+    @Test
+    fun aShortLinkIsExplained() {
+        spotifyContent({ RingSound() }, { section(on = true, link = "https://spotify.link/AbC123") })
+        scrollTo("spotify-link")
+        compose.onNodeWithText("That is a short link", substring = true).assertExists()
+        compose.onNodeWithTag("spotify-try").assertDoesNotExist()
+    }
+
+    @Test
+    fun aChosenPlaylistCanBeTriedAndSaysWhenItPlays() {
+        var tries = 0
+        val sound = spotifySound(true, playlist, SoundConfig.BuiltIn("dawn"))
+        var status by mutableStateOf<SpotifyTrial.Status>(SpotifyTrial.Status.Idle)
+        spotifyContent({ RingSound(sound) }, { section(on = true, link = playlist, status = status, onTry = { tries++ }) })
+        scrollTo("spotify-try")
+        compose.onNodeWithText("Try it in Spotify").performClick()
+        assertEquals(1, tries)
+        status = SpotifyTrial.Status.Playing("Wake up")
+        compose.onNodeWithText("Playing in Spotify: Wake up", substring = true).assertExists()
+        compose.onNodeWithText("Stop Spotify").assertExists()
+        status = SpotifyTrial.Status.Failed("spotify_signed_out")
+        compose.onNodeWithText("Spotify is signed out", substring = true).assertExists()
+    }
+
+    @Test
+    fun withSpotifyOnTheToneChoosesTheBackup() {
+        var draft by mutableStateOf(RingSound(spotifySound(true, playlist, SoundConfig.BuiltIn("dawn"))))
+        spotifyContent({ draft }, { section(on = true, link = playlist) }, onChange = { draft = it })
+        scrollTo("tone-klaxon")
+        compose.onNodeWithText("Klaxon").performClick()
+        val chosen = draft.sound as SoundConfig.SpotifyPlaylist
+        assertEquals("spotify:playlist:37i9dQZF1DXcBWIGoYBM5M", chosen.uri)
+        assertEquals(SoundConfig.BuiltIn("klaxon"), chosen.fallback)
+    }
+
+    @Test
+    fun theSpotifySwitchAndLinkDecideWhatIsSaved() {
+        val dawn = SoundConfig.BuiltIn("dawn")
+        val chosen = spotifySound(true, playlist, dawn) as SoundConfig.SpotifyPlaylist
+        assertEquals("Playlist", chosen.name)
+        assertEquals(dawn, chosen.fallback)
+        // A name Spotify gave is kept while the link stays the same.
+        assertEquals("Wake up", (spotifySound(true, playlist, chosen.copy(name = "Wake up")) as SoundConfig.SpotifyPlaylist).name)
+        assertEquals(dawn, spotifySound(false, playlist, chosen))
+        assertEquals(dawn, spotifySound(true, "not a link", chosen))
+    }
+
+    @Test
+    fun homeExplainsASpotifyFallback() {
+        assertEquals(
+            "Spotify was signed out, so it played its backup sound. Try it again from the group's Sound page.",
+            soundFailure(Incident.SoundFailed("e", "a", Instant.EPOCH, "spotify_signed_out", "backup")),
+        )
+        assertTrue(soundFailure(Incident.SoundFailed("e", "a", Instant.EPOCH, "spotify_locked", "backup")).startsWith("The phone had not been unlocked"))
     }
 
     @Test

@@ -34,6 +34,8 @@ data class SoundPlan(val sources: List<SoundSource>, val skipped: String? = null
                 if (file == null) SoundPlan(listOf(CLASSIC), skipped = "file_missing")
                 else SoundPlan(listOf(SoundSource.LocalFile(file), CLASSIC))
             }
+            // Spotify plays in its own app; on the phone the backup rings first (SPEC §9).
+            is SoundConfig.SpotifyPlaylist -> of(config.local, fileFor)
         }
     }
 }

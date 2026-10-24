@@ -450,6 +450,7 @@ private fun IncidentCard(incident: Incident, onCheck: () -> Unit, onAcknowledge:
 
 /** Why the sound failed and what played instead, then what to do about it. */
 internal fun soundFailure(incident: Incident.SoundFailed): String {
+    if (incident.next == "backup") return spotifyFailure(incident.reason)
     val why = when (incident.reason) {
         "file_missing" -> "Its audio file is missing"
         "unknown_tone" -> "Its tone is not in this version of Cascade"
@@ -461,6 +462,25 @@ internal fun soundFailure(incident: Incident.SoundFailed): String {
         else -> "and nothing else would play either, so it only vibrated"
     }
     return "$why, $instead. Choose its group's sound again."
+}
+
+/** Spotify did not play (SPEC §9); the group's own sound rang instead. */
+internal fun spotifyFailure(reason: String): String {
+    val why = when (reason) {
+        "spotify_locked" -> "The phone had not been unlocked since it restarted, and Spotify cannot play until it is"
+        "spotify_not_installed" -> "Spotify is not installed"
+        "spotify_signed_out" -> "Spotify was signed out"
+        "spotify_not_authorized" -> "Spotify has not been allowed to take requests from Cascade"
+        "spotify_offline" -> "Spotify was offline"
+        "spotify_did_not_play" -> "Spotify did not start the playlist"
+        "spotify_stopped" -> "Spotify stopped playing during the alarm"
+        else -> "Spotify did not answer"
+    }
+    val fix = when (reason) {
+        "spotify_locked", "spotify_stopped" -> ""
+        else -> " Try it again from the group's Sound page."
+    }
+    return "$why, so it played its backup sound.$fix"
 }
 
 private fun minutes(d: java.time.Duration): String = d.toMinutes().let { if (it == 1L) "1 minute" else "$it minutes" }

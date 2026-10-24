@@ -9,10 +9,10 @@ under conventions). It is how the next session knows where to pick up.
 
 ## Resume here
 
-- **Last finished:** M6 Audio (2026-10-23): sound per group (8 tones, a file from the phone copied
+- **Last finished:** M7 Polish (2026-10-24). Before that, M6 Audio (2026-10-23): sound per group (8 tones, a file from the phone copied
   into device-protected storage), 30–60 s ramp with a "Start at" level, preview, fallback chain
   with `SOUND_FALLBACK` events and a Home card. Decisions: `spec.md` §4.2.
-- **In progress:** M7 Polish (started 2026-10-23, plan given and approved). Done: Appearance screen
+- **M7 Polish** (2026-10-23 to 24): Appearance screen
   (theme grid from themes.json, background animation picker, unlock button), per-group themes
   (schema v8, resolved at fire time, Home card polarity rule, firing screen + notification accent),
   Cascade Plus through Play Billing 8 (`PlayPlusStore`, product `cascade_plus`).
@@ -45,8 +45,11 @@ under conventions). It is how the next session knows where to pick up.
   screenshotted. Also fixed: "Hear it" and the Sound preview passed `handleAudioFocus = true` with
   USAGE_ALARM, which Media3 1.11 rejects, and a bare `stop()` inside `ExoPlayer.apply {}` called the
   player's stop, leaving the row on "Stop".
-- **M7 is done apart from Spotify** (needs the owner's Client ID). Next: Spotify when the ID arrives,
-  else plan M8. Owner decisions (2026-10-24): Cascade Plus is
+- **Spotify** (2026-10-24): built, JVM-tested, checked on the emulator as far as it can (no Spotify there:
+  the backup rang, Home explained). Debug builds only by default; for the owner and up to four friends
+  (Spotify developer mode). Decisions and the phone checklist: `spec.md` §9 and §10.
+- **M7 is done.** Next: give the owner the M8 plan (Play listing, permission declarations, privacy policy)
+  and wait for approval. Owner decisions (2026-10-24): Cascade Plus is
   $4.99 flat, one-time; no Play Console account yet (create it at M8, then add the `cascade_plus`
   product at that price). Read-aloud must let the owner pick the voice.
 - Before starting a milestone: give the owner a short plan and wait for approval (their kickoff
@@ -65,7 +68,7 @@ under conventions). It is how the next session knows where to pick up.
 | M4 Escalation | done | per-group ladder, resolved at fire time, escalation editor |
 | M5 Reliability | done | Reliability Check (problems first), missed/late cards with cause from boot time, test result, OEM guidance, event log share |
 | M6 Audio | done | per-group sound, tones from `scripts/make_tones.py`, picked files copied in, ramp 30–60 s + start level, fallback logged and shown on Home |
-| M7 Polish | **in progress** | all done and emulator-checked except Spotify (moved from M6; needs the owner's Client ID) |
+| M7 Polish | done | Appearance, group themes, Plus, snooze, read aloud, stats, settings, onboarding, accessibility, Spotify (debug builds; phone checks in spec §10) |
 | M8 Release prep | | Play listing, permission declarations, privacy policy |
 
 ## Sources of truth
@@ -104,6 +107,9 @@ under conventions). It is how the next session knows where to pick up.
 - Instrumented (migrations, engine): `./gradlew connectedDebugAndroidTest`.
 - End-to-end alarm path on a device: `bash scripts/e2e-alarm.sh --wake-check` (about 6 min);
   `--all` adds timeout, reboot and power-off (about 14 min). Run before calling engine work done.
+- Spotify: App Remote SDK calls stay in `engine/ring/SpotifyAppRemote.kt`; logic in `SpotifyHandoff`
+  (tested with fakes). A release build with Spotify: `./gradlew assembleRelease -Pcascade.spotifyInRelease=true`.
+  A release key needs its SHA-1 added on Spotify's dashboard (M8).
 - Media3: `setAudioAttributes(..., handleAudioFocus = true)` throws for USAGE_ALARM; always pass false
   (the ring player requests focus itself).
 - Debug-build adb hooks (`DebugCommandReceiver`), e.g.

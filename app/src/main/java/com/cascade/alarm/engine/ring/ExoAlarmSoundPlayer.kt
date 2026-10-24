@@ -44,6 +44,9 @@ class ExoAlarmSoundPlayer(
     private val scope: CoroutineScope,
     /** Finds a copied audio file ([com.cascade.alarm.data.sound.SoundFiles.file]). */
     private val fileFor: (String) -> File?,
+    /** Null when this build has no Spotify (SPEC §9); a Spotify sound then just plays its backup. */
+    private val spotify: SpotifyRemote? = null,
+    private val music: MusicStream? = null,
 ) : AlarmSoundPlayer {
     private val audioManager = context.getSystemService(AudioManager::class.java)
     private val vibrator: Vibrator =
@@ -71,6 +74,9 @@ class ExoAlarmSoundPlayer(
     private var duckFactor = 1f
     /** Lower while the label is being read aloud ([com.cascade.alarm.data.voice.ReadAloud.TONE_GAIN]). */
     private var speechFactor = 1f
+    /** 0 once Spotify has taken over; the local sound keeps running silently, ready to come back. */
+    private var localShare = 1f
+    private var handoff: SpotifyHandoff? = null
 
     override fun start(sound: RingSound, onFallback: (reason: String, next: String) -> Unit) {
         startVibration()
@@ -90,6 +96,7 @@ class ExoAlarmSoundPlayer(
         playNext()
         EngineLog.i("audio started sound=${sound.sound} ramp=${sound.rampSeconds}s start=${sound.startPercent}%")
         startRamp(sound.rampSeconds, floor)
+        (sound.sound as? SoundConfig.SpotifyPlaylist)?.let(::startSpotify)
     }
 
     override fun startWakeCheck() {
@@ -98,6 +105,9 @@ class ExoAlarmSoundPlayer(
     }
 
     override fun stop() {
+        handoff?.stop()
+        handoff = null
+        localShare = 1f
         rampJob?.cancel()
         rampJob = null
         player?.release()
@@ -130,7 +140,26 @@ class ExoAlarmSoundPlayer(
         applyVolume()
     }
 
-    private fun volume() = rampGain * duckFactor * speechFactor
+    /** How loud the alarm is now, whoever is playing it. */
+    private fun gain() = rampGain * duckFactor * speechFactor
+
+    private fun volume() = gain() * localShare
+
+    private fun startSpotify(config: SoundConfig.SpotifyPlaylist) {
+        val remote = spotify
+        val stream = music
+        if (remote == null || stream == null) return
+        handoff = SpotifyHandoff(
+            scope = scope,
+            remote = remote,
+            music = stream,
+            setLocalShare = { share ->
+                localShare = share
+                applyVolume()
+            },
+            onFallback = { reason -> report(reason, "backup") },
+        ).also { it.start(config.uri, gain()) }
+    }
 
     /** Plays the next source in the plan, or the system alarm sound once the plan is used up. */
     private fun playNext() {
@@ -176,6 +205,7 @@ class ExoAlarmSoundPlayer(
 
     private fun applyVolume() {
         val volume = volume()
+        handoff?.setGain(gain())
         player?.volume = volume
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) fallback?.volume = volume
     }
