@@ -37,6 +37,7 @@ class RingCoordinator(
     private val wakeLock: RingWakeLock,
     private val presenter: RingPresenter,
     private val state: RingState,
+    private val speaker: LabelSpeaker = LabelSpeaker.None,
 ) {
     private val mutex = Mutex()
     private var timeoutJob: Job? = null
@@ -145,12 +146,16 @@ class RingCoordinator(
     suspend fun leftScreen() = mutex.withLock {
         val current = state.current.value ?: return@withLock
         sound.setDucked(false)
+        speaker.setPaused(false)
         bestEffort { store.log(current.alarmId, EventType.CHEAT_DETECTED, "reason" to "left_screen") }
     }
 
     /** Quieter while a challenge is being worked on (SPEC §6.8). */
     suspend fun duck(ducked: Boolean) = mutex.withLock {
-        if (state.current.value?.challenge != null) sound.setDucked(ducked)
+        if (state.current.value?.challenge != null) {
+            sound.setDucked(ducked)
+            speaker.setPaused(ducked)
+        }
     }
 
     private suspend fun begin(ring: ActiveRingEntity, alarm: AlarmEntity?) {
@@ -189,6 +194,7 @@ class RingCoordinator(
         state.set(ringing)
         presenter.show(ringing)
         sound.stop()
+        speaker.stop()
         if (ringSound == null) {
             sound.startWakeCheck()
         } else {
@@ -200,6 +206,8 @@ class RingCoordinator(
                 }
             }
         }
+        // A wake-up check stays a quiet prompt; only real rings read their label.
+        if (!ring.isWakeCheck && alarm?.readLabelAloud == true) speaker.start(alarm.id, alarm.label, now())
         EngineLog.i("ringing alarm=${ring.alarmId} deadline=$deadline wakeCheck=${ring.isWakeCheck}")
 
         timeoutJob?.cancel()
@@ -255,6 +263,7 @@ class RingCoordinator(
         ring: ActiveRingEntity? = null,
     ) {
         sound.stop()
+        speaker.stop()
         timeoutJob?.cancel()
         timeoutJob = null
         val alarmId = state.current.value?.alarmId

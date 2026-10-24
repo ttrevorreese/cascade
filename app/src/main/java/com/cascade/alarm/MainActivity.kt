@@ -23,6 +23,7 @@ import com.cascade.alarm.ui.theme.CascadeTheme
 import com.cascade.alarm.ui.theme.SystemBarsFor
 import com.cascade.alarm.ui.theme.ThemeResolution
 import com.cascade.alarm.data.billing.Entitlements
+import com.cascade.alarm.data.voice.SpeechWarmer
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -38,10 +39,13 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var ringState: RingState
     @Inject lateinit var uiPreferences: UiPreferences
     @Inject lateinit var entitlements: Entitlements
+    @Inject lateinit var speechWarmer: SpeechWarmer
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (savedInstanceState == null) onAppOpened()
+        // Spoken labels are made while the phone is unlocked, for rings before the next unlock.
+        speechWarmer.start()
         setContent {
             val themeId by uiPreferences.themeId.collectAsStateWithLifecycle()
             val animation by uiPreferences.animation.collectAsStateWithLifecycle()

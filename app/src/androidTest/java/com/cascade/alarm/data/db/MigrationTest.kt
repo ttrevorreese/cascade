@@ -217,4 +217,25 @@ class MigrationTest {
             }
         }
     }
+
+    @Test
+    fun v9AlarmsDoNotReadAloud() {
+        helper.createDatabase(db, 9).use { v9 ->
+            v9.execSQL(
+                "INSERT INTO alarm_groups (id, name, colorHex, iconKey, isArmed, sortOrder, createdAt) " +
+                    "VALUES ('g', 'Workday', '#000000', 'default', 1, 0, 0)",
+            )
+            v9.execSQL(
+                "INSERT INTO alarms (id, groupId, positionInGroup, hour, minute, daysOfWeek, label, isEnabled, " +
+                    "volumeRampSeconds, timeoutMinutes) VALUES ('a', 'g', 0, 6, 0, 31, 'Pills', 1, 30, 15)",
+            )
+        }
+        helper.runMigrationsAndValidate(db, 10, true, Migrations.MIGRATION_9_10).use { v10 ->
+            v10.query("SELECT readLabelAloud, label FROM alarms WHERE id = 'a'").use { c ->
+                c.moveToFirst()
+                assertEquals(0, c.getInt(0))
+                assertEquals("Pills", c.getString(1))
+            }
+        }
+    }
 }

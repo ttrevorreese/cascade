@@ -66,6 +66,9 @@ data class AlarmEntity(
     /** Snoozes used by the ring in progress; engine bookkeeping, back to 0 when the ring ends. */
     @ColumnInfo(defaultValue = "0")
     val snoozesUsed: Int = 0,
+    /** Say the time and [label] aloud while it rings (owner request, 2026-10-23); the voice is app-wide. */
+    @ColumnInfo(defaultValue = "0")
+    val readLabelAloud: Boolean = false,
 )
 
 val AlarmEntity.time: LocalTime get() = LocalTime.of(hour, minute)

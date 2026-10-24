@@ -14,6 +14,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
@@ -39,6 +40,10 @@ import androidx.lifecycle.viewModelScope
 import com.cascade.alarm.data.AlarmRepository
 import com.cascade.alarm.data.AlarmRules
 import com.cascade.alarm.data.Snooze
+import com.cascade.alarm.data.db.time
+import com.cascade.alarm.data.voice.ReadAloud
+import com.cascade.alarm.data.voice.VoicePreferences
+import com.cascade.alarm.ui.voice.SpeechPreview
 import com.cascade.alarm.data.challenge.ChallengeConfig
 import com.cascade.alarm.data.challenge.Escalation
 import com.cascade.alarm.data.challenge.EscalationPolicy
@@ -72,7 +77,18 @@ data class AlarmEditorState(val draft: AlarmEntity? = null, val isNew: Boolean =
 class AlarmEditorViewModel @Inject constructor(
     savedState: SavedStateHandle,
     private val repository: AlarmRepository,
+    private val speechPreview: SpeechPreview,
+    private val voice: VoicePreferences,
 ) : ViewModel() {
+    val previewStatus: StateFlow<SpeechPreview.Status> = speechPreview.status
+
+    /** Speaks [text] in the chosen voice, or stops a reading in progress. */
+    fun hear(text: String) {
+        if (speechPreview.status.value is SpeechPreview.Status.Busy) speechPreview.stop() else speechPreview.play(text, voice.choice.value, viewModelScope)
+    }
+
+    override fun onCleared() = speechPreview.stop()
+
     private val groupId: String = checkNotNull(savedState["groupId"])
     private val alarmId: String? = savedState["alarmId"]
 
@@ -117,6 +133,7 @@ class AlarmEditorViewModel @Inject constructor(
 fun AlarmEditorScreen(onDone: () -> Unit, viewModel: AlarmEditorViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val draft = state.draft ?: return
+    val previewStatus by viewModel.previewStatus.collectAsStateWithLifecycle()
     AlarmEditorContent(
         draft = draft,
         isNew = state.isNew,
@@ -125,6 +142,8 @@ fun AlarmEditorScreen(onDone: () -> Unit, viewModel: AlarmEditorViewModel = hilt
         onSave = { viewModel.save(onDone) },
         onDelete = { viewModel.delete(onDone) },
         onCancel = onDone,
+        onHear = viewModel::hear,
+        previewStatus = previewStatus,
     )
 }
 
@@ -138,6 +157,8 @@ fun AlarmEditorContent(
     onDelete: () -> Unit,
     onCancel: () -> Unit,
     ladderRung: ChallengeConfig? = null,
+    onHear: (String) -> Unit = {},
+    previewStatus: SpeechPreview.Status = SpeechPreview.Status.Idle,
 ) {
     val c = cascadeColors
     val is24Hour = is24HourClock()
@@ -183,6 +204,8 @@ fun AlarmEditorContent(
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
+
+            ReadAloudSetting(draft, ReadAloud.text(draft.label, draft.time, is24Hour), previewStatus, onEdit, onHear)
 
             AlarmChallenge(draft.challengeOverride, ladderRung) { config -> onEdit { it.copy(challengeOverride = config) } }
 
@@ -237,6 +260,43 @@ fun AlarmEditorContent(
             confirmButton = { TextButton(onClick = { confirmingDelete = false; onDelete() }) { Text("Delete alarm") } },
             dismissButton = { TextButton(onClick = { confirmingDelete = false }) { Text("Cancel") } },
         )
+    }
+}
+
+/** Whether this alarm says the time and its label while ringing, with a way to hear it first. */
+@Composable
+private fun ReadAloudSetting(
+    draft: AlarmEntity,
+    spoken: String,
+    status: SpeechPreview.Status,
+    onEdit: ((AlarmEntity) -> AlarmEntity) -> Unit,
+    onHear: (String) -> Unit,
+) {
+    val c = cascadeColors
+    Column(verticalArrangement = Arrangement.spacedBy(CascadeSpace.s)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f).padding(end = CascadeSpace.m)) {
+                Text("Read aloud", style = CascadeType.rowLabel, color = c.textPrimary)
+                Text(
+                    if (draft.readLabelAloud) "Says \"$spoken\" while it rings. Pick the voice in Settings." else "Off",
+                    style = CascadeType.body,
+                    color = c.textSecondary,
+                )
+            }
+            CascadeSwitch(draft.readLabelAloud, { on -> onEdit { it.copy(readLabelAloud = on) } }, Modifier.testTag("read-aloud"))
+        }
+        if (draft.readLabelAloud) {
+            OutlinedButton(onClick = { onHear(spoken) }, modifier = Modifier.testTag("hear-label")) {
+                Text(if (status is SpeechPreview.Status.Busy) "Stop" else "Hear it")
+            }
+            if (status == SpeechPreview.Status.Failed) {
+                Text(
+                    "The phone's speech engine did not answer. Check Text-to-speech in Android settings; the alarm still rings without it.",
+                    style = CascadeType.body,
+                    color = c.textSecondary,
+                )
+            }
+        }
     }
 }
 

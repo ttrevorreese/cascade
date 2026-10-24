@@ -19,7 +19,11 @@ under conventions). It is how the next session knows where to pick up.
 - **Snooze** (schema v9, 2026-10-23): per alarm on/off, 3–15 min, 1–5 times; never on the group's
   last alarm; count resets when a ring ends other than by snoozing. Unit-tested (316 JVM tests);
   checked on the emulator 2026-10-24 (MigrationTest 8→9, e2e 29/29, snooze button reschedules).
-- **Next in M7:** read the alarm's label aloud (owner request 2026-10-23: per-alarm switch, text to
+- **Read aloud, in progress** (schema v10): `data/voice/` (ReadAloud rules, VoicePreferences, Speech,
+  SpeechCache + SpeechWarmer so speech exists before first unlock), `AndroidLabelSpeaker` on the ring
+  path (tone drops to 25% while it speaks), editor switch + Hear it. Left: voice picker screen in
+  Settings, tests, emulator check. Later idea: Cascade's own AI voices as a paid add-on (spec M7 row).
+- **Next in M7 (was):** read the alarm's label aloud (owner request 2026-10-23: per-alarm switch, text to
   speech on the alarm stream, tone ducks while it speaks, fails open to the plain ring), Settings +
   Stats (DISMISSED/GAVE_UP now log `challenge` and `misses`), onboarding, accessibility pass, then
   Spotify (needs the owner's Client ID). Owner decisions (2026-10-24): Cascade Plus is
@@ -63,6 +67,9 @@ under conventions). It is how the next session knows where to pick up.
   `emulator -avd cascade_api36 -no-snapshot -no-window -memory 2048`. Lock PIN 1234. It has an
   emulated back camera but **no step counter**. The machine is short on memory; close the
   emulator when done.
+- The emulator's alarms play through the owner's PC speakers. After any test that rings (snooze,
+  `RING_POSITION`, test alarm) send `DISMISS`, leave nothing scheduled from it, and `adb emu kill`
+  as soon as device checks are done.
 - After a cold boot the emulator is locked: unlock before instrumented tests
   (`input keyevent KEYCODE_WAKEUP; wm dismiss-keyguard; input text 1234; input keyevent KEYCODE_ENTER`).
 - `connectedDebugAndroidTest` uninstalls the app afterwards, wiping demo data; re-seed with

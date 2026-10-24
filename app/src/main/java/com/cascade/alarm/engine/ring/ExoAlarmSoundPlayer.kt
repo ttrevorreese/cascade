@@ -21,6 +21,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import com.cascade.alarm.data.sound.SoundConfig
+import com.cascade.alarm.data.voice.ReadAloud
 import com.cascade.alarm.engine.EngineLog
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -68,6 +69,8 @@ class ExoAlarmSoundPlayer(
     /** Volume from the ramp, and the share of it kept while ducked; the player gets their product. */
     private var rampGain = 0f
     private var duckFactor = 1f
+    /** Lower while the label is being read aloud ([com.cascade.alarm.data.voice.ReadAloud.TONE_GAIN]). */
+    private var speechFactor = 1f
 
     override fun start(sound: RingSound, onFallback: (reason: String, next: String) -> Unit) {
         startVibration()
@@ -112,6 +115,7 @@ class ExoAlarmSoundPlayer(
         volumeToRestore = null
         rampGain = 0f
         duckFactor = 1f
+        speechFactor = 1f
     }
 
     override fun setDucked(ducked: Boolean) {
@@ -119,6 +123,14 @@ class ExoAlarmSoundPlayer(
         applyVolume()
         EngineLog.i("audio ducked=$ducked")
     }
+
+    /** The tone steps back while the label is read aloud, and returns when it ends. */
+    fun setSpeaking(speaking: Boolean) {
+        speechFactor = if (speaking) ReadAloud.TONE_GAIN else 1f
+        applyVolume()
+    }
+
+    private fun volume() = rampGain * duckFactor * speechFactor
 
     /** Plays the next source in the plan, or the system alarm sound once the plan is used up. */
     private fun playNext() {
@@ -147,7 +159,7 @@ class ExoAlarmSoundPlayer(
                 })
                 player = this
             }
-            exo.volume = rampGain * duckFactor
+            exo.volume = volume()
             exo.setMediaItem(MediaItem.fromUri(uriFor(source)))
             exo.prepare()
             exo.play()
@@ -163,7 +175,7 @@ class ExoAlarmSoundPlayer(
     }
 
     private fun applyVolume() {
-        val volume = rampGain * duckFactor
+        val volume = volume()
         player?.volume = volume
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) fallback?.volume = volume
     }
@@ -219,7 +231,7 @@ class ExoAlarmSoundPlayer(
             RingtoneManager.getRingtone(context, uri)?.apply {
                 audioAttributes = alarmAttributes
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) isLooping = true
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) volume = rampGain * duckFactor
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) volume = volume()
                 play()
             }
         } catch (e: Exception) {

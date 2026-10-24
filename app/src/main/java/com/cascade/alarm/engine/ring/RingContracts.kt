@@ -109,6 +109,26 @@ interface AlarmSoundPlayer {
     fun stop()
 }
 
+/**
+ * Reads an alarm's time and label aloud while it rings (owner request, 2026-10-23). Every failure
+ * is quiet: the alarm rings exactly as it would without it.
+ */
+interface LabelSpeaker {
+    /** Says the time [at] and [label] soon, then again every so often, until [stop]. */
+    fun start(alarmId: String, label: String?, at: Instant)
+
+    /** Quiet while a challenge is being solved; carries on when [paused] is false. */
+    fun setPaused(paused: Boolean)
+    fun stop()
+
+    /** For alarms that do not read aloud, and for tests. */
+    object None : LabelSpeaker {
+        override fun start(alarmId: String, label: String?, at: Instant) = Unit
+        override fun setPaused(paused: Boolean) = Unit
+        override fun stop() = Unit
+    }
+}
+
 object Ducking {
     /** Share of the ramped volume kept while a challenge is being solved. */
     const val GAIN = 0.3f

@@ -10,6 +10,8 @@ import androidx.core.app.ServiceCompat
 import androidx.compose.ui.graphics.toArgb
 import com.cascade.alarm.data.billing.Entitlements
 import com.cascade.alarm.data.sound.SoundFiles
+import com.cascade.alarm.data.voice.SpeechCache
+import com.cascade.alarm.data.voice.VoicePreferences
 import com.cascade.alarm.ui.ring.ringTheme
 import com.cascade.alarm.ui.settings.UiPreferences
 import com.cascade.alarm.engine.EngineLog
@@ -38,6 +40,8 @@ class AlarmRingService : Service(), RingPresenter {
     @Inject lateinit var soundFiles: SoundFiles
     @Inject lateinit var uiPreferences: UiPreferences
     @Inject lateinit var entitlements: Entitlements
+    @Inject lateinit var speechCache: SpeechCache
+    @Inject lateinit var voicePreferences: VoicePreferences
 
     private val scope = CoroutineScope(
         SupervisorJob() + Dispatchers.Main.immediate +
@@ -58,7 +62,8 @@ class AlarmRingService : Service(), RingPresenter {
         wakeLock = AndroidRingWakeLock(this)
         screenWaker = ScreenWaker(this)
         sound = ExoAlarmSoundPlayer(this, scope, soundFiles::file)
-        coordinator = RingCoordinator(scope, store, time::now, sound, wakeLock, this, ringState)
+        val speaker = AndroidLabelSpeaker(this, scope, speechCache, { voicePreferences.choice.value }, sound::setSpeaking)
+        coordinator = RingCoordinator(scope, store, time::now, sound, wakeLock, this, ringState, speaker)
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
