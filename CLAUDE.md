@@ -18,12 +18,13 @@ under conventions). It is how the next session knows where to pick up.
   Cascade Plus through Play Billing 8 (`PlayPlusStore`, product `cascade_plus`).
 - **Snooze** (schema v9, 2026-10-23): per alarm on/off, 3–15 min, 1–5 times; never on the group's
   last alarm; count resets when a ring ends other than by snoozing. Unit-tested (316 JVM tests);
-  **not yet checked on the emulator** (MigrationTest 8→9, e2e, screenshot of the firing screen).
+  checked on the emulator 2026-10-24 (MigrationTest 8→9, e2e 29/29, snooze button reschedules).
 - **Next in M7:** read the alarm's label aloud (owner request 2026-10-23: per-alarm switch, text to
   speech on the alarm stream, tone ducks while it speaks, fails open to the plain ring), Settings +
   Stats (DISMISSED/GAVE_UP now log `challenge` and `misses`), onboarding, accessibility pass, then
-  Spotify (needs the owner's Client ID). Open questions for the owner: Cascade Plus price, and
-  whether a Play Console account exists.
+  Spotify (needs the owner's Client ID). Owner decisions (2026-10-24): Cascade Plus is
+  $4.99 flat, one-time; no Play Console account yet (create it at M8, then add the `cascade_plus`
+  product at that price). Read-aloud must let the owner pick the voice.
 - Before starting a milestone: give the owner a short plan and wait for approval (their kickoff
   notes in `design/CLAUDE_CODE_PROMPT.md`), unless they have said to go ahead.
 
