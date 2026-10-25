@@ -59,7 +59,7 @@ under conventions). It is how the next session knows where to pick up.
   "Cascade"), developer name "Trevor Reese", application ID `com.ttrevorreese.cascade`, contact email
   cascadealarmgroup.app@gmail.com. Launch without Cascade Plus (`PLUS_FOR_SALE` false): a free app with no
   purchases shows only name, country and email on Play; a sold one shows the full address. Revisit before
-  selling Plus (GitHub issue "Revisit: selling Cascade Plus and the public address"). Owner decisions (2026-10-24): Cascade Plus is
+  selling Plus (RELEASING.md "Selling Cascade Plus later"; no GitHub issue yet, the connector token was invalid). Owner decisions (2026-10-24): Cascade Plus is
   $4.99 flat, one-time; no Play Console account yet (create it at M8, then add the `cascade_plus`
   product at that price). Read-aloud must let the owner pick the voice.
 - Before starting a milestone: give the owner a short plan and wait for approval (their kickoff
