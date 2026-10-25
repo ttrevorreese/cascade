@@ -47,6 +47,30 @@ class SettingsScreensTest {
     }
 
     @Test
+    fun feedbackOffersThreeKindsAndSaysWhenThereIsNoEmailApp() {
+        val sent = mutableListOf<com.cascade.alarm.ui.settings.Feedback.Kind>()
+        var noEmailApp by mutableStateOf(false)
+        compose.setContent { SettingsContent(AnimationChoice.None, {}, {}, {}, onFeedback = { sent += it }, noEmailApp = noEmailApp) }
+        compose.onNode(hasScrollAction()).performScrollToNode(hasTestTag("feedback-other"))
+        compose.onNodeWithText("cascadealarmgroup.app@gmail.com", substring = true).assertExists()
+        compose.onNodeWithTag("feedback-idea").performClick()
+        compose.onNodeWithTag("feedback-problem").performClick()
+        assertEquals(listOf(com.cascade.alarm.ui.settings.Feedback.Kind.IDEA, com.cascade.alarm.ui.settings.Feedback.Kind.PROBLEM), sent)
+        noEmailApp = true
+        compose.onNodeWithText("There is no email app on this phone", substring = true).assertExists()
+    }
+
+    @Test
+    fun feedbackMessagesAskTheRightQuestionAndNameThePhone() {
+        val body = com.cascade.alarm.ui.settings.Feedback.body(com.cascade.alarm.ui.settings.Feedback.Kind.PROBLEM, "1.0.0", "16", "Samsung SM-S908U")
+        org.junit.Assert.assertTrue(body.startsWith("What happened"))
+        org.junit.Assert.assertTrue(body.endsWith("Cascade 1.0.0 · Android 16 · Samsung SM-S908U"))
+        val uri = com.cascade.alarm.ui.settings.Feedback.mailto(com.cascade.alarm.ui.settings.Feedback.Kind.IDEA)
+        assertEquals("mailto", uri.scheme)
+        org.junit.Assert.assertTrue(uri.toString().startsWith("mailto:cascadealarmgroup.app@gmail.com?subject=Cascade%20feature%20request"))
+    }
+
+    @Test
     fun exportSaysWhatItSavesAndThenHowItWent() {
         var exports = 0
         var result by mutableStateOf<String?>(null)

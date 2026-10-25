@@ -115,7 +115,7 @@ fun AppearanceContent(
     val owns = { theme: ThemeSpec -> theme.isFree || plusOwned }
     val families = CascadeThemes.shownFamilies(forSale || plusOwned)
     var family by rememberSaveable { mutableStateOf(CascadeThemes.familyOf(themeId).id) }
-    val shown = families.firstOrNull { it.id == family } ?: families.first()
+    val shown = if (family == ALL_FAMILIES.id) ALL_FAMILIES else families.firstOrNull { it.id == family } ?: families.first()
     // The sheet, and the locked theme that opened it (null when opened from the unlock button).
     var sheetFor by rememberSaveable { mutableStateOf<String?>(null) }
     var sheetOpen by rememberSaveable { mutableStateOf(false) }
@@ -141,17 +141,15 @@ fun AppearanceContent(
                     selected = shown,
                     onSelect = { family = it.id },
                     modifier = Modifier.padding(vertical = CascadeSpace.s),
-                    families = families,
+                    families = listOf(ALL_FAMILIES) + families,
                 )
             }
-            item {
-                FamilyGrid(shown, selectedId = themeId, owns = owns) { theme ->
-                    if (owns(theme)) {
-                        onTheme(theme)
-                    } else {
-                        sheetFor = theme.id
-                        sheetOpen = true
-                    }
+            themeFamilies(shown, families, selectedId = themeId, owns = owns) { theme ->
+                if (owns(theme)) {
+                    onTheme(theme)
+                } else {
+                    sheetFor = theme.id
+                    sheetOpen = true
                 }
             }
             item {

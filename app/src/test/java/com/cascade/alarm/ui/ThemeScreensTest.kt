@@ -62,6 +62,28 @@ class ThemeScreensTest {
     }
 
     @Test
+    fun allShowsEveryFamilyUnderItsOwnHeading() {
+        val picked = mutableListOf<String>()
+        compose.setContent {
+            AppearanceContent(
+                "forest", AnimationChoice.None, plusOwned = true, price = null,
+                onTheme = { picked += it.id }, onAnimation = {}, onBuy = {}, onRestore = {}, onBack = {},
+            )
+        }
+        compose.onNodeWithTag("family-all").performScrollTo().performClick()
+        CascadeThemes.families.forEach { family ->
+            scrollTo("family-section-${family.id}")
+            compose.onNodeWithTag("family-section-${family.id}").assertExists()
+        }
+        // Themes from different families are all reachable without switching chips.
+        scrollTo("theme-night")
+        compose.onNodeWithTag("theme-night").performClick()
+        scrollTo("theme-forest")
+        compose.onNodeWithTag("theme-forest").performClick()
+        assertEquals(listOf("night", "forest"), picked)
+    }
+
+    @Test
     fun familiesSwitchTheGridAndNightIsFree() {
         val picked = mutableListOf<String>()
         compose.setContent {

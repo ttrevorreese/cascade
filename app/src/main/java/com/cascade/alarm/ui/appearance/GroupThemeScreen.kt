@@ -118,7 +118,7 @@ fun GroupThemeContent(
     val appTheme = ThemeResolution.app(appThemeId, owns)
     val families = CascadeThemes.shownFamilies(forSale || plusOwned)
     var family by rememberSaveable { mutableStateOf(CascadeThemes.familyOf(groupThemeId ?: appTheme.id).id) }
-    val shown = families.firstOrNull { it.id == family } ?: families.first()
+    val shown = if (family == ALL_FAMILIES.id) ALL_FAMILIES else families.firstOrNull { it.id == family } ?: families.first()
     var sheetFor by rememberSaveable { mutableStateOf<String?>(null) }
     Scaffold(containerColor = c.ground, topBar = { CascadeTopBar("Group theme", onBack = onBack) }) { padding ->
         LazyColumn(
@@ -163,13 +163,11 @@ fun GroupThemeContent(
                     selected = shown,
                     onSelect = { family = it.id },
                     modifier = Modifier.padding(vertical = CascadeSpace.s),
-                    families = families,
+                    families = listOf(ALL_FAMILIES) + families,
                 )
             }
-            item {
-                FamilyGrid(shown, selectedId = groupThemeId, owns = owns) { theme ->
-                    if (owns(theme)) onTheme(theme.id) else sheetFor = theme.id
-                }
+            themeFamilies(shown, families, selectedId = groupThemeId, owns = owns) { theme ->
+                if (owns(theme)) onTheme(theme.id) else sheetFor = theme.id
             }
         }
     }

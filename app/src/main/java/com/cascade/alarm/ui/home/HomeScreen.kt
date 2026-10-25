@@ -93,6 +93,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.time.LocalTime
 import java.time.ZoneId
 import java.util.Locale
 import javax.inject.Inject
@@ -439,12 +440,16 @@ private fun ThemeSwatch(colors: CascadeColors, modifier: Modifier = Modifier) {
 
 private fun scheduleLine(summary: GroupSummary, is24Hour: Boolean, locale: Locale): String {
     val count = if (summary.alarmCount == 1) "1 alarm" else "${summary.alarmCount} alarms"
-    if (!summary.group.isArmed) return "Off · $count"
-    val first = summary.firstTime ?: return "No alarms yet"
-    val last = summary.lastTime ?: first
-    val span = TimeText.time(first.hour, first.minute, is24Hour) +
+    val first = summary.firstTime
+    // An off group still shows its times, so "Earliest first" explains itself.
+    if (!summary.group.isArmed) return if (first == null) "Off · $count" else "Off · ${span(first, summary.lastTime ?: first, is24Hour)}"
+    if (first == null) return "No alarms yet"
+    return "${span(first, summary.lastTime ?: first, is24Hour)} · ${DaysFormat.describe(summary.days, locale)}"
+}
+
+private fun span(first: LocalTime, last: LocalTime, is24Hour: Boolean): String {
+    return TimeText.time(first.hour, first.minute, is24Hour) +
         if (last != first) " – " + TimeText.time(last.hour, last.minute, is24Hour) else ""
-    return "$span · ${DaysFormat.describe(summary.days, locale)}"
 }
 
 /** Asks for a name, with the field focused and [initial] selected so typing replaces it. */

@@ -58,6 +58,10 @@ under conventions). It is how the next session knows where to pick up.
   (`scripts/make_store_graphics.py`). **The code side of M8 is done (2026-10-25)**; what is left is the owner's
   (RELEASING.md: upload key, Pages, Play account, FGS screen recording, closed test with 12 testers for 14 days).
   Owner feedback from the phone (2026-10-25): ring order by time, animations in Plus, back slide, duplicate group.
+  Second round (2026-10-25, schema v11): vibration per group on the Sound screen (Off, Steady, Pulse, Heartbeat,
+  Wave, Slow; strength; start delay; "Feel it"), Home sort (Your order, Earliest first, Recently changed by
+  `updatedAt`), a duplicate is named in a dialog before it is made, Settings > Feedback (mailto to the contact
+  address, no network), an "All" chip in theme pickers, swipe-back slides (`predictivePop*Transition`), icon centred.
   Owner decisions: personal Play account, store name "Cascade: Alarm Groups" (installed label stays
   "Cascade"), developer name "Trevor Reese", application ID `com.ttrevorreese.cascade`, contact email
   cascadealarmgroup.app@gmail.com. Launch without Cascade Plus (`PLUS_FOR_SALE` false): a free app with no
@@ -174,6 +178,11 @@ under conventions). It is how the next session knows where to pick up.
 - Alarm order is the clock's (2026-10-25): saving re-sorts with `AlarmRules.ringOrder`; there is no manual reorder.
   Background animations and the 46 pack themes are Cascade Plus. Debug builds bind `TestPlusStore` (Unlock is free
   and Play is never asked); release builds bind `PlayPlusStore`.
+- Vibration is the group's too (`VibrationSetting`, RingSound.vibration). Fail open: a group set to Off still
+  vibrates when no sound can play, and its wake-up check plays the sound at its start level instead.
+- `updatedAt` on a group marks user edits (group settings, its alarms); arming and reordering do not touch it.
+- Navigation's swipe-back gesture has its own `predictivePopEnter/ExitTransition` (default a zoom); keep them
+  equal to the pop transitions.
 - Sound is the group's, never the alarm's. Tone keys are stored in the database: add tones, never
   rename one. Regenerate tones with `python scripts/make_tones.py` (numpy).
 - Anything the ring path plays must be readable before first unlock: bundled, or copied into

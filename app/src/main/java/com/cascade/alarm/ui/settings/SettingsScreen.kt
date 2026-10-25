@@ -1,5 +1,9 @@
 package com.cascade.alarm.ui.settings
 
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.foundation.lazy.items
 import android.content.ContentResolver
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -93,7 +97,9 @@ fun SettingsScreen(
     val voice by viewModel.voice.collectAsStateWithLifecycle()
     val defaults by viewModel.defaults.collectAsStateWithLifecycle()
     val exportResult by viewModel.exportResult.collectAsStateWithLifecycle()
-    val resolver = LocalContext.current.contentResolver
+    val context = LocalContext.current
+    val resolver = context.contentResolver
+    var noEmailApp by remember { mutableStateOf(false) }
     val saveFile = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         if (uri != null) viewModel.export(resolver, uri)
     }
@@ -103,6 +109,8 @@ fun SettingsScreen(
         onDefaults = viewModel::setDefaults,
         onExport = { saveFile.launch("cascade-${LocalDate.now()}.json") },
         exportResult = exportResult,
+        onFeedback = { kind -> noEmailApp = !Feedback.send(context, kind) },
+        noEmailApp = noEmailApp,
     )
 }
 
@@ -120,6 +128,9 @@ fun SettingsContent(
     onDefaults: (NewAlarmDefaults) -> Unit = {},
     onExport: () -> Unit = {},
     exportResult: String? = null,
+    onFeedback: (Feedback.Kind) -> Unit = {},
+    /** The last feedback tap found no email app to open. */
+    noEmailApp: Boolean = false,
 ) {
     val c = cascadeColors
     // Settings is in the app theme, which is what is in effect here (DESIGN.md §11.2).
@@ -156,6 +167,22 @@ fun SettingsContent(
                     onExport,
                     "export",
                 )
+            }
+            item { SectionLabel("Feedback") }
+            item {
+                Text(
+                    if (noEmailApp) {
+                        "There is no email app on this phone. Write to ${Feedback.ADDRESS} from any device."
+                    } else {
+                        "Opens your email app with a message to the developer, ${Feedback.ADDRESS}. You see it before anything is sent."
+                    },
+                    style = CascadeType.body,
+                    color = if (noEmailApp) c.textPrimary else c.textSecondary,
+                    modifier = Modifier.padding(bottom = CascadeSpace.s).testTag("feedback-note"),
+                )
+            }
+            items(Feedback.Kind.entries, key = { "feedback-${it.key}" }) { kind ->
+                LinkRow(kind.title, kind.detail, { onFeedback(kind) }, "feedback-${kind.key}")
             }
         }
     }

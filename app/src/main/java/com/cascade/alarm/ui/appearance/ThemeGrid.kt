@@ -1,5 +1,9 @@
 package com.cascade.alarm.ui.appearance
 
+import androidx.compose.ui.semantics.heading
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -50,6 +54,38 @@ internal fun familyLine(familyId: String): String? = when (familyId) {
     "neon" -> "The loudest colours in the set."
     "clarity" -> "The easiest to read: the strongest contrast, and all four are free."
     else -> null
+}
+
+/** The chip that shows every family at once, each under its own heading (owner request, 2026-10-25). */
+val ALL_FAMILIES = ThemeFamily("all", "All", emptyList())
+
+/**
+ * The themes under the chips: one family, or with [ALL_FAMILIES] chosen every family in [families]
+ * in turn, each under its name with a line between them. An item per family keeps the list lazy.
+ */
+fun LazyListScope.themeFamilies(
+    chosen: ThemeFamily,
+    families: List<ThemeFamily>,
+    selectedId: String?,
+    owns: (ThemeSpec) -> Boolean,
+    onPick: (ThemeSpec) -> Unit,
+) {
+    if (chosen.id != ALL_FAMILIES.id) {
+        item { FamilyGrid(chosen, selectedId, owns, onPick) }
+        return
+    }
+    itemsIndexed(families, key = { _, it -> "family-section-${it.id}" }) { index, family ->
+        Column(Modifier.testTag("family-section-${family.id}")) {
+            if (index > 0) HorizontalDivider(Modifier.padding(horizontal = CascadeSpace.gutter, vertical = CascadeSpace.l), color = cascadeColors.line)
+            Text(
+                family.label,
+                style = CascadeType.rowLabel,
+                color = cascadeColors.textPrimary,
+                modifier = Modifier.padding(horizontal = CascadeSpace.gutter).padding(bottom = CascadeSpace.s).semantics { heading() },
+            )
+            FamilyGrid(family, selectedId, owns, onPick)
+        }
+    }
 }
 
 /** The family chips: thirteen families are what make fifty-two themes navigable (DESIGN.md §12). */
