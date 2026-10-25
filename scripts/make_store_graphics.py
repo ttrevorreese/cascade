@@ -42,9 +42,10 @@ def icon():
     """Full-bleed square: Play rounds the corners itself. The mark sits as on the launcher tile."""
     size = 512 * SUPERSAMPLE
     image = Image.new("RGB", (size, size), GROUND)
-    # Launcher: a 40-unit mark scaled 1.5x at offset 24 on a 108 canvas.
+    # Launcher: a 40-unit mark scaled 1.5x at offset 21.3 on a 108 canvas (the dots span 5 to
+    # 38.6, so this centres them).
     unit = size / 108 * 1.5
-    draw_mark(ImageDraw.Draw(image), size / 108 * 24, size / 108 * 24, unit)
+    draw_mark(ImageDraw.Draw(image), size / 108 * 21.3, size / 108 * 21.3, unit)
     return image.resize((512, 512), Image.LANCZOS)
 
 

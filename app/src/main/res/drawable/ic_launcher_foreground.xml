@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- design/assets/icons/cascade-steps.svg, Forest ramp, scaled 1.5x into the centre of the 108dp
-     adaptive canvas so the mark fills about 56% of the tile and stays inside the 66dp safe zone.
+<!-- design/assets/icons/cascade-steps.svg, Forest ramp, scaled 1.5x and centred on the 108dp
+     adaptive canvas (the dots span 5 to 38.6 of 40, so offset 21.3, not 24) so the mark fills about 56% of the tile and stays inside the 66dp safe zone.
      cascade-steps is the placeholder mark until the primary is chosen (DESIGN.md §8). -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <group android:translateX="24" android:translateY="24" android:scaleX="1.5" android:scaleY="1.5">
+    <group android:translateX="21.3" android:translateY="21.3" android:scaleX="1.5" android:scaleY="1.5">
         <path android:fillColor="#FF2E8C72" android:pathData="M5,9a4,4 0,1 0,8 0a4,4 0,1 0,-8 0z" />
         <path android:fillColor="#FF93C13C" android:pathData="M14.8,20a5.2,5.2 0,1 0,10.4 0a5.2,5.2 0,1 0,-10.4 0z" />
         <path android:fillColor="#FFFFC94A" android:pathData="M25.4,32a6.6,6.6 0,1 0,13.2 0a6.6,6.6 0,1 0,-13.2 0z" />
