@@ -2,7 +2,7 @@
 
 **An Android alarm app for people who wake up using sequences of alarms.**
 
-App name: Cascade. Package: `com.cascade.alarm` (verify availability on Play before first commit).
+App name: Cascade. Application ID: `com.ttrevorreese.cascade` (decided 2026-10-24; the Kotlin package stays `com.cascade.alarm`).
 
 ---
 

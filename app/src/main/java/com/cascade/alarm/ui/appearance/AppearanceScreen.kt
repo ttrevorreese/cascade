@@ -26,6 +26,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.cascade.alarm.data.billing.Entitlements
+import com.cascade.alarm.BuildConfig
 import com.cascade.alarm.data.billing.PlusStore
 import com.cascade.alarm.ui.components.AnimationChoice
 import com.cascade.alarm.ui.components.CascadeSwitch
@@ -52,10 +53,11 @@ class AppearanceViewModel @Inject constructor(
     val plusOwned: StateFlow<Boolean> = entitlements.plusOwned
     val price: StateFlow<String?> = store.price
     val groupThemesOnHome: StateFlow<Boolean> = preferences.groupThemesOnHome
+    val forSale: Boolean = BuildConfig.PLUS_FOR_SALE
 
     init {
         // Ownership can change elsewhere (a purchase on another device, a refund): ask on each visit.
-        store.refresh()
+        if (forSale) store.refresh()
     }
 
     fun setTheme(theme: ThemeSpec) = preferences.setTheme(theme.id)
@@ -78,6 +80,7 @@ fun AppearanceScreen(onBack: () -> Unit, viewModel: AppearanceViewModel = hiltVi
         animation = animation,
         plusOwned = plusOwned,
         price = price,
+        forSale = viewModel.forSale,
         onTheme = viewModel::setTheme,
         onAnimation = viewModel::setAnimation,
         onBuy = { activity?.let(viewModel::buy) },
@@ -105,10 +108,13 @@ fun AppearanceContent(
     onBack: () -> Unit,
     groupThemesOnHome: Boolean = true,
     onGroupThemesOnHome: (Boolean) -> Unit = {},
+    forSale: Boolean = true,
 ) {
     val c = cascadeColors
     val owns = { theme: ThemeSpec -> theme.isFree || plusOwned }
+    val families = CascadeThemes.shownFamilies(forSale || plusOwned)
     var family by rememberSaveable { mutableStateOf(CascadeThemes.familyOf(themeId).id) }
+    val shown = families.firstOrNull { it.id == family } ?: families.first()
     // The sheet, and the locked theme that opened it (null when opened from the unlock button).
     var sheetFor by rememberSaveable { mutableStateOf<String?>(null) }
     var sheetOpen by rememberSaveable { mutableStateOf(false) }
@@ -129,13 +135,14 @@ fun AppearanceContent(
             }
             item {
                 FamilyChips(
-                    selected = CascadeThemes.families.first { it.id == family },
+                    selected = shown,
                     onSelect = { family = it.id },
                     modifier = Modifier.padding(vertical = CascadeSpace.s),
+                    families = families,
                 )
             }
             item {
-                FamilyGrid(CascadeThemes.families.first { it.id == family }, selectedId = themeId, owns = owns) { theme ->
+                FamilyGrid(shown, selectedId = themeId, owns = owns) { theme ->
                     if (owns(theme)) {
                         onTheme(theme)
                     } else {
@@ -166,7 +173,7 @@ fun AppearanceContent(
                 Column(Modifier.padding(horizontal = CascadeSpace.gutter).padding(top = CascadeSpace.xxl)) {
                     if (plusOwned) {
                         Text("Cascade Plus is unlocked: every theme is yours.", style = CascadeType.body, color = c.textSecondary)
-                    } else {
+                    } else if (forSale) {
                         SecondaryButton(
                             "Unlock all themes",
                             {

@@ -43,12 +43,15 @@ upload (Play takes it automatically from an `.aab`).
 - [ ] Real-phone checks in `spec.md` §10, on the S22 **(owner)**.
 - [ ] GitHub Pages on: repo Settings > Pages > Deploy from branch > `main` / `docs` **(owner)**. The
       privacy policy is then at `https://ttrevorreese.github.io/cascade/privacy.html`.
-- [ ] Play Console account (personal), identity verified, developer name set **(owner)**.
+- [ ] Play Console account (personal), identity verified **(owner)**. Developer name "Trevor Reese",
+      contact email cascadealarmgroup.app@gmail.com.
+- [ ] Spotify dashboard: change the Android package to `com.ttrevorreese.cascade` (it was
+      `com.cascade.alarm` when registered) **(owner)**.
 
 ## 4. Play Console (owner)
 
-- Create the app: name "Cascade: Alarm Groups", default language English (US), app, free.
-- In-app product `cascade_plus`: one-time, $4.99, active.
+- Create the app (package `com.ttrevorreese.cascade`): name "Cascade: Alarm Groups", default language
+  English (US), app, free. No in-app products at launch (see "Selling Cascade Plus later").
 - App content: privacy policy URL, ads (none), data safety (nothing collected or shared), content
   rating questionnaire, target audience (adults), and the declarations for exact alarms, full-screen
   intent and foreground service. Answers are drafted in `docs/play-console.md` (M8).
@@ -79,3 +82,17 @@ for the whole 14 days, then apply for production access.
 
 Upload the `.aab` built **without** Spotify to production, roll out, and tag the commit
 (`git tag v1.0.0`).
+
+## Selling Cascade Plus later (owner decision pending)
+
+Cascade launches with no purchases (`PLUS_FOR_SALE` is false in release builds: only the six free
+themes show, and Play Billing is never contacted). On Play, a free app with no purchases shows the
+developer's name, country and email; once an app sells anything, the developer is a trader and the
+full address is shown. **Revisit before selling Plus:** choose the address (PO box or virtual
+mailbox, a trusted relative's with permission, or stay free). Then:
+
+1. Play Console: in-app product `cascade_plus`, one-time, $4.99, active; payments profile and trader
+   declaration with that address.
+2. `./gradlew bundleRelease -Pcascade.plusForSale=true` (or change the default in
+   `app/build.gradle.kts`), bump `versionCode`, upload.
+3. Update `docs/privacy.html` (Purchases) and the store listing.

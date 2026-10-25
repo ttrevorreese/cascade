@@ -54,14 +54,19 @@ internal fun familyLine(familyId: String): String? = when (familyId) {
 
 /** The family chips: thirteen families are what make fifty-two themes navigable (DESIGN.md §12). */
 @Composable
-fun FamilyChips(selected: ThemeFamily, onSelect: (ThemeFamily) -> Unit, modifier: Modifier = Modifier) {
+fun FamilyChips(
+    selected: ThemeFamily,
+    onSelect: (ThemeFamily) -> Unit,
+    modifier: Modifier = Modifier,
+    families: List<ThemeFamily> = CascadeThemes.families,
+) {
     Row(
         modifier.horizontalScroll(rememberScrollState()).padding(horizontal = CascadeSpace.gutter),
         horizontalArrangement = Arrangement.spacedBy(CascadeSpace.s),
     ) {
-        CascadeThemes.families.forEach { family ->
+        families.forEach { family ->
             FilterChip(
-                selected = family == selected,
+                selected = family.id == selected.id,
                 onClick = { onSelect(family) },
                 label = { Text(family.label) },
                 shape = CascadeShapes.small,

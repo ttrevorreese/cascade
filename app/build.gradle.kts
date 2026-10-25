@@ -16,7 +16,9 @@ android {
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.cascade.alarm"
+        // The published ID (owner decision, 2026-10-24); permanent once on Play. Code stays in
+        // com.cascade.alarm (namespace), which users never see.
+        applicationId = "com.ttrevorreese.cascade"
         minSdk = 26
         targetSdk = 36
         versionCode = 1
@@ -43,12 +45,16 @@ android {
     buildTypes {
         debug {
             buildConfigField("boolean", "SPOTIFY_ENABLED", "true")
+            buildConfigField("boolean", "PLUS_FOR_SALE", "true")
         }
         release {
             // Spotify's developer mode allows the owner plus four listed users, so a public build ships
             // without it; -Pcascade.spotifyInRelease=true builds one for those people.
             val spotify = providers.gradleProperty("cascade.spotifyInRelease").getOrElse("false")
             buildConfigField("boolean", "SPOTIFY_ENABLED", spotify)
+            // Cascade launches without Cascade Plus (owner, 2026-10-24): a free app with no purchases
+            // keeps the developer's address off the Play listing. -Pcascade.plusForSale=true sells it.
+            buildConfigField("boolean", "PLUS_FOR_SALE", providers.gradleProperty("cascade.plusForSale").getOrElse("false"))
             // Without the upload key a release build is signed with the debug key: installable for
             // testing, and refused by Play, so it can never be uploaded by mistake.
             signingConfig = upload ?: signingConfigs.getByName("debug")

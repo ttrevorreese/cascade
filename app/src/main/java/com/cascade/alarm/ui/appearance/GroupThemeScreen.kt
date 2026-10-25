@@ -35,6 +35,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.cascade.alarm.data.AlarmRepository
 import com.cascade.alarm.data.billing.Entitlements
+import com.cascade.alarm.BuildConfig
 import com.cascade.alarm.data.billing.PlusStore
 import com.cascade.alarm.data.db.AlarmGroupEntity
 import com.cascade.alarm.ui.components.CascadeTopBar
@@ -70,6 +71,7 @@ class GroupThemePickerViewModel @Inject constructor(
     fun setTheme(themeId: String?) = viewModelScope.launch { repository.setGroupTheme(groupId, themeId) }
     fun buy(activity: Activity) = store.buy(activity)
     fun restore() = store.refresh()
+    val forSale: Boolean = BuildConfig.PLUS_FOR_SALE
 }
 
 @Composable
@@ -85,6 +87,7 @@ fun GroupThemeScreen(onDone: () -> Unit, viewModel: GroupThemePickerViewModel = 
         groupThemeId = loaded.themeId,
         appThemeId = appThemeId,
         plusOwned = plusOwned,
+        forSale = viewModel.forSale,
         price = price,
         onTheme = viewModel::setTheme,
         onBuy = { activity?.let(viewModel::buy) },
@@ -108,11 +111,14 @@ fun GroupThemeContent(
     onBuy: () -> Unit,
     onRestore: () -> Unit,
     onBack: () -> Unit,
+    forSale: Boolean = true,
 ) {
     val c = cascadeColors
     val owns = { theme: ThemeSpec -> theme.isFree || plusOwned }
     val appTheme = ThemeResolution.app(appThemeId, owns)
+    val families = CascadeThemes.shownFamilies(forSale || plusOwned)
     var family by rememberSaveable { mutableStateOf(CascadeThemes.familyOf(groupThemeId ?: appTheme.id).id) }
+    val shown = families.firstOrNull { it.id == family } ?: families.first()
     var sheetFor by rememberSaveable { mutableStateOf<String?>(null) }
     Scaffold(containerColor = c.ground, topBar = { CascadeTopBar("Group theme", onBack = onBack) }) { padding ->
         LazyColumn(
@@ -154,13 +160,14 @@ fun GroupThemeContent(
             }
             item {
                 FamilyChips(
-                    selected = CascadeThemes.families.first { it.id == family },
+                    selected = shown,
                     onSelect = { family = it.id },
                     modifier = Modifier.padding(vertical = CascadeSpace.s),
+                    families = families,
                 )
             }
             item {
-                FamilyGrid(CascadeThemes.families.first { it.id == family }, selectedId = groupThemeId, owns = owns) { theme ->
+                FamilyGrid(shown, selectedId = groupThemeId, owns = owns) { theme ->
                     if (owns(theme)) onTheme(theme.id) else sheetFor = theme.id
                 }
             }

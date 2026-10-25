@@ -65,6 +65,19 @@ object CascadeThemes {
     fun find(id: String): ThemeSpec? = all.firstOrNull { it.id == id }
 
     /** The family [themeId] belongs to; an unknown id counts as the default theme's. */
+    /**
+     * The families a picker shows. While Cascade Plus is not [forSale] only free themes are listed,
+     * and families with none are left out: a padlock nobody can open is no use.
+     */
+    fun shownFamilies(forSale: Boolean): List<ThemeFamily> =
+        if (forSale) {
+            families
+        } else {
+            families.mapNotNull { family ->
+                family.themeIds.filter { byId(it).isFree }.takeIf { it.isNotEmpty() }?.let { family.copy(themeIds = it) }
+            }
+        }
+
     fun familyOf(themeId: String): ThemeFamily = byId(themeId).id.let { id -> families.first { id in it.themeIds } }
 }
 

@@ -65,7 +65,7 @@ solving sums, typing a phrase, or scanning the QR code taped to the bathroom mir
   with vibration throughout), and tells you afterwards.
 
 **Yours to look at**
-- 52 themes in 13 families, generated from one design file; each group can have its own.
+- Themes generated from one design file (six free, 46 more in Cascade Plus); each group can have its own.
 - Stats for the last 7 or 30 days: time to dismiss, snoozes, challenges and wake-up checks.
 - Onboarding that sets up the permissions alarms need and your first group in one go.
 - Screen reader labels, headings and announcements throughout; checked at double text size.
@@ -85,10 +85,11 @@ Read the full [privacy policy](https://ttrevorreese.github.io/cascade/privacy.ht
   <img src="docs/screenshots/reliability.png" width="24%" alt="The Reliability Check">
 </p>
 
-## Cascade Plus
+## Free
 
-The app is free and every alarm feature is in it. Cascade Plus is a one-time purchase that unlocks
-the 46 extra themes. Nothing that affects whether you wake up is ever behind it.
+Cascade is free, with every alarm feature and six themes. Cascade Plus, a one-time purchase that
+unlocks the other 46 themes, is built but not on sale yet. Nothing that affects whether you wake up
+will ever be behind it.
 
 ## Building
 
@@ -105,7 +106,7 @@ bash scripts/e2e-alarm.sh --wake-check  # the full alarm path on a device, about
 ```
 
 Debug builds include adb hooks for testing the engine without waiting for real alarms, for example
-`adb shell am broadcast -a com.cascade.alarm.debug.SEED_DEMO -p com.cascade.alarm`. The full list is
+`adb shell am broadcast -a com.cascade.alarm.debug.SEED_DEMO -p com.ttrevorreese.cascade`. The full list is
 in [CLAUDE.md](CLAUDE.md#commands).
 
 ## How it is built

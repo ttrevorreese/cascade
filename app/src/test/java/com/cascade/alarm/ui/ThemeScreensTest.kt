@@ -95,6 +95,23 @@ class ThemeScreensTest {
     }
 
     @Test
+    fun withPlusNotForSaleOnlyFreeThemesShowAndNothingIsLocked() {
+        val shown = CascadeThemes.shownFamilies(forSale = false)
+        assertTrue(shown.flatMap { it.themeIds }.all { CascadeThemes.byId(it).isFree })
+        assertEquals(CascadeThemes.all.count { it.isFree }, shown.sumOf { it.themeIds.size })
+        compose.setContent {
+            AppearanceContent(
+                "forest", AnimationChoice.None, plusOwned = false, price = null,
+                onTheme = {}, onAnimation = {}, onBuy = {}, onRestore = {}, onBack = {}, forSale = false,
+            )
+        }
+        compose.onNodeWithTag("theme-forest").assertExists()
+        compose.onNodeWithTag("theme-tide").assertDoesNotExist()
+        compose.onNodeWithTag("family-earth").assertDoesNotExist()
+        compose.onNodeWithTag("unlock-themes").assertDoesNotExist()
+    }
+
+    @Test
     fun aGroupCanFollowTheAppOrHaveItsOwnTheme() {
         var chosen by mutableStateOf<String?>("night")
         compose.setContent {

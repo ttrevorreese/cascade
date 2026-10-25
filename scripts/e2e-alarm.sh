@@ -13,7 +13,7 @@
 set -uo pipefail
 export MSYS_NO_PATHCONV=1 # Git Bash on Windows: don't rewrite /paths in adb arguments
 
-PKG=com.cascade.alarm
+PKG=com.ttrevorreese.cascade
 APK=app/build/outputs/apk/debug/app-debug.apk
 if [[ -z "${ADB:-}" ]]; then
   if command -v adb >/dev/null; then ADB=adb
@@ -106,7 +106,7 @@ echo "  device: $(sh getprop ro.product.manufacturer) $(sh getprop ro.product.mo
 # Reconciles on start. Retried: right after install the package manager may not
 # have registered the activity yet ("Activity class ... does not exist").
 for _ in 1 2 3 4 5; do
-  started=$(sh am start -W -n "$PKG/.MainActivity" 2>&1)
+  started=$(sh am start -W -n "$PKG/com.cascade.alarm.MainActivity" 2>&1)
   grep -q "Error" <<<"$started" || break
   sleep 2
 done

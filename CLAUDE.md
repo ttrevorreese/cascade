@@ -56,8 +56,10 @@ under conventions). It is how the next session knows where to pick up.
   `RELEASING.md`, README with `docs/screenshots/` (1080x2160, Play's 2:1 limit). Next: `docs/play-console.md`
   (listing text, data safety, declarations, content rating), 512 px icon and 1024x500 feature graphic.
   Owner decisions: personal Play account, store name "Cascade: Alarm Groups" (installed label stays
-  "Cascade"), developer name ttrevorreese. Open: applicationId (`com.cascade.alarm` vs
-  `com.ttrevorreese.cascade`), contact email for the listing. Owner decisions (2026-10-24): Cascade Plus is
+  "Cascade"), developer name "Trevor Reese", application ID `com.ttrevorreese.cascade`, contact email
+  cascadealarmgroup.app@gmail.com. Launch without Cascade Plus (`PLUS_FOR_SALE` false): a free app with no
+  purchases shows only name, country and email on Play; a sold one shows the full address. Revisit before
+  selling Plus (GitHub issue "Revisit: selling Cascade Plus and the public address"). Owner decisions (2026-10-24): Cascade Plus is
   $4.99 flat, one-time; no Play Console account yet (create it at M8, then add the `cascade_plus`
   product at that price). Read-aloud must let the owner pick the voice.
 - Before starting a milestone: give the owner a short plan and wait for approval (their kickoff
@@ -90,6 +92,10 @@ under conventions). It is how the next session knows where to pick up.
   instead of asking the owner mid-milestone.
 
 ## Environment (Windows)
+
+- IDs: the installed app is `com.ttrevorreese.cascade` (use it for `-p`, `run-as`, `pm`, `force-stop`);
+  code, debug broadcast actions and activities are `com.cascade.alarm` (`am start -n
+  com.ttrevorreese.cascade/com.cascade.alarm.MainActivity`).
 
 - JDK: `export JAVA_HOME="/c/Program Files/Android/Android Studio/jbr"` (system java is 1.8).
 - adb: `$LOCALAPPDATA/Android/Sdk/platform-tools/adb.exe`; prefix adb calls with
@@ -125,7 +131,7 @@ under conventions). It is how the next session knows where to pick up.
 - Media3: `setAudioAttributes(..., handleAudioFocus = true)` throws for USAGE_ALARM; always pass false
   (the ring player requests focus itself).
 - Debug-build adb hooks (`DebugCommandReceiver`), e.g.
-  `adb shell am broadcast -a com.cascade.alarm.debug.SEED_DEMO -p com.cascade.alarm`:
+  `adb shell am broadcast -a com.cascade.alarm.debug.SEED_DEMO -p com.ttrevorreese.cascade`:
   `RING_IN`, `SET_TIMEOUT`, `SET_DAILY`, `DISABLE`, `DISMISS`, `SET_WAKE_CHECK`, `SEED_DEMO`,
   `RING_POSITION --ei position N`, `SET_CHALLENGE --ei position N --es kind math|phrase|barcode|memory|steps|clear`,
   `SET_SOUND --es tone <key> | --es file <name> [--ei ramp S --ei start P]` (first group and the test
@@ -134,11 +140,11 @@ under conventions). It is how the next session knows where to pick up.
   `SET_ANIMATION --es animation theme|none|<key>`, `SET_PLUS --ez owned true|false` (pretend Cascade
   Plus is owned; a real Play query on the Appearance screen can overwrite it on a phone with Play). New debug actions also need
   an `<action>` line in `app/src/debug/AndroidManifest.xml`.
-- Read the app's database: `adb exec-out run-as com.cascade.alarm cat .../databases/cascade.db`
+- Read the app's database: `adb exec-out run-as com.ttrevorreese.cascade cat .../databases/cascade.db`
   (and `-wal`, `-shm`) into a folder and open with Python's sqlite3. `adb shell cat` mangles binaries.
 - UI checks: screenshot with `adb exec-out screencap -p`, find elements with
   `uiautomator dump`. Screenshot every new screen before calling it done.
-- Missed-alarm detector by hand: `RING_POSITION --ei seconds 20`, `am force-stop com.cascade.alarm`,
+- Missed-alarm detector by hand: `RING_POSITION --ei seconds 20`, `am force-stop com.ttrevorreese.cascade`,
   wait 2.5 min, reopen: the catch-up rings late and Home shows the "rang late" card.
 - The emulator sometimes puts a Google sign-in screen in front after installs; press Back/Home.
 
