@@ -84,6 +84,13 @@ class AlarmRulesTest {
         AlarmRules.newAlarm(id, "g", emptyList()).copy(hour = hour, minute = minute, positionInGroup = position)
 
     @Test
+    fun `a copy's name never repeats one already taken`() {
+        assertEquals("Gym copy", AlarmRules.copyName("Gym", listOf("Gym")))
+        assertEquals("Gym copy 2", AlarmRules.copyName("Gym", listOf("Gym", "Gym copy")))
+        assertEquals("Gym copy 3", AlarmRules.copyName("Gym copy 2", listOf("Gym", "Gym copy", "Gym copy 2")))
+    }
+
+    @Test
     fun `ring order follows the clock`() {
         val order = AlarmRules.ringOrder(listOf(at("c", 6, 20), at("a", 6, 0), at("b", 6, 10)))
         assertEquals(listOf("a", "b", "c"), order.map { it.id })

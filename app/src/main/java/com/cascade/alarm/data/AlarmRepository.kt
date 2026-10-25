@@ -125,7 +125,8 @@ class AlarmRepository @Inject constructor(
 
     /** Deletes copied audio files that no group plays any more (also ones picked but not saved). */
     suspend fun pruneSoundFiles() {
-        val inUse = groups.all().mapNotNullTo(mutableSetOf()) { (it.sound as? SoundConfig.DeviceAudio)?.fileName }
+        // A Spotify group's backup can be a file too (SoundConfig.local).
+        val inUse = groups.all().mapNotNullTo(mutableSetOf()) { (it.sound.local as? SoundConfig.DeviceAudio)?.fileName }
         soundFiles.prune(inUse)
     }
 
@@ -141,6 +142,38 @@ class AlarmRepository @Inject constructor(
             groups.delete(id)
         }
         pruneSoundFiles()
+    }
+
+    /**
+     * A copy of the group, its alarms and all its settings, placed right after it. The copy starts
+     * off, so the two never ring together by surprise. Returns the copy's id, or null if [id] is gone.
+     */
+    suspend fun duplicateGroup(id: String): String? = reconciler.mutate("group_duplicate") {
+        val source = groups.get(id) ?: return@mutate null
+        val ordered = visibleGroups()
+        val copy = source.copy(
+            id = UUID.randomUUID().toString(),
+            name = AlarmRules.copyName(source.name, ordered.map { it.name }),
+            isArmed = false,
+            createdAt = time.now(),
+        )
+        val placed = ordered.toMutableList().apply { add(indexOfFirst { it.id == id } + 1, copy) }
+        groups.upsertAll(placed.mapIndexed { index, group -> group.copy(sortOrder = index) })
+        // Same times and settings; none of the original's ring state (pending rings, snoozes used).
+        alarms.upsertAll(
+            alarms.inGroup(id).map {
+                it.copy(
+                    id = UUID.randomUUID().toString(),
+                    groupId = copy.id,
+                    nextTriggerAt = null,
+                    oneTimeTriggerAt = null,
+                    lastFiredFor = null,
+                    wakeCheckAt = null,
+                    snoozesUsed = 0,
+                )
+            },
+        )
+        copy.id
     }
 
     suspend fun moveGroup(id: String, delta: Int) = reconciler.mutate("group_move") {

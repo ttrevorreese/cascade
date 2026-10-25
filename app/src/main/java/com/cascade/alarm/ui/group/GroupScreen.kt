@@ -102,6 +102,7 @@ class GroupViewModel @Inject constructor(
     fun setArmed(armed: Boolean) = launch { repository.setGroupArmed(groupId, armed) }
     fun rename(name: String) = launch { repository.renameGroup(groupId, name) }
     fun delete() = launch { repository.deleteGroup(groupId) }
+    fun duplicate(onDone: (copyId: String) -> Unit) = launch { repository.duplicateGroup(groupId)?.let(onDone) }
     fun setAlarmEnabled(alarmId: String, enabled: Boolean) = launch { repository.setAlarmEnabled(alarmId, enabled) }
     fun setShiftWithFirst(enabled: Boolean) = launch { repository.setShiftWithFirst(groupId, enabled) }
     fun shift(minutes: Long) = launch { repository.shiftGroup(groupId, minutes) }
@@ -119,6 +120,7 @@ fun GroupScreen(
     onOpenEscalation: () -> Unit,
     onOpenSound: () -> Unit,
     onOpenTheme: () -> Unit = {},
+    onOpenGroup: (groupId: String) -> Unit = {},
     viewModel: GroupViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -133,6 +135,7 @@ fun GroupScreen(
         onArmedChange = viewModel::setArmed,
         onRename = viewModel::rename,
         onDelete = viewModel::delete,
+        onDuplicate = { viewModel.duplicate(onOpenGroup) },
         onAlarmEnabledChange = viewModel::setAlarmEnabled,
         onShiftWithFirstChange = viewModel::setShiftWithFirst,
         onShift = viewModel::shift,
@@ -159,6 +162,7 @@ fun GroupContent(
     onOpenEscalation: () -> Unit = {},
     onOpenSound: () -> Unit = {},
     onOpenTheme: () -> Unit = {},
+    onDuplicate: () -> Unit = {},
 ) {
     val c = cascadeColors
     val policy = group.escalationPolicy
@@ -172,6 +176,7 @@ fun GroupContent(
             // The name is the page title below, where long names have the full width.
             CascadeTopBar("", onBack = onBack) {
                 TextButton(onClick = { renaming = true }) { Text("Rename", color = c.textSecondary) }
+                TextButton(onClick = onDuplicate, modifier = Modifier.testTag("duplicate-group")) { Text("Duplicate", color = c.textSecondary) }
                 TextButton(onClick = { confirmingDelete = true }) { Text("Delete", color = c.textSecondary) }
             }
         },

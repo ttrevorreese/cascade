@@ -230,9 +230,9 @@ Each theme family has its own, and **Match the theme** is the default; the user 
 | Family | Animation | |
 |---|---|---|
 | Landscape | Drift | dots rising slowly, like pollen |
-| Earth | Embers | small flames that rise, flicker and burn down |
+| Earth | Embers | glowing sparks with short trails that rise, flicker and cool |
 | After dark | Stars | small five-pointed stars that twinkle; every 14 s one shoots across the upper sky |
-| Quiet | Snow | soft flakes falling |
+| Quiet | Snow | soft flakes falling; about a third are six-armed snowflakes, turning slowly |
 | Stark, Daylight, Mineral | Wind | wavy strands blowing across, each carrying a mote (was Dust; key `dust` kept) |
 | Pastel | Bubbles | rings floating up |
 | Terminal | Rain | thin streaks falling |
@@ -342,7 +342,7 @@ Home keeps one background colour regardless. Twenty cards in twenty themes would
 
 ### 11.3 Transitions
 
-Navigating from Home into a group changes the theme. Crossfade the background and surfaces over about 200ms rather than cutting, or the change reads as a glitch. Respect `prefers-reduced-motion` by cutting instead.
+Navigating from Home into a group changes the theme. Crossfade the background and surfaces over about 200ms rather than cutting, or the change reads as a glitch. Respect `prefers-reduced-motion` by cutting instead. Going back (button or the predictive back gesture) slides the top screen away to the right, revealing the one beneath, which does not fade (decided 2026-10-25: two screens crossfading under the finger looked broken). The background animation keeps one clock across screens, so Home carries on rather than restarting.
 
 The firing screen does **not** animate in. It appears already in its theme, at full opacity. Nothing about an alarm should feel gradual.
 

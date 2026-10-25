@@ -17,6 +17,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
@@ -42,9 +43,9 @@ import kotlin.random.Random
  */
 enum class AmbientAnimation(val key: String, val label: String, val description: String) {
     DRIFT("drift", "Drift", "Dots rising slowly"),
-    EMBERS("embers", "Embers", "Small flames that rise and flicker out"),
+    EMBERS("embers", "Embers", "Glowing sparks that rise and cool"),
     STARS("stars", "Stars", "Little stars that twinkle, and now and then one falls"),
-    SNOW("snow", "Snow", "Soft flakes falling"),
+    SNOW("snow", "Snow", "Soft flakes falling, some of them real snowflakes"),
     // Was "Dust" (wandering motes) until 2026-10-25; the key stays, as it is saved in preferences.
     WIND("dust", "Wind", "Gusts blowing across"),
     BUBBLES("bubbles", "Bubbles", "Rings floating up"),
@@ -169,14 +170,14 @@ fun AmbientCanvas(animation: AmbientAnimation, modifier: Modifier = Modifier, an
     val seconds = remember { mutableFloatStateOf(0f) }
     if (animate) {
         LaunchedEffect(Unit) {
-            val origin = withFrameNanos { it }
-            var drawn = origin
+            val origin = AmbientClock.origin(withFrameNanos { it })
+            var drawn = 0L
             while (true) {
                 withFrameNanos { now ->
                     if (now - drawn >= FRAME_NANOS) {
                         drawn = now
                         // Wrapped so the float keeps its precision however long the screen stays open.
-                        seconds.floatValue = ((now - origin) / 1e9 % WRAP_SECONDS).toFloat()
+                        seconds.floatValue = (Math.floorMod(now - origin, WRAP_NANOS) / 1e9).toFloat()
                     }
                 }
             }
@@ -201,7 +202,7 @@ fun AmbientCanvas(animation: AmbientAnimation, modifier: Modifier = Modifier, an
 
 private fun countFor(animation: AmbientAnimation) = when (animation) {
     AmbientAnimation.DRIFT -> 22
-    AmbientAnimation.EMBERS -> 14
+    AmbientAnimation.EMBERS -> 18
     AmbientAnimation.STARS -> 26
     AmbientAnimation.SNOW -> 26
     AmbientAnimation.WIND -> 14
@@ -234,36 +235,23 @@ private fun DrawScope.drift(particles: List<Particle>, t: Float, ink: Ink) = par
 }
 
 private fun DrawScope.embers(particles: List<Particle>, t: Float, ink: Ink) = particles.forEach { p ->
-    val share = travelled(p, t, lerp(10f, 22f, p.speed))
-    val x = p.x * size.width + wave(t, lerp(3f, 6f, p.period), p.phase) * lerp(3f, 8f, p.size).dp.toPx()
-    // Two quick waves at unrelated rates: a flicker that does not look like a metronome.
-    val flicker = 0.75f + 0.15f * wave(t, lerp(0.5f, 0.9f, p.period), p.phase) + 0.1f * wave(t, 0.31f, p.phase * 7f)
-    // They burn down as they climb: full size in the lower half, gone at the top.
-    val burn = min(1f, max(0f, (1f - share) / 0.5f))
-    if (burn <= 0f) return@forEach
-    val width = lerp(8f, 13f, p.size).dp.toPx() * (0.4f + 0.6f * burn)
-    val height = width * lerp(2.2f, 3f, p.speed) * flicker
-    val sway = wave(t, lerp(0.9f, 1.6f, p.period), p.phase + 0.3f) * width * 0.45f
-    val base = Offset(x, risingY(share))
-    val alpha = lerp(0.16f, 0.30f, p.alpha) * burn
-    // A smaller tongue licking up beside the main one, on alternating sides: fire, not a drop.
-    val side = if (p.phase < 0.5f) -1f else 1f
-    val tongue = 0.5f + 0.1f * wave(t, 0.43f, p.phase * 3f)
-    drawPath(flame(Offset(base.x + side * width * 0.28f, base.y), width * 0.55f, height * tongue, sway * 1.4f + side * width * 0.3f), ink.at(alpha * 0.8f))
-    drawPath(flame(base, width, height, sway), ink.at(alpha))
-    // A brighter core low in the flame.
-    drawPath(flame(Offset(base.x, base.y - width * 0.05f), width * 0.45f, height * 0.45f, sway * 0.5f), ink.at(alpha * 1.6f))
-}
-
-/** A flame tongue standing on [base]: round at the bottom, its tip [sway] off centre. */
-private fun flame(base: Offset, width: Float, height: Float, sway: Float) = Path().apply {
-    val half = width / 2
-    val tip = Offset(base.x + sway, base.y - height)
-    moveTo(tip.x, tip.y)
-    cubicTo(base.x + sway * 0.4f + half * 0.2f, base.y - height * 0.6f, base.x + half, base.y - height * 0.35f, base.x + half, base.y - half * 0.4f)
-    cubicTo(base.x + half, base.y + half * 0.7f, base.x - half, base.y + half * 0.7f, base.x - half, base.y - half * 0.4f)
-    cubicTo(base.x - half, base.y - height * 0.35f, base.x + sway * 0.4f - half * 0.2f, base.y - height * 0.6f, tip.x, tip.y)
-    close()
+    val dpPerSecond = lerp(14f, 28f, p.speed)
+    val share = travelled(p, t, dpPerSecond)
+    // They cool as they climb: bright low down, out before the top.
+    val heat = min(1f, max(0f, (1f - share) / 0.6f))
+    if (heat <= 0f) return@forEach
+    // Carried by the heat: a slow sway plus a quicker jitter.
+    fun xAt(time: Float) = p.x * size.width +
+        (wave(time, lerp(2.5f, 5f, p.period), p.phase) * lerp(6f, 14f, p.size) + wave(time, 1.1f, p.phase * 5f) * 3f).dp.toPx()
+    val head = Offset(xAt(t), risingY(share))
+    val tail = Offset(xAt(t - TRAIL_SECONDS), head.y + dpPerSecond.dp.toPx() * TRAIL_SECONDS)
+    val flicker = 0.7f + 0.2f * wave(t, lerp(0.3f, 0.7f, p.period), p.phase) + 0.1f * wave(t, 0.17f, p.phase * 3f)
+    val alpha = lerp(0.30f, 0.55f, p.alpha) * heat * flicker
+    val core = lerp(1.2f, 2.4f, p.size).dp.toPx() * (0.6f + 0.4f * heat)
+    // A soft glow that fades out, not a disc.
+    drawCircle(Brush.radialGradient(listOf(ink.at(alpha * 0.35f), ink.at(0f)), head, core * 4f), core * 4f, head)
+    drawLine(Brush.linearGradient(listOf(ink.at(0f), ink.at(alpha * 0.8f)), tail, head), tail, head, core * 0.9f, StrokeCap.Round)
+    drawCircle(ink.at(alpha), core, head)
 }
 
 private fun DrawScope.stars(particles: List<Particle>, t: Float, ink: Ink) {
@@ -307,7 +295,30 @@ private fun DrawScope.shootingStar(t: Float, ink: Ink) {
 private fun DrawScope.snow(particles: List<Particle>, t: Float, ink: Ink) = particles.forEach { p ->
     val y = fallingY(travelled(p, t, lerp(6f, 14f, p.speed)))
     val x = p.x * size.width + wave(t, lerp(6f, 12f, p.period), p.phase) * lerp(6f, 16f, p.size).dp.toPx()
-    drawCircle(ink.at(lerp(0.08f, 0.20f, p.alpha)), lerp(1.5f, 3.5f, p.size).dp.toPx(), Offset(x, y))
+    val alpha = lerp(0.08f, 0.20f, p.alpha)
+    if (p.period > 0.62f) {
+        // About a third are real six-armed flakes, turning slowly one way or the other.
+        val turn = (if (p.phase < 0.5f) -1f else 1f) * lerp(6f, 14f, p.speed) * t
+        snowflake(Offset(x, y), lerp(4f, 7f, p.size).dp.toPx(), p.phase * 60f + turn, ink.at(alpha * 1.4f))
+    } else {
+        drawCircle(ink.at(alpha), lerp(1.5f, 3.5f, p.size).dp.toPx(), Offset(x, y))
+    }
+}
+
+/** Six arms of [radius], each with a pair of short branches, turned [degrees]. */
+private fun DrawScope.snowflake(centre: Offset, radius: Float, degrees: Float, color: Color) {
+    val stroke = 0.9.dp.toPx()
+    for (i in 0 until 6) {
+        val angle = Math.toRadians((degrees + i * 60f).toDouble())
+        val dx = cos(angle).toFloat()
+        val dy = sin(angle).toFloat()
+        drawLine(color, centre, Offset(centre.x + dx * radius, centre.y + dy * radius), stroke, StrokeCap.Round)
+        val fork = Offset(centre.x + dx * radius * 0.6f, centre.y + dy * radius * 0.6f)
+        for (side in listOf(-1, 1)) {
+            val branch = angle + side * PI / 4
+            drawLine(color, fork, Offset(fork.x + cos(branch).toFloat() * radius * 0.32f, fork.y + sin(branch).toFloat() * radius * 0.32f), stroke, StrokeCap.Round)
+        }
+    }
 }
 
 private fun DrawScope.wind(particles: List<Particle>, t: Float, ink: Ink) = particles.forEach { p ->
@@ -401,4 +412,15 @@ private const val WIND_SEGMENTS = 16
 private const val FRAME_NANOS = 33_000_000L
 
 /** The clock restarts hourly; the animation jumps once when it does, which nobody watches for an hour. */
-private const val WRAP_SECONDS = 3600.0
+private const val WRAP_NANOS = 3_600_000_000_000L
+private const val TRAIL_SECONDS = 0.6f
+
+/**
+ * Where every screen's animation counts time from: the first frame any of them drew. Shared, so
+ * going back to Home shows the particles where they were heading rather than starting over.
+ */
+private object AmbientClock {
+    private var origin: Long? = null
+
+    fun origin(now: Long): Long = origin ?: now.also { origin = it }
+}

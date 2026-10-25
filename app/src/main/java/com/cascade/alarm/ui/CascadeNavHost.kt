@@ -1,9 +1,11 @@
 package com.cascade.alarm.ui
 
 import android.net.Uri
+import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.Composable
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -51,8 +53,8 @@ private val GROUP_ARG = listOf(navArgument("groupId") { type = NavType.StringTyp
 
 /**
  * Themes (DESIGN.md §11.2): a group's own screens are [GroupThemed]; Home, Settings, Appearance
- * and Reliability use the app theme. Moving between them crossfades over 200ms, so a change of
- * theme reads as a transition rather than a glitch (§11.3).
+ * and Reliability use the app theme. Moving forward crossfades over 200ms, so a change of
+ * theme reads as a transition rather than a glitch; going back slides the top screen away (§11.3).
  *
  * Home, Reliability, Sound and the alarm editor sit on [AmbientBackdrop] (the background
  * animation, when there is one). The group screen and the escalation editor do not: their spine
@@ -66,8 +68,10 @@ fun CascadeNavHost() {
         startDestination = Routes.HOME,
         enterTransition = { fadeIn(tween(CROSSFADE_MILLIS)) },
         exitTransition = { fadeOut(tween(CROSSFADE_MILLIS)) },
-        popEnterTransition = { fadeIn(tween(CROSSFADE_MILLIS)) },
-        popExitTransition = { fadeOut(tween(CROSSFADE_MILLIS)) },
+        // Back slides the top screen away over the one beneath, which stays put. The predictive
+        // back gesture plays this under the finger; two screens crossfading there looked broken.
+        popEnterTransition = { EnterTransition.None },
+        popExitTransition = { slideOutHorizontally(tween(BACK_MILLIS)) { it } },
     ) {
         composable(Routes.HOME) {
             AmbientBackdrop {
@@ -88,6 +92,8 @@ fun CascadeNavHost() {
                     onOpenEscalation = { nav.navigate(Routes.escalation(groupId)) },
                     onOpenSound = { nav.navigate(Routes.sound(groupId)) },
                     onOpenTheme = { nav.navigate(Routes.groupTheme(groupId)) },
+                    // The copy replaces the original on the stack: Back goes Home, where both are listed.
+                    onOpenGroup = { copyId -> nav.navigate(Routes.group(copyId)) { popUpTo(Routes.GROUP) { inclusive = true } } },
                 )
             }
         }
@@ -134,3 +140,4 @@ fun CascadeNavHost() {
 }
 
 private const val CROSSFADE_MILLIS = 200
+private const val BACK_MILLIS = 300

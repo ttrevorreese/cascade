@@ -125,6 +125,30 @@ class AlarmRepositoryTest {
     }
 
     @Test
+    fun `duplicating a group copies its alarms and settings, placed after it and off`() = runBlocking {
+        val (a, ids) = sequence("Workday", 6 to 0, 6 to 10)
+        val (b, _) = sequence("Gym")
+        repo.setGroupSound(a, SoundConfig.BuiltIn("klaxon"), 45, 15)
+        db.alarmDao().upsert(repo.alarm(ids[1])!!.copy(label = "Up", snoozesUsed = 2))
+        val copyId = repo.duplicateGroup(a)!!
+        val copy = db.alarmGroupDao().get(copyId)!!
+        assertEquals("Workday copy", copy.name)
+        assertFalse("a copy never rings alongside the original by surprise", copy.isArmed)
+        assertEquals(SoundConfig.BuiltIn("klaxon"), copy.sound)
+        repo.observeGroupSummaries().test {
+            assertEquals(listOf(a, copyId, b), awaitItem().map { it.group.id })
+            cancelAndIgnoreRemainingEvents()
+        }
+        val copied = alarms(copyId)
+        assertEquals(listOf(6 to 0, 6 to 10), copied.map { it.hour to it.minute })
+        assertEquals("Up", copied[1].label)
+        assertEquals(0, copied[1].snoozesUsed)
+        assertTrue(copied.none { it.id in ids || it.id in scheduler.scheduled })
+        assertEquals(2, alarms(a).size)
+        assertEquals("Workday copy 2", db.alarmGroupDao().get(repo.duplicateGroup(copyId)!!)!!.name)
+    }
+
+    @Test
     fun `deleting a group deletes and cancels all its alarms`() = runBlocking {
         val (groupId, ids) = sequence("Workday", 6 to 0, 6 to 10)
         repo.deleteGroup(groupId)
@@ -412,6 +436,17 @@ class AlarmRepositoryTest {
 
         repo.deleteGroup(b)
         assertFalse(java.io.File(soundDir, "shared.mp3").exists())
+    }
+
+    @Test
+    fun `a Spotify group's backup file is kept when another group is deleted`() = runBlocking {
+        val (a, _) = sequence("A", 6 to 0)
+        val (b, _) = sequence("B", 7 to 0)
+        copiedFile("backup.mp3")
+        val spotify = SoundConfig.SpotifyPlaylist("spotify:playlist:x", "Playlist", SoundConfig.DeviceAudio("backup.mp3", "Backup"))
+        repo.setGroupSound(a, spotify, 45, 15)
+        repo.deleteGroup(b)
+        assertTrue(java.io.File(soundDir, "backup.mp3").exists())
     }
 
     @Test

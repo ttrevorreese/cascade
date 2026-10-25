@@ -111,6 +111,16 @@ object AlarmRules {
         return byClock.drop(start) + byClock.take(start)
     }
 
+    /** "Gym Day copy", or "Gym Day copy 2" (3, …) when that name is taken. A copy of a copy stays "… copy N". */
+    fun copyName(name: String, taken: Collection<String>): String {
+        val base = COPY_SUFFIX.replace(name, "")
+        val first = "$base copy"
+        if (first !in taken) return first
+        return generateSequence(2) { it + 1 }.map { "$first $it" }.first { it !in taken }
+    }
+
+    private val COPY_SUFFIX = Regex(" copy( \\d+)?$")
+
     /** Minutes from [from] to [to] the short way round the clock: 23:50 → 00:10 is +20, not −1420. */
     fun shiftMinutes(from: LocalTime, to: LocalTime): Long {
         val diff = Math.floorMod(to.toSecondOfDay() / 60 - from.toSecondOfDay() / 60, MINUTES_PER_DAY)
