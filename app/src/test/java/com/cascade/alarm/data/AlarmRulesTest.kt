@@ -80,6 +80,27 @@ class AlarmRulesTest {
         assertEquals(list, AlarmRules.move(list, 1, 1))
     }
 
+    private fun at(id: String, hour: Int, minute: Int, position: Int = 0) =
+        AlarmRules.newAlarm(id, "g", emptyList()).copy(hour = hour, minute = minute, positionInGroup = position)
+
+    @Test
+    fun `ring order follows the clock`() {
+        val order = AlarmRules.ringOrder(listOf(at("c", 6, 20), at("a", 6, 0), at("b", 6, 10)))
+        assertEquals(listOf("a", "b", "c"), order.map { it.id })
+    }
+
+    @Test
+    fun `ring order starts after the longest gap, so a sequence can cross midnight`() {
+        val order = AlarmRules.ringOrder(listOf(at("b", 0, 10), at("c", 0, 20), at("a", 23, 50)))
+        assertEquals(listOf("a", "b", "c"), order.map { it.id })
+    }
+
+    @Test
+    fun `equal times keep their order`() {
+        val order = AlarmRules.ringOrder(listOf(at("y", 7, 0, position = 1), at("x", 7, 0, position = 0)))
+        assertEquals(listOf("x", "y"), order.map { it.id })
+    }
+
     @Test
     fun `labels are trimmed and blank means none`() {
         assertEquals("Get up", AlarmRules.normalizeLabel("  Get up "))

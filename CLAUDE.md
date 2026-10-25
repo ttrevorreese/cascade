@@ -168,6 +168,9 @@ under conventions). It is how the next session knows where to pick up.
   `GroupThemed` in `CascadeNavHost`; Home/Settings/Appearance/Reliability use the app theme.
 - Robolectric screen tests with the family chips: scroll the list with `hasScrollToIndexAction()`
   (the chips row also scrolls) and `performScrollTo()` a chip before clicking it.
+- Alarm order is the clock's (2026-10-25): saving re-sorts with `AlarmRules.ringOrder`; there is no manual reorder.
+  Background animations and the 46 pack themes are Cascade Plus. Debug builds bind `TestPlusStore` (Unlock is free
+  and Play is never asked); release builds bind `PlayPlusStore`.
 - Sound is the group's, never the alarm's. Tone keys are stored in the database: add tones, never
   rename one. Regenerate tones with `python scripts/make_tones.py` (numpy).
 - Anything the ring path plays must be readable before first unlock: bundled, or copied into

@@ -34,12 +34,12 @@ fun PurchaseSheet(theme: ThemeSpec?, price: String?, onBuy: () -> Unit, onRestor
             Text("Cascade Plus", style = CascadeType.screenTitle, color = c.textPrimary)
             Text(
                 (theme?.let { "${it.name} is part of Cascade Plus. " } ?: "") +
-                    "A different look for every group: all forty-six pack themes, paid for once. Not a subscription.",
+                    "A different look for every group: all forty-six pack themes and the background animations, paid for once. Not a subscription.",
                 style = CascadeType.body,
                 color = c.textSecondary,
             )
             Text(
-                "Every alarm feature works the same without it. Only the colours are extra.",
+                "Every alarm feature works the same without it. Only the looks are extra.",
                 style = CascadeType.body,
                 color = c.textSecondary,
             )

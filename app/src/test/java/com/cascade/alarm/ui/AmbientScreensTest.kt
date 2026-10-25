@@ -166,5 +166,5 @@ class AmbientScreensTest {
 
     @androidx.compose.runtime.Composable
     private fun appearance(themeId: String = "forest", choice: AnimationChoice = AnimationChoice.MatchTheme, onAnimation: (AnimationChoice) -> Unit = {}) =
-        AppearanceContent(themeId, choice, plusOwned = false, price = null, onTheme = {}, onAnimation = onAnimation, onBuy = {}, onRestore = {}, onBack = {})
+        AppearanceContent(themeId, choice, plusOwned = true, price = null, onTheme = {}, onAnimation = onAnimation, onBuy = {}, onRestore = {}, onBack = {})
 }

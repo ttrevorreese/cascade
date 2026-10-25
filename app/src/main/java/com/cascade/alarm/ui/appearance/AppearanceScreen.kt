@@ -16,6 +16,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -118,6 +119,8 @@ fun AppearanceContent(
     // The sheet, and the locked theme that opened it (null when opened from the unlock button).
     var sheetFor by rememberSaveable { mutableStateOf<String?>(null) }
     var sheetOpen by rememberSaveable { mutableStateOf(false) }
+    // An animation tried in the preview without Plus; never saved.
+    var trying by remember { mutableStateOf<AnimationChoice>(AnimationChoice.None) }
     Scaffold(containerColor = c.ground, topBar = { CascadeTopBar("Appearance", onBack = onBack) }) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
@@ -168,7 +171,12 @@ fun AppearanceContent(
                 }
             }
             item { Spacer(Modifier.height(CascadeSpace.xxl)) }
-            animationPicker(animation, themeId, onAnimation)
+            // Without Plus the choices only play in the preview; with Plus not on sale they are hidden.
+            if (plusOwned) {
+                animationPicker(animation, themeId, onAnimation)
+            } else if (forSale) {
+                animationPicker(trying, themeId, { trying = it }, locked = true)
+            }
             item {
                 Column(Modifier.padding(horizontal = CascadeSpace.gutter).padding(top = CascadeSpace.xxl)) {
                     if (plusOwned) {

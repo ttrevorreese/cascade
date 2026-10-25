@@ -219,7 +219,7 @@ class SoundScreensTest {
         compose.setContent {
             GroupContent(
                 group = group, alarms = listOf(alarm), onBack = {}, onOpenAlarm = {}, onArmedChange = {}, onRename = {}, onDelete = {},
-                onAlarmEnabledChange = { _, _ -> }, onMoveAlarm = { _, _ -> }, onShiftWithFirstChange = {}, onShift = {},
+                onAlarmEnabledChange = { _, _ -> }, onShiftWithFirstChange = {}, onShift = {},
                 onWakeCheckChange = { _, _ -> }, onOpenSound = { opened++ },
             )
         }

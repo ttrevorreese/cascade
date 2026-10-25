@@ -106,13 +106,11 @@ class ScreensTest {
                 group = group.copy(isArmed = false),
                 alarms = listOf(alarm("a", 0, 6), alarm("b", 1, 6, enabled = false)),
                 onBack = {}, onOpenAlarm = {}, onArmedChange = {}, onRename = {}, onDelete = {},
-                onAlarmEnabledChange = { _, _ -> }, onMoveAlarm = { _, _ -> },
-                onShiftWithFirstChange = {}, onShift = {}, onWakeCheckChange = { _, _ -> },
+                onAlarmEnabledChange = { _, _ -> }, onShiftWithFirstChange = {}, onShift = {}, onWakeCheckChange = { _, _ -> },
             )
         }
         compose.onNodeWithText("1 of 2 · Weekdays").assertExists()
         compose.onNodeWithText("2 of 2 · Weekdays").assertExists()
-        compose.onNodeWithContentDescription("Move alarm 1 earlier in the sequence").assertIsNotEnabled()
         compose.onNodeWithTag("group-armed").assertIsOff()
         // Own switches are shown as they are, even while the group is off.
         compose.onNodeWithTag("alarm-enabled-a").assertIsOn()
@@ -128,8 +126,7 @@ class ScreensTest {
             GroupContent(
                 group = group, alarms = listOf(alarm("a", 0, 6)),
                 onBack = {}, onOpenAlarm = {}, onArmedChange = {}, onRename = {}, onDelete = {},
-                onAlarmEnabledChange = { _, _ -> }, onMoveAlarm = { _, _ -> },
-                onShiftWithFirstChange = { shiftWithFirst = it }, onShift = { shifts += it }, onWakeCheckChange = { _, _ -> },
+                onAlarmEnabledChange = { _, _ -> }, onShiftWithFirstChange = { shiftWithFirst = it }, onShift = { shifts += it }, onWakeCheckChange = { _, _ -> },
             )
         }
         compose.onNode(hasScrollAction()).performScrollToNode(hasTestTag("group-shift-with-first"))
@@ -149,8 +146,7 @@ class ScreensTest {
             GroupContent(
                 group = current, alarms = listOf(alarm("a", 0, 6)),
                 onBack = {}, onOpenAlarm = {}, onArmedChange = {}, onRename = {}, onDelete = {},
-                onAlarmEnabledChange = { _, _ -> }, onMoveAlarm = { _, _ -> },
-                onShiftWithFirstChange = {}, onShift = {},
+                onAlarmEnabledChange = { _, _ -> }, onShiftWithFirstChange = {}, onShift = {},
                 onWakeCheckChange = { enabled, delay ->
                     changes += enabled to delay
                     current = current.copy(wakeCheckEnabled = enabled, wakeCheckDelayMinutes = delay)
@@ -173,8 +169,7 @@ class ScreensTest {
         compose.setContent {
             GroupContent(
                 group, emptyList(), {}, {}, {}, {}, onDelete = { deleted++ },
-                onAlarmEnabledChange = { _, _ -> }, onMoveAlarm = { _, _ -> },
-                onShiftWithFirstChange = {}, onShift = {}, onWakeCheckChange = { _, _ -> },
+                onAlarmEnabledChange = { _, _ -> }, onShiftWithFirstChange = {}, onShift = {}, onWakeCheckChange = { _, _ -> },
             )
         }
         compose.onNodeWithText("Delete").performClick()

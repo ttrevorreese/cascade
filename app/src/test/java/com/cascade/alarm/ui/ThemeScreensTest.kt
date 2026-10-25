@@ -109,6 +109,26 @@ class ThemeScreensTest {
         compose.onNodeWithTag("theme-tide").assertDoesNotExist()
         compose.onNodeWithTag("family-earth").assertDoesNotExist()
         compose.onNodeWithTag("unlock-themes").assertDoesNotExist()
+        compose.onNodeWithTag("animation-stars").assertDoesNotExist()
+    }
+
+    @Test
+    fun withoutPlusAnAnimationOnlyPlaysInThePreview() {
+        val chosen = mutableListOf<String>()
+        // Android's "Remove animations": the preview stands still, so the list can scroll and settle.
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        android.provider.Settings.Global.putFloat(context.contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 0f)
+        compose.setContent {
+            AppearanceContent(
+                "forest", AnimationChoice.None, plusOwned = false, price = null,
+                onTheme = {}, onAnimation = { chosen += it.key }, onBuy = {}, onRestore = {}, onBack = {},
+            )
+        }
+        scrollTo("animation-stars")
+        compose.onNodeWithText("Part of Cascade Plus. Pick one to see it here.").assertExists()
+        compose.onNodeWithTag("animation-stars").performClick()
+        compose.onNodeWithTag("ambient-stars", useUnmergedTree = true).assertExists()
+        assertTrue("a locked animation is never saved", chosen.isEmpty())
     }
 
     @Test

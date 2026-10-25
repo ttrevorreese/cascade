@@ -97,6 +97,20 @@ object AlarmRules {
         )
     }
 
+    /**
+     * A group's alarms in the order they ring (decided 2026-10-25: the clock sets the order, so
+     * positions never disagree with times). The sequence starts after the longest gap round the
+     * clock, so 23:50, 00:10, 00:20 stays in that order. Equal times keep their current order.
+     */
+    fun ringOrder(alarms: List<AlarmEntity>): List<AlarmEntity> {
+        val byClock = alarms.sortedWith(compareBy<AlarmEntity>({ it.hour * 60 + it.minute }, { it.positionInGroup }))
+        if (byClock.size < 2) return byClock
+        val minutes = byClock.map { it.hour * 60 + it.minute }
+        // The gap before each alarm, counting the wrap from the last back to the first.
+        val start = minutes.indices.maxBy { i -> Math.floorMod(minutes[i] - minutes[(i - 1).mod(minutes.size)], MINUTES_PER_DAY) }
+        return byClock.drop(start) + byClock.take(start)
+    }
+
     /** Minutes from [from] to [to] the short way round the clock: 23:50 → 00:10 is +20, not −1420. */
     fun shiftMinutes(from: LocalTime, to: LocalTime): Long {
         val diff = Math.floorMod(to.toSecondOfDay() / 60 - from.toSecondOfDay() / 60, MINUTES_PER_DAY)

@@ -19,6 +19,7 @@ import com.cascade.alarm.data.challenge.EscalationPolicy
 import com.cascade.alarm.data.db.AlarmEntity
 import com.cascade.alarm.data.db.AlarmGroupEntity
 import com.cascade.alarm.ui.alarm.AlarmEditorContent
+import com.cascade.alarm.ui.alarm.AlarmEditorState
 import com.cascade.alarm.ui.escalation.EscalationContent
 import com.cascade.alarm.ui.group.GroupContent
 import org.junit.Assert.assertEquals
@@ -82,24 +83,48 @@ class EscalationScreensTest {
     }
 
     @Test
-    fun theGroupShowsEachAlarmsChallengeAndSaysWhenAMoveChangesIt() {
+    fun theGroupShowsEachAlarmsChallengeAndHasNoMoveButtons() {
         val group = AlarmGroupEntity("g", "Workday Wake", "#000000", "default", true, 0, Instant.EPOCH, escalationPolicy = ladder)
         val alarms = listOf(alarm("a", 0), alarm("b", 1), alarm("c", 2))
-        val moves = mutableListOf<Pair<String, Int>>()
         compose.setContent {
             GroupContent(
                 group = group, alarms = alarms,
                 onBack = {}, onOpenAlarm = {}, onArmedChange = {}, onRename = {}, onDelete = {},
-                onAlarmEnabledChange = { _, _ -> }, onMoveAlarm = { id, d -> moves += id to d },
+                onAlarmEnabledChange = { _, _ -> },
                 onShiftWithFirstChange = {}, onShift = {}, onWakeCheckChange = { _, _ -> },
             )
         }
         compose.onNodeWithTag("challenge-a", useUnmergedTree = true).assertExists()
         compose.onNodeWithText("Type a phrase", useUnmergedTree = true).assertExists()
         compose.onNodeWithText("3 rungs, from 2 easy sums to walk 30 steps").assertExists()
-        compose.onNodeWithContentDescription("Move alarm 1 later in the sequence").performClick()
-        assertEquals(listOf("a" to 1), moves)
-        compose.onNodeWithText("now asks: type four random words.", substring = true).assertExists()
+        // The clock sets the order (SPEC §7.2), so there is nothing to move by hand.
+        compose.onNodeWithContentDescription("Move alarm 1 later in the sequence").assertDoesNotExist()
+    }
+
+    @Test
+    fun theEditorSaysWhenANewTimeMovesTheAlarm() {
+        val siblings = listOf(alarm("a", 0).copy(hour = 6, minute = 0), alarm("c", 2).copy(hour = 6, minute = 20))
+        val opened = AlarmEditorState(draft = alarm("b", 1).copy(hour = 6, minute = 10), siblings = siblings, policy = ladder).placed()
+        assertEquals(1, opened.place)
+        assertEquals(ladder.steps[1], opened.ladderRung)
+        val later = opened.copy(startPlace = opened.place, draft = opened.draft!!.copy(minute = 30)).placed()
+        assertEquals(2, later.place)
+        assertEquals(ladder.steps[2], later.ladderRung)
+        compose.setContent {
+            AlarmEditorContent(
+                draft = later.draft!!, isNew = false, onEdit = {}, onSave = {}, onDelete = {}, onCancel = {},
+                ladderRung = later.ladderRung, moved = later.place to later.total,
+            )
+        }
+        compose.onNodeWithText("At this time it becomes alarm 3 of 3, with that alarm's challenge.").assertExists()
+    }
+
+    @Test
+    fun theFirstAlarmKeepsItsPlaceWhenTheRestMoveWithIt() {
+        val siblings = listOf(alarm("b", 1).copy(hour = 6, minute = 10))
+        val draft = alarm("a", 0).copy(hour = 6, minute = 30)
+        assertEquals(0, AlarmEditorState(draft = draft, siblings = siblings, policy = ladder, restFollow = true).placed().place)
+        assertEquals(1, AlarmEditorState(draft = draft, siblings = siblings, policy = ladder).placed().place)
     }
 
     @Test

@@ -16,6 +16,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.cascade.alarm.ui.CascadeNavHost
+import com.cascade.alarm.ui.components.AnimationChoice
 import com.cascade.alarm.ui.components.LocalAnimationChoice
 import com.cascade.alarm.ui.settings.UiPreferences
 import com.cascade.alarm.ui.camera.PhotoStore
@@ -54,7 +55,8 @@ class MainActivity : ComponentActivity() {
             val theme = ThemeResolution.app(themeId) { it.isFree || plusOwned }
             SystemBarsFor(theme.colors.isLight)
             CascadeTheme(theme) {
-                CompositionLocalProvider(LocalAnimationChoice provides animation) {
+                // Background animations are part of Cascade Plus.
+                CompositionLocalProvider(LocalAnimationChoice provides if (plusOwned) animation else AnimationChoice.None) {
                     CascadeNavHost()
                 }
             }

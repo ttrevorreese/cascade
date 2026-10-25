@@ -134,10 +134,10 @@ class AlarmRepositoryTest {
     }
 
     @Test
-    fun `moving an alarm reorders positions`() = runBlocking {
+    fun `a new time re-sorts the group into ring order`() = runBlocking {
         val (groupId, ids) = sequence("Workday", 6 to 0, 6 to 10, 6 to 20)
-        repo.moveAlarm(ids[2], -2)
-        assertEquals(listOf(ids[2], ids[0], ids[1]), alarms(groupId).map { it.id })
+        repo.saveAlarm(repo.alarm(ids[1])!!.copy(minute = 30))
+        assertEquals(listOf(ids[0], ids[2], ids[1]), alarms(groupId).map { it.id })
         assertEquals(listOf(0, 1, 2), alarms(groupId).map { it.positionInGroup })
     }
 
@@ -190,7 +190,7 @@ class AlarmRepositoryTest {
         assertEquals(fired, saved.lastFiredFor)
         assertEquals("Up", saved.label)
         assertEquals(60, saved.timeoutMinutes)
-        assertEquals(0, saved.positionInGroup) // position only changes via moveAlarm
+        assertEquals(0, saved.positionInGroup) // position comes from the time, never from input
         assertEquals(Instant.parse("2026-10-19T11:00:00Z"), scheduler.scheduled[ids[0]])
     }
 
@@ -251,7 +251,9 @@ class AlarmRepositoryTest {
         assertTrue(db.alarmGroupDao().get(groupId)!!.shiftWithFirst)
         repo.setShiftWithFirst(groupId, false)
         repo.saveAlarm(repo.alarm(ids[0])!!.copy(minute = 30))
-        assertEquals(listOf(6 to 30, 6 to 10), times(groupId))
+        // Alone, and now after the other one: it becomes the second alarm.
+        assertEquals(listOf(6 to 10, 6 to 30), times(groupId))
+        assertEquals(1, repo.alarm(ids[0])!!.positionInGroup)
     }
 
     @Test

@@ -71,8 +71,44 @@ import java.time.DayOfWeek
 import java.time.format.TextStyle
 import javax.inject.Inject
 
-/** [ladderRung]: what the group's escalation ladder gives this alarm when it has no override. */
-data class AlarmEditorState(val draft: AlarmEntity? = null, val isNew: Boolean = false, val ladderRung: ChallengeConfig? = null)
+/**
+ * [ladderRung]: what the group's escalation ladder gives this alarm when it has no override, at
+ * the place its current time puts it. [place] is that place (0-based) and [startPlace] where it
+ * was when the editor opened, so the screen can say when a new time moves it.
+ */
+data class AlarmEditorState(
+    val draft: AlarmEntity? = null,
+    val isNew: Boolean = false,
+    val ladderRung: ChallengeConfig? = null,
+    val place: Int = 0,
+    val startPlace: Int = 0,
+    val total: Int = 1,
+    internal val siblings: List<AlarmEntity> = emptyList(),
+    internal val policy: EscalationPolicy = EscalationPolicy(),
+    internal val restFollow: Boolean = false,
+) {
+    /** Recomputes the place and rung for the draft's time. */
+    fun placed(): AlarmEditorState {
+        val draft = draft ?: return this
+        val sequence = sequenceWith(draft, siblings, restFollow)
+        val mine = sequence.first { it.id == draft.id }
+        return copy(
+            ladderRung = Escalation.rung(policy, Escalation.position(mine, sequence)),
+            place = sequence.indexOf(mine),
+            total = sequence.size,
+        )
+    }
+}
+
+/**
+ * The group as it will be once [draft] is saved: in ring order (SPEC §7.2), unless [restFollow]
+ * (the first alarm with "Move the rest with the first alarm" on), when the order cannot change.
+ */
+internal fun sequenceWith(draft: AlarmEntity, siblings: List<AlarmEntity>, restFollow: Boolean): List<AlarmEntity> {
+    val all = siblings.filter { it.id != draft.id } + draft
+    val ordered = if (restFollow) all.sortedBy { it.positionInGroup } else AlarmRules.ringOrder(all)
+    return ordered.mapIndexed { i, alarm -> alarm.copy(positionInGroup = i) }
+}
 
 @HiltViewModel
 class AlarmEditorViewModel @Inject constructor(
@@ -102,17 +138,21 @@ class AlarmEditorViewModel @Inject constructor(
             val existing = alarmId?.let { repository.alarm(it) }
             val draft = existing ?: repository.newAlarmDraft(groupId, defaults.value.value)
             val policy = repository.observeGroup(groupId).first()?.escalationPolicy ?: EscalationPolicy()
+            val group = repository.observeGroup(groupId).first()
             val siblings = repository.observeAlarms(groupId).first().filter { it.id != draft.id }
-            mutableState.value = AlarmEditorState(
+            val opened = AlarmEditorState(
                 draft = draft,
                 isNew = existing == null,
-                ladderRung = Escalation.rung(policy, Escalation.position(draft, siblings + draft)),
-            )
+                siblings = siblings,
+                policy = policy,
+                restFollow = existing?.positionInGroup == 0 && group?.shiftWithFirst == true,
+            ).placed()
+            mutableState.value = opened.copy(startPlace = opened.place)
         }
     }
 
     fun edit(transform: (AlarmEntity) -> AlarmEntity) =
-        mutableState.update { s -> s.copy(draft = s.draft?.let(transform)) }
+        mutableState.update { s -> s.copy(draft = s.draft?.let(transform)).placed() }
 
     fun save(onDone: () -> Unit) {
         val draft = state.value.draft ?: return
@@ -140,6 +180,7 @@ fun AlarmEditorScreen(onDone: () -> Unit, viewModel: AlarmEditorViewModel = hilt
         draft = draft,
         isNew = state.isNew,
         ladderRung = state.ladderRung,
+        moved = state.place.takeIf { it != state.startPlace }?.let { it to state.total },
         onEdit = viewModel::edit,
         onSave = { viewModel.save(onDone) },
         onDelete = { viewModel.delete(onDone) },
@@ -159,6 +200,7 @@ fun AlarmEditorContent(
     onDelete: () -> Unit,
     onCancel: () -> Unit,
     ladderRung: ChallengeConfig? = null,
+    moved: Pair<Int, Int>? = null,
     onHear: (String) -> Unit = {},
     previewStatus: SpeechPreview.Status = SpeechPreview.Status.Idle,
 ) {
@@ -181,6 +223,16 @@ fun AlarmEditorContent(
         ) {
             TextButton(onClick = { pickingTime = true }, modifier = Modifier.testTag("time")) {
                 Text(TimeText.time(draft.hour, draft.minute, is24Hour), style = CascadeType.homeNextAlarm, color = c.textPrimary)
+            }
+            // The group is listed in ring order, so a new time can give this alarm another place and rung.
+            moved?.let { (place, total) ->
+                Text(
+                    "At this time it becomes alarm ${place + 1} of $total" +
+                        if (draft.challengeOverride == null) ", with that alarm's challenge." else ".",
+                    style = CascadeType.body,
+                    color = c.textSecondary,
+                    modifier = Modifier.testTag("moved-place"),
+                )
             }
 
             Text("Repeat (none = ring once)", style = CascadeType.rowLabel, color = c.textPrimary)

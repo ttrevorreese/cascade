@@ -223,17 +223,17 @@ Touch targets are never below 48dp, including the chevrons on alarm rows.
 
 **Escalation editor.** A 5dp gradient rail down the left with the rungs beside it. Each rung shows its challenge, its position, and a five-bar difficulty meter. The selected rung gets a 2dp outline in its own ramp colour.
 
-**Background animation.** Added 2026-10-23 at the owner's request. A quiet animation plays behind Home, Reliability, Sound and the alarm editor; Settings shows it in a preview window instead. Never on the group screen or the escalation editor (§10: their spine and rail are the only ornament), never on the firing screen. Every animation draws in `textSecondary` at low alpha (about a third more on light grounds, where faint grey vanishes), never a ramp colour; stands still when Android's animations are off (§9); repaints at most 30 times a second, only the canvas.
+**Background animation.** Added 2026-10-23 at the owner's request; part of Cascade Plus since 2026-10-25 (free users get a still background). A quiet animation plays behind Home, Reliability, Sound and the alarm editor; Settings shows it in a preview window instead. Never on the group screen or the escalation editor (§10: their spine and rail are the only ornament), never on the firing screen. Every animation draws in `textSecondary` at low alpha (about a third more on light grounds, where faint grey vanishes), never a ramp colour; stands still when Android's animations are off (§9); repaints at most 30 times a second, only the canvas.
 
 Each theme family has its own, and **Match the theme** is the default; the user can pick any one instead, or None:
 
 | Family | Animation | |
 |---|---|---|
 | Landscape | Drift | dots rising slowly, like pollen |
-| Earth | Embers | sparks that rise, flicker and burn out |
-| After dark | Stars | still points that twinkle |
+| Earth | Embers | small flames that rise, flicker and burn down |
+| After dark | Stars | small five-pointed stars that twinkle; every 14 s one shoots across the upper sky |
 | Quiet | Snow | soft flakes falling |
-| Stark, Daylight, Mineral | Dust | a few motes wandering |
+| Stark, Daylight, Mineral | Wind | wavy strands blowing across, each carrying a mote (was Dust; key `dust` kept) |
 | Pastel | Bubbles | rings floating up |
 | Terminal | Rain | thin streaks falling |
 | Neon | Pulse | rings that swell and fade, sonar-like |

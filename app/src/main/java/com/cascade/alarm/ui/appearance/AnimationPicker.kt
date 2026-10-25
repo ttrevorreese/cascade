@@ -33,14 +33,18 @@ import com.cascade.alarm.ui.theme.CascadeThemes
 import com.cascade.alarm.ui.theme.CascadeType
 import com.cascade.alarm.ui.theme.cascadeColors
 
-/** The background animation choices with a live preview (DESIGN.md §6), as rows of a list. */
-fun LazyListScope.animationPicker(choice: AnimationChoice, themeId: String, onChange: (AnimationChoice) -> Unit) {
+/**
+ * The background animation choices with a live preview (DESIGN.md §6), as rows of a list. They
+ * are part of Cascade Plus (decided 2026-10-25): while [locked], a choice only plays in the preview.
+ */
+fun LazyListScope.animationPicker(choice: AnimationChoice, themeId: String, onChange: (AnimationChoice) -> Unit, locked: Boolean = false) {
     item {
         val c = cascadeColors
         Column(Modifier.padding(horizontal = CascadeSpace.gutter)) {
             Text("Background animation", style = CascadeType.rowLabel, color = c.textPrimary)
             Text(
-                "Plays behind the home screen and a few others, never while an alarm rings. It stands still if Android's animations are off.",
+                if (locked) "Part of Cascade Plus. Pick one to see it here."
+                else "Plays behind the home screen and a few others, never while an alarm rings. It stands still if Android's animations are off.",
                 style = CascadeType.body,
                 color = c.textSecondary,
                 modifier = Modifier.padding(top = CascadeSpace.xs, bottom = CascadeSpace.m),

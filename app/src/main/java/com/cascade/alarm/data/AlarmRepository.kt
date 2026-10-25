@@ -183,6 +183,8 @@ class AlarmRepository @Inject constructor(
                 alarms.upsertAll(alarms.inGroup(saved.groupId).filter { it.id != saved.id }.map { AlarmRules.shifted(it, minutes) })
             }
         }
+        // A new time can move the alarm to another place in the sequence, and so another rung.
+        renumber(AlarmRules.ringOrder(alarms.inGroup(saved.groupId)))
     }
 
     /** Turning an alarm off also cancels a pending snooze, test ring or wake-up check for it. */
@@ -198,13 +200,6 @@ class AlarmRepository @Inject constructor(
         val alarm = alarms.get(id) ?: return@mutate
         alarms.delete(id)
         renumber(alarms.inGroup(alarm.groupId))
-    }
-
-    /** Reordering changes positionInGroup, which drives escalation from M4. */
-    suspend fun moveAlarm(id: String, delta: Int) = reconciler.mutate("alarm_move") {
-        val alarm = alarms.get(id) ?: return@mutate
-        val ordered = alarms.inGroup(alarm.groupId)
-        renumber(AlarmRules.move(ordered, ordered.indexOfFirst { it.id == id }, delta))
     }
 
     // --- Test alarm ---

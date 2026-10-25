@@ -20,10 +20,6 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.runtime.rememberCoroutineScope
-import com.cascade.alarm.data.AlarmRules
 import com.cascade.alarm.data.challenge.ChallengeConfig
 import com.cascade.alarm.data.challenge.Escalation
 import com.cascade.alarm.data.challenge.EscalationPolicy
@@ -60,7 +56,6 @@ import com.cascade.alarm.data.db.AlarmEntity
 import com.cascade.alarm.data.db.AlarmGroupEntity
 import com.cascade.alarm.engine.schedule.WakeCheck
 import com.cascade.alarm.ui.TimeText
-import com.cascade.alarm.ui.components.CascadeIconButton
 import com.cascade.alarm.ui.components.CascadeIcons
 import com.cascade.alarm.ui.components.CascadeSwitch
 import com.cascade.alarm.ui.components.CascadeTopBar
@@ -108,7 +103,6 @@ class GroupViewModel @Inject constructor(
     fun rename(name: String) = launch { repository.renameGroup(groupId, name) }
     fun delete() = launch { repository.deleteGroup(groupId) }
     fun setAlarmEnabled(alarmId: String, enabled: Boolean) = launch { repository.setAlarmEnabled(alarmId, enabled) }
-    fun moveAlarm(alarmId: String, delta: Int) = launch { repository.moveAlarm(alarmId, delta) }
     fun setShiftWithFirst(enabled: Boolean) = launch { repository.setShiftWithFirst(groupId, enabled) }
     fun shift(minutes: Long) = launch { repository.shiftGroup(groupId, minutes) }
     fun setWakeCheck(enabled: Boolean, delayMinutes: Int) = launch { repository.setWakeCheck(groupId, enabled, delayMinutes) }
@@ -140,7 +134,6 @@ fun GroupScreen(
         onRename = viewModel::rename,
         onDelete = viewModel::delete,
         onAlarmEnabledChange = viewModel::setAlarmEnabled,
-        onMoveAlarm = viewModel::moveAlarm,
         onShiftWithFirstChange = viewModel::setShiftWithFirst,
         onShift = viewModel::shift,
         onWakeCheckChange = viewModel::setWakeCheck,
@@ -160,7 +153,6 @@ fun GroupContent(
     onRename: (String) -> Unit,
     onDelete: () -> Unit,
     onAlarmEnabledChange: (String, Boolean) -> Unit,
-    onMoveAlarm: (String, Int) -> Unit,
     onShiftWithFirstChange: (Boolean) -> Unit,
     onShift: (minutes: Long) -> Unit,
     onWakeCheckChange: (enabled: Boolean, delayMinutes: Int) -> Unit,
@@ -172,28 +164,10 @@ fun GroupContent(
     val policy = group.escalationPolicy
     // What each alarm will ask for, by the same rule the engine applies when it fires.
     fun resolvedIn(list: List<AlarmEntity>, alarm: AlarmEntity) = Escalation.resolve(alarm, policy, Escalation.position(alarm, list))
-    val snackbar = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
-    // Reordering changes an alarm's place, which can change its rung: say so (SPEC §7.2).
-    val is24Hour = is24HourClock()
-    val move: (String, Int) -> Unit = { id, delta ->
-        val index = alarms.indexOfFirst { it.id == id }
-        onMoveAlarm(id, delta)
-        if (index + delta in alarms.indices) {
-            val reordered = AlarmRules.move(alarms, index, delta).mapIndexed { i, a -> a.copy(positionInGroup = i) }
-            val before = resolvedIn(alarms, alarms[index])
-            val after = resolvedIn(reordered, reordered[index + delta])
-            if (before != after) {
-                val time = TimeText.time(alarms[index].hour, alarms[index].minute, is24Hour)
-                scope.launch { snackbar.showSnackbar("The $time alarm now asks: ${ChallengeText.full(after).replaceFirstChar { it.lowercase() }}.") }
-            }
-        }
-    }
     var renaming by remember { mutableStateOf(false) }
     var confirmingDelete by remember { mutableStateOf(false) }
     Scaffold(
         containerColor = c.ground,
-        snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
             // The name is the page title below, where long names have the full width.
             CascadeTopBar("", onBack = onBack) {
@@ -260,7 +234,6 @@ fun GroupContent(
                     challenge = resolvedIn(alarms, alarm),
                     onClick = { onOpenAlarm(alarm.id) },
                     onEnabledChange = { onAlarmEnabledChange(alarm.id, it) },
-                    onMove = { move(alarm.id, it) },
                 )
             }
             if (alarms.isNotEmpty()) {
@@ -435,7 +408,6 @@ private fun AlarmRow(
     challenge: ChallengeConfig?,
     onClick: () -> Unit,
     onEnabledChange: (Boolean) -> Unit,
-    onMove: (Int) -> Unit,
 ) {
     val c = cascadeColors
     val is24Hour = is24HourClock()
@@ -488,8 +460,6 @@ private fun AlarmRow(
                 Text("Group is off", style = CascadeType.caption, color = c.textQuiet)
             }
         }
-        CascadeIconButton(CascadeIcons.ChevronUp, "Move alarm ${position + 1} earlier in the sequence", { onMove(-1) }, enabled = position > 0)
-        CascadeIconButton(CascadeIcons.ChevronDown, "Move alarm ${position + 1} later in the sequence", { onMove(1) }, enabled = position < total - 1)
         // Shows the alarm's own switch even while the group is disarmed (SPEC §5).
         CascadeSwitch(
             alarm.isEnabled,
