@@ -53,8 +53,11 @@ under conventions). It is how the next session knows where to pick up.
   (`keystore.properties`, git-ignored; debug key otherwise), version 1.0.0, release build smoke-tested on
   the emulator (onboarding, screens, ladder, test alarm), INTERNET permission removed (ML Kit/Billing's
   datatransport tried to upload usage stats; now blocked, verified), `docs/privacy.html` (GitHub Pages),
-  `RELEASING.md`, README with `docs/screenshots/` (1080x2160, Play's 2:1 limit). Next: `docs/play-console.md`
-  (listing text, data safety, declarations, content rating), 512 px icon and 1024x500 feature graphic.
+  `RELEASING.md`, README with `docs/screenshots/` (1080x2160, Play's 2:1 limit), `docs/play-console.md`
+  (listing text, data safety, declarations, content rating), `docs/store/` icon and feature graphic
+  (`scripts/make_store_graphics.py`). **The code side of M8 is done (2026-10-25)**; what is left is the owner's
+  (RELEASING.md: upload key, Pages, Play account, FGS screen recording, closed test with 12 testers for 14 days).
+  Owner feedback from the phone (2026-10-25): ring order by time, animations in Plus, back slide, duplicate group.
   Owner decisions: personal Play account, store name "Cascade: Alarm Groups" (installed label stays
   "Cascade"), developer name "Trevor Reese", application ID `com.ttrevorreese.cascade`, contact email
   cascadealarmgroup.app@gmail.com. Launch without Cascade Plus (`PLUS_FOR_SALE` false): a free app with no
@@ -79,7 +82,7 @@ under conventions). It is how the next session knows where to pick up.
 | M5 Reliability | done | Reliability Check (problems first), missed/late cards with cause from boot time, test result, OEM guidance, event log share |
 | M6 Audio | done | per-group sound, tones from `scripts/make_tones.py`, picked files copied in, ramp 30–60 s + start level, fallback logged and shown on Home |
 | M7 Polish | done | Appearance, group themes, Plus, snooze, read aloud, stats, settings, onboarding, accessibility, Spotify (debug builds; phone checks in spec §10) |
-| M8 Release prep | **in progress** | signing, R8, privacy policy, README done; Play Console texts and graphics next |
+| M8 Release prep | **code done; owner steps left** | signing, R8, privacy policy, README, Play Console texts, store graphics; owner: accounts, upload, closed test |
 
 ## Sources of truth
 

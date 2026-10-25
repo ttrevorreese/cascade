@@ -54,8 +54,10 @@ upload (Play takes it automatically from an `.aab`).
   English (US), app, free. No in-app products at launch (see "Selling Cascade Plus later").
 - App content: privacy policy URL, ads (none), data safety (nothing collected or shared), content
   rating questionnaire, target audience (adults), and the declarations for exact alarms, full-screen
-  intent and foreground service. Answers are drafted in `docs/play-console.md` (M8).
-- Store listing: text and graphics in `docs/play-console.md` and `docs/screenshots/`.
+  intent and foreground service. Every answer and text to paste is in `docs/play-console.md`,
+  including the screen recording the foreground-service declaration needs.
+- Store listing: text in `docs/play-console.md`; icon and feature graphic in `docs/store/`
+  (`python scripts/make_store_graphics.py`); screenshots in `docs/screenshots/` (not `appearance.png`).
 
 ## 5. Spotify fingerprints (owner, after the first upload)
 
