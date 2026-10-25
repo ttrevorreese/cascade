@@ -68,10 +68,12 @@ fun CascadeNavHost() {
         startDestination = Routes.HOME,
         enterTransition = { fadeIn(tween(CROSSFADE_MILLIS)) },
         exitTransition = { fadeOut(tween(CROSSFADE_MILLIS)) },
-        // Back slides the top screen away over the one beneath, which stays put. The predictive
-        // back gesture plays this under the finger; two screens crossfading there looked broken.
+        // Back slides the top screen away over the one beneath, which stays put. The swipe-back
+        // gesture has its own pair, which Navigation defaults to a zoom-out; it gets the same slide.
         popEnterTransition = { EnterTransition.None },
         popExitTransition = { slideOutHorizontally(tween(BACK_MILLIS)) { it } },
+        predictivePopEnterTransition = { EnterTransition.None },
+        predictivePopExitTransition = { slideOutHorizontally(tween(BACK_MILLIS)) { it } },
     ) {
         composable(Routes.HOME) {
             AmbientBackdrop {
