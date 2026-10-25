@@ -190,13 +190,13 @@ class RingCoordinator(
             snooze = alarm?.let { Snooze.state(it, isLast = sequence.position >= sequence.total - 1, isWakeCheck = ring.isWakeCheck) } ?: SnoozeState.Off,
         )
         // Read before anything audible changes; a failure here means the defaults, never silence.
-        val ringSound = if (ring.isWakeCheck) null else soundFor(alarm)
+        val ringSound = soundFor(alarm)
         state.set(ringing)
         presenter.show(ringing)
         sound.stop()
         speaker.stop()
-        if (ringSound == null) {
-            sound.startWakeCheck()
+        if (ring.isWakeCheck) {
+            sound.startWakeCheck(ringSound)
         } else {
             sound.start(ringSound) { reason, next ->
                 scope.launch {

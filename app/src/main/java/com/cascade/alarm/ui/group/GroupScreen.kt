@@ -102,7 +102,9 @@ class GroupViewModel @Inject constructor(
     fun setArmed(armed: Boolean) = launch { repository.setGroupArmed(groupId, armed) }
     fun rename(name: String) = launch { repository.renameGroup(groupId, name) }
     fun delete() = launch { repository.deleteGroup(groupId) }
-    fun duplicate(onDone: (copyId: String) -> Unit) = launch { repository.duplicateGroup(groupId)?.let(onDone) }
+    /** The name the copy's dialog starts with: "Workday copy", or "Workday copy 2" when taken. */
+    fun suggestCopyName(onReady: (String) -> Unit) = launch { onReady(repository.copyNameFor(groupId)) }
+    fun duplicate(name: String, onDone: (copyId: String) -> Unit) = launch { repository.duplicateGroup(groupId, name)?.let(onDone) }
     fun setAlarmEnabled(alarmId: String, enabled: Boolean) = launch { repository.setAlarmEnabled(alarmId, enabled) }
     fun setShiftWithFirst(enabled: Boolean) = launch { repository.setShiftWithFirst(groupId, enabled) }
     fun shift(minutes: Long) = launch { repository.shiftGroup(groupId, minutes) }
@@ -135,7 +137,8 @@ fun GroupScreen(
         onArmedChange = viewModel::setArmed,
         onRename = viewModel::rename,
         onDelete = viewModel::delete,
-        onDuplicate = { viewModel.duplicate(onOpenGroup) },
+        onSuggestCopyName = viewModel::suggestCopyName,
+        onDuplicate = { name -> viewModel.duplicate(name, onOpenGroup) },
         onAlarmEnabledChange = viewModel::setAlarmEnabled,
         onShiftWithFirstChange = viewModel::setShiftWithFirst,
         onShift = viewModel::shift,
@@ -162,7 +165,10 @@ fun GroupContent(
     onOpenEscalation: () -> Unit = {},
     onOpenSound: () -> Unit = {},
     onOpenTheme: () -> Unit = {},
-    onDuplicate: () -> Unit = {},
+    /** Asks for the copy's starting name; the dialog opens once it arrives. */
+    onSuggestCopyName: (onReady: (String) -> Unit) -> Unit = { it("${group.name} copy") },
+    /** Makes the copy with the name the user confirmed, and opens it. */
+    onDuplicate: (name: String) -> Unit = {},
 ) {
     val c = cascadeColors
     val policy = group.escalationPolicy
@@ -170,13 +176,15 @@ fun GroupContent(
     fun resolvedIn(list: List<AlarmEntity>, alarm: AlarmEntity) = Escalation.resolve(alarm, policy, Escalation.position(alarm, list))
     var renaming by remember { mutableStateOf(false) }
     var confirmingDelete by remember { mutableStateOf(false) }
+    // The copy is named first and only made on "Make copy" (owner request, 2026-10-25).
+    var copyName by remember { mutableStateOf<String?>(null) }
     Scaffold(
         containerColor = c.ground,
         topBar = {
             // The name is the page title below, where long names have the full width.
             CascadeTopBar("", onBack = onBack) {
                 TextButton(onClick = { renaming = true }) { Text("Rename", color = c.textSecondary) }
-                TextButton(onClick = onDuplicate, modifier = Modifier.testTag("duplicate-group")) { Text("Duplicate", color = c.textSecondary) }
+                TextButton(onClick = { onSuggestCopyName { copyName = it } }, modifier = Modifier.testTag("duplicate-group")) { Text("Duplicate", color = c.textSecondary) }
                 TextButton(onClick = { confirmingDelete = true }) { Text("Delete", color = c.textSecondary) }
             }
         },
@@ -275,6 +283,13 @@ fun GroupContent(
             onConfirm = { renaming = false; onRename(it) }, onDismiss = { renaming = false },
         )
     }
+    copyName?.let { suggested ->
+        NameDialog(
+            "Name the copy", suggested, confirmLabel = "Make copy",
+            onConfirm = { copyName = null; onDuplicate(it) }, onDismiss = { copyName = null },
+            detail = "It starts off, with the same alarms and settings. You can change them next.",
+        )
+    }
     if (confirmingDelete) {
         AlertDialog(
             onDismissRequest = { confirmingDelete = false },
@@ -365,7 +380,7 @@ private fun SoundSummary(group: AlarmGroupEntity, onOpen: () -> Unit) {
         Column(Modifier.weight(1f).padding(end = CascadeSpace.m)) {
             Text("Sound", style = CascadeType.rowLabel, color = c.textPrimary)
             Text(
-                "${SoundText.name(group.sound)}, full volume after ${group.rampSeconds} s",
+                SoundText.summary(group),
                 style = CascadeType.body,
                 color = c.textSecondary,
                 modifier = Modifier.testTag("sound-summary"),

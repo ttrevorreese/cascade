@@ -11,6 +11,10 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.material3.FilterChip
+import com.cascade.alarm.data.sound.VibrationPattern
+import com.cascade.alarm.data.sound.VibrationSetting
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -48,6 +52,7 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.cascade.alarm.data.AlarmRepository
+import com.cascade.alarm.data.db.AlarmGroupEntity
 import com.cascade.alarm.data.sound.SoundConfig
 import com.cascade.alarm.data.sound.SoundFiles
 import com.cascade.alarm.data.sound.SoundSettings
@@ -88,6 +93,7 @@ class SoundViewModel @Inject constructor(
     private val soundFiles: SoundFiles,
     private val preview: SoundPreview,
     private val spotify: SpotifyTrial,
+    private val vibrationPreview: VibrationPreview,
 ) : ViewModel() {
     private val groupId: String = checkNotNull(savedState["groupId"])
     private val mutable = MutableStateFlow(SoundState())
@@ -97,6 +103,10 @@ class SoundViewModel @Inject constructor(
     val spotifyAvailable: Boolean get() = spotify.isAvailable
 
     fun spotifyInstalled(): Boolean = spotify.isInstalled()
+
+    val canChangeStrength: Boolean get() = vibrationPreview.canChangeStrength
+
+    fun feelVibration() = vibrationPreview.play(state.value.draft.vibration, viewModelScope)
 
     init {
         viewModelScope.launch {
@@ -125,7 +135,10 @@ class SoundViewModel @Inject constructor(
         if (preview.playing.value) preview.stop() else preview.play(state.value.draft, viewModelScope)
     }
 
-    fun stopPreview() = preview.stop()
+    fun stopPreview() {
+        preview.stop()
+        vibrationPreview.stop()
+    }
 
     fun importFile(uri: Uri) = viewModelScope.launch {
         mutable.update { it.copy(importing = true, problem = null) }
@@ -180,12 +193,14 @@ class SoundViewModel @Inject constructor(
         stopSpotify()
         preview.stop()
         val draft = state.value.draft
-        repository.setGroupSound(groupId, draft.sound, draft.rampSeconds, draft.startPercent)
+        vibrationPreview.stop()
+        repository.setGroupSound(groupId, draft.sound, draft.rampSeconds, draft.startPercent, draft.vibration)
         onDone()
     }
 
     override fun onCleared() {
         preview.stop()
+        vibrationPreview.stop()
         spotify.stop()
     }
 }
@@ -222,6 +237,8 @@ fun SoundScreen(onDone: () -> Unit, viewModel: SoundViewModel = hiltViewModel())
         onChange = viewModel::edit,
         onPickFile = { pickFile.launch(arrayOf("audio/*")) },
         onTogglePreview = viewModel::togglePreview,
+        onFeelVibration = viewModel::feelVibration,
+        canChangeStrength = viewModel.canChangeStrength,
         onSave = { viewModel.save(onDone) },
         onCancel = {
             viewModel.stopPreview()
@@ -269,7 +286,8 @@ private fun rememberAlarmVolume(): Pair<Int, Int>? {
 
 /**
  * The group's sound (SPEC §7, M6): a tone or a file from the phone, how long it takes to reach
- * full volume and where it starts. One sound for the whole group (decided 2026-10-23).
+ * full volume and where it starts, and how it vibrates. One sound for the whole group (decided
+ * 2026-10-23).
  */
 @Composable
 fun SoundContent(
@@ -285,9 +303,13 @@ fun SoundContent(
     onSave: () -> Unit,
     onCancel: () -> Unit,
     spotify: SpotifySection? = null,
+    onFeelVibration: () -> Unit = {},
+    /** False when the phone's motor is only on or off. */
+    canChangeStrength: Boolean = true,
 ) {
     val c = cascadeColors
     val sound = draft.sound.local
+    val vibration = draft.vibration
     Scaffold(
         containerColor = Color.Transparent, // the floating dots show through (AmbientBackdrop)
         topBar = {
@@ -383,15 +405,44 @@ fun SoundContent(
                     volumeNote(alarmVolume),
                     style = CascadeType.body,
                     color = c.textSecondary,
-                    modifier = Modifier.padding(top = CascadeSpace.s, bottom = CascadeSpace.l),
+                    modifier = Modifier.padding(top = CascadeSpace.s),
                 )
             }
-            item { PrimaryButton("Save sound", onSave, Modifier.fillMaxWidth()) }
+            item { SectionLabel("Vibration") }
+            items(VibrationPattern.entries, key = { "vibration-${it.key}" }) { pattern ->
+                ChoiceRow(
+                    title = pattern.title,
+                    detail = pattern.description,
+                    selected = vibration.pattern == pattern,
+                    onSelect = { onChange(draft.copy(vibration = vibration.copy(pattern = pattern))) },
+                    tag = "vibration-${pattern.key}",
+                )
+            }
+            item {
+                VibrationOptions(
+                    vibration = vibration,
+                    canChangeStrength = canChangeStrength,
+                    onChange = { onChange(draft.copy(vibration = it)) },
+                    onFeel = onFeelVibration,
+                )
+            }
+            item { PrimaryButton("Save sound", onSave, Modifier.fillMaxWidth().padding(top = CascadeSpace.l)) }
         }
     }
 }
 
 object SoundText {
+    /** The group screen's line: "Klaxon, full volume after 45 s, no vibration". */
+    fun summary(group: AlarmGroupEntity): String {
+        val vibration = VibrationSetting.of(group.vibration, group.vibrationStrength, group.vibrationDelaySeconds)
+        val buzz = when {
+            vibration.isOff -> "no vibration"
+            vibration.delaySeconds > 0 -> "${vibration.pattern.title.lowercase()} vibration ${VibrationSetting.delayName(vibration.delaySeconds).lowercase()}"
+            else -> "${vibration.pattern.title.lowercase()} vibration"
+        }
+        return "${name(group.sound)}, full volume after ${group.rampSeconds} s, $buzz"
+    }
+
     /** "Klaxon", or a picked file's own name. */
     fun name(sound: SoundConfig): String = when (sound) {
         is SoundConfig.BuiltIn -> (Tones.byKey(sound.toneKey) ?: Tones.DEFAULT).name
@@ -477,6 +528,58 @@ private fun SpotifySetting(section: SpotifySection, chosen: SoundConfig.SpotifyP
                 color = c.textSecondary,
             )
         }
+    }
+}
+
+/** Strength and delay for a vibrating group; for one that does not, what happens instead. */
+@Composable
+private fun VibrationOptions(
+    vibration: VibrationSetting,
+    canChangeStrength: Boolean,
+    onChange: (VibrationSetting) -> Unit,
+    onFeel: () -> Unit,
+) {
+    val c = cascadeColors
+    Column(Modifier.fillMaxWidth().padding(top = CascadeSpace.s), verticalArrangement = Arrangement.spacedBy(CascadeSpace.s)) {
+        if (vibration.isOff) {
+            Text(
+                "If no sound can play at all, the alarm vibrates anyway, so it is never silent. The wake-up check plays the sound quietly instead of vibrating.",
+                style = CascadeType.body,
+                color = c.textSecondary,
+                modifier = Modifier.testTag("vibration-off-note"),
+            )
+            return@Column
+        }
+        Text("Strength", style = CascadeType.rowLabel, color = c.textPrimary)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            VibrationSetting.STRENGTH_CHOICES.forEach { percent ->
+                FilterChip(
+                    selected = vibration.strengthPercent == percent,
+                    onClick = { onChange(vibration.copy(strengthPercent = percent)) },
+                    label = { Text(VibrationSetting.strengthName(percent)) },
+                    enabled = canChangeStrength,
+                    modifier = Modifier.testTag("vibration-strength-$percent"),
+                )
+            }
+        }
+        if (!canChangeStrength) {
+            Text("This phone's vibration is only on or off, so strength makes no difference.", style = CascadeType.body, color = c.textSecondary)
+        }
+        Text("Starts", style = CascadeType.rowLabel, color = c.textPrimary, modifier = Modifier.padding(top = CascadeSpace.s))
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            VibrationSetting.DELAY_CHOICES.forEach { seconds ->
+                FilterChip(
+                    selected = vibration.delaySeconds == seconds,
+                    onClick = { onChange(vibration.copy(delaySeconds = seconds)) },
+                    label = { Text(VibrationSetting.delayName(seconds)) },
+                    modifier = Modifier.testTag("vibration-delay-$seconds"),
+                )
+            }
+        }
+        if (vibration.delaySeconds > 0) {
+            Text("The sound plays on its own first; the vibration joins in if the alarm is still ringing.", style = CascadeType.body, color = c.textSecondary)
+        }
+        SecondaryButton("Feel it", onFeel, Modifier.testTag("feel-vibration"), small = true)
     }
 }
 

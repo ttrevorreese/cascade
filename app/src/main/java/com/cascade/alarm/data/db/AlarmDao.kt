@@ -6,6 +6,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
+import java.time.Instant
 
 @Dao
 interface AlarmDao {
@@ -68,6 +69,10 @@ interface AlarmGroupDao {
 
     @Query("DELETE FROM alarm_groups WHERE id = :id")
     suspend fun delete(id: String)
+
+    /** Marks the group as edited, for Home's "Recently changed" order. */
+    @Query("UPDATE alarm_groups SET updatedAt = :at WHERE id = :id")
+    suspend fun touch(id: String, at: Instant)
 }
 
 @Dao

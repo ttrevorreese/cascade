@@ -1,6 +1,7 @@
 package com.cascade.alarm.ui.settings
 
 import android.content.Context
+import com.cascade.alarm.data.GroupSort
 import com.cascade.alarm.engine.EngineLog
 import com.cascade.alarm.ui.components.AnimationChoice
 import com.cascade.alarm.ui.theme.CascadeThemes
@@ -39,6 +40,16 @@ class UiPreferences @Inject constructor(@ApplicationContext context: Context) {
      * app theme. On by default; added at the owner's request, 2026-10-23.
      */
     val groupThemesOnHome: StateFlow<Boolean> = mutableGroupThemesOnHome.asStateFlow()
+
+    private val mutableGroupSort = MutableStateFlow(GroupSort.byKey(prefs.getString(GROUP_SORT, null)))
+
+    /** How Home lists groups; the custom order itself lives on the groups (sortOrder). */
+    val groupSort: StateFlow<GroupSort> = mutableGroupSort.asStateFlow()
+
+    fun setGroupSort(sort: GroupSort) {
+        prefs.edit().putString(GROUP_SORT, sort.key).apply()
+        mutableGroupSort.value = sort
+    }
 
     private val mutableOnboarded = MutableStateFlow(prefs.getBoolean(ONBOARDED, false))
 
@@ -80,5 +91,6 @@ class UiPreferences @Inject constructor(@ApplicationContext context: Context) {
         const val THEME = "theme"
         const val GROUP_THEMES_ON_HOME = "group_themes_on_home"
         const val ONBOARDED = "onboarded"
+        const val GROUP_SORT = "group_sort"
     }
 }

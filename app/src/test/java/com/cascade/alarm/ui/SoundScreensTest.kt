@@ -111,6 +111,37 @@ class SoundScreensTest {
     }
 
     @Test
+    fun vibrationCanBeTurnedOffOrChanged() {
+        var draft by mutableStateOf(RingSound())
+        var felt = 0
+        compose.setContent {
+            SoundContent(
+                groupName = "Workday Wake", draft = draft, previewing = false, importing = false, problem = null,
+                alarmVolume = 9 to 15, onChange = { draft = it }, onPickFile = {}, onTogglePreview = {}, onSave = {}, onCancel = {},
+                onFeelVibration = { felt++ },
+            )
+        }
+        scrollTo("vibration-pulse")
+        compose.onNodeWithTag("vibration-pulse").performClick()
+        assertEquals(com.cascade.alarm.data.sound.VibrationPattern.PULSE, draft.vibration.pattern)
+        scrollTo("vibration-delay-60")
+        compose.onNodeWithTag("vibration-strength-30").performClick()
+        compose.onNodeWithTag("vibration-delay-60").performClick()
+        assertEquals(30 to 60, draft.vibration.strengthPercent to draft.vibration.delaySeconds)
+        compose.onNodeWithText("The sound plays on its own first", substring = true).assertExists()
+        scrollTo("feel-vibration")
+        compose.onNodeWithTag("feel-vibration").performClick()
+        assertEquals(1, felt)
+
+        scrollTo("vibration-off")
+        compose.onNodeWithTag("vibration-off").performClick()
+        assertTrue(draft.vibration.isOff)
+        scrollTo("vibration-off-note")
+        compose.onNodeWithTag("vibration-strength-30").assertDoesNotExist()
+        compose.onNodeWithTag("feel-vibration").assertDoesNotExist()
+    }
+
+    @Test
     fun previewAndSaveAreReachable() {
         var previews = 0
         var saves = 0
@@ -224,7 +255,7 @@ class SoundScreensTest {
             )
         }
         compose.onNode(hasScrollAction()).performScrollToNode(hasTestTag("change-sound"))
-        compose.onNodeWithText("Chimes, full volume after 50 s").assertExists()
+        compose.onNodeWithText("Chimes, full volume after 50 s, steady vibration").assertExists()
         compose.onNodeWithTag("change-sound").performClick()
         assertEquals(1, opened)
     }

@@ -122,7 +122,8 @@ class RingCoordinatorTest {
             fallbackOnStart?.let { (reason, next) -> onFallback(reason, next) }
         }
         var quieted = false
-        override fun startWakeCheck() { checking = true }
+        var checkSound: RingSound? = null
+        override fun startWakeCheck(sound: RingSound) { checking = true; checkSound = sound }
         override fun setDucked(ducked: Boolean) { quieted = ducked }
         override fun stop() { playing = false; checking = false; quieted = false }
     }
@@ -326,12 +327,13 @@ class RingCoordinatorTest {
     }
 
     @Test
-    fun `a wake-up check reads no sound and plays none`() = harness {
+    fun `a wake-up check plays no alarm sound but gets the group's settings for its prompt`() = harness {
         store.wakeChecks += "a" to scheduled
         coordinator.onFire("a", scheduled)
         assertTrue(sound.checking)
         assertEquals(0, sound.starts)
-        assertTrue(store.soundReads.isEmpty())
+        // The prompt vibrates as the group does, or plays its sound quietly when it does not vibrate.
+        assertEquals(store.sound, sound.checkSound)
     }
 
     @Test

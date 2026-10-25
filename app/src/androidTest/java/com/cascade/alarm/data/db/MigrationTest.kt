@@ -238,4 +238,23 @@ class MigrationTest {
             }
         }
     }
+
+    @Test
+    fun v10GroupsKeepTheSteadyVibrationAndCountAsChangedWhenCreated() {
+        helper.createDatabase(db, 10).use { v10 ->
+            v10.execSQL(
+                "INSERT INTO alarm_groups (id, name, colorHex, iconKey, isArmed, sortOrder, createdAt) " +
+                    "VALUES ('g', 'Workday', '#000000', 'default', 1, 0, 1234)",
+            )
+        }
+        helper.runMigrationsAndValidate(db, 11, true, Migrations.MIGRATION_10_11).use { v11 ->
+            v11.query("SELECT vibration, vibrationStrength, vibrationDelaySeconds, updatedAt FROM alarm_groups WHERE id = 'g'").use { c ->
+                c.moveToFirst()
+                assertEquals("steady", c.getString(0))
+                assertEquals(100, c.getInt(1))
+                assertEquals(0, c.getInt(2))
+                assertEquals(1234L, c.getLong(3))
+            }
+        }
+    }
 }

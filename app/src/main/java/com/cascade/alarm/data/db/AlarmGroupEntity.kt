@@ -6,6 +6,8 @@ import androidx.room.PrimaryKey
 import com.cascade.alarm.data.challenge.EscalationPolicy
 import com.cascade.alarm.data.sound.SoundConfig
 import com.cascade.alarm.data.sound.SoundSettings
+import com.cascade.alarm.data.sound.VibrationPattern
+import com.cascade.alarm.data.sound.VibrationSetting
 import java.time.Instant
 
 /**
@@ -47,4 +49,16 @@ data class AlarmGroupEntity(
      * by [com.cascade.alarm.ui.theme.ThemeResolution]; an unknown or unowned id falls back silently.
      */
     val themeId: String? = null,
+    /** [com.cascade.alarm.data.sound.VibrationPattern] key; "off" for none (owner request, 2026-10-25). */
+    @ColumnInfo(defaultValue = "steady")
+    val vibration: String = VibrationPattern.DEFAULT.key,
+    /** Percent of the phone's strongest vibration (30–100). */
+    @ColumnInfo(defaultValue = "100")
+    val vibrationStrength: Int = VibrationSetting.DEFAULT_STRENGTH,
+    /** Seconds the sound plays alone before vibration starts. */
+    @ColumnInfo(defaultValue = "0")
+    val vibrationDelaySeconds: Int = 0,
+    /** The last edit to the group or its alarms (not arming it); Home can sort by it. */
+    @ColumnInfo(defaultValue = "0")
+    val updatedAt: Instant = Instant.EPOCH,
 )

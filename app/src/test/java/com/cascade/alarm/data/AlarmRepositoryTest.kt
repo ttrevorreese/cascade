@@ -404,6 +404,48 @@ class AlarmRepositoryTest {
     }
 
     @Test
+    fun `a group's vibration is saved within range and the ring reads it`() = runBlocking {
+        val (groupId, ids) = sequence("Workday", 6 to 0)
+        val quiet = com.cascade.alarm.data.sound.VibrationSetting(com.cascade.alarm.data.sound.VibrationPattern.PULSE, 5, 60)
+        repo.setGroupSound(groupId, SoundConfig.BuiltIn("klaxon"), 45, 15, quiet)
+        val store = RoomRingStore(reconciler, db.alarmDao(), db.alarmGroupDao(), db.activeRingDao(), EventLog(db.alarmEventDao(), time))
+        assertEquals(quiet.copy(strengthPercent = 30), store.soundFor(repo.alarm(ids[0])!!).vibration)
+        repo.setGroupSound(groupId, SoundConfig.BuiltIn("klaxon"), 45, 15, com.cascade.alarm.data.sound.VibrationSetting(com.cascade.alarm.data.sound.VibrationPattern.OFF))
+        assertTrue(store.soundFor(repo.alarm(ids[0])!!).vibration.isOff)
+    }
+
+    @Test
+    fun `editing a group or its alarms marks it changed, but arming and reordering do not`() = runBlocking {
+        val (a, ids) = sequence("Workday", 6 to 0)
+        val (b, _) = sequence("Gym", 17 to 0)
+        fun updated(id: String) = runBlocking { db.alarmGroupDao().get(id)!!.updatedAt }
+        val created = updated(a)
+        time.now = time.now.plusSeconds(60)
+        repo.setGroupArmed(a, false)
+        repo.moveGroup(b, -1)
+        assertEquals(created, updated(a))
+        repo.saveAlarm(repo.alarm(ids[0])!!.copy(minute = 5))
+        assertEquals(time.now, updated(a))
+        time.now = time.now.plusSeconds(60)
+        repo.renameGroup(b, "Gym days")
+        assertEquals(time.now, updated(b))
+        time.now = time.now.plusSeconds(60)
+        repo.setAlarmEnabled(ids[0], false)
+        assertEquals(time.now, updated(a))
+    }
+
+    @Test
+    fun `a duplicate takes the name the user gave it, or the suggested one when blank`() = runBlocking {
+        val (a, _) = sequence("Workday", 6 to 0)
+        assertEquals("Workday copy", repo.copyNameFor(a))
+        val named = repo.duplicateGroup(a, "  Weekend  ")!!
+        assertEquals("Weekend", db.alarmGroupDao().get(named)!!.name)
+        val blank = repo.duplicateGroup(a, " ")!!
+        assertEquals("Workday copy", db.alarmGroupDao().get(blank)!!.name)
+        assertEquals("Workday copy 2", repo.copyNameFor(a))
+    }
+
+    @Test
     fun `a new group plays Classic, reaching full volume after 45 s from 15 percent`() = runBlocking {
         val id = repo.createGroup("Workday")
         assertEquals(RingSound(SoundConfig.DEFAULT, 45, 15), RingSound.of(db.alarmGroupDao().get(id)!!))

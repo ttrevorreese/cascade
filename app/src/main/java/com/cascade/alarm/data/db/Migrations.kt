@@ -125,9 +125,24 @@ object Migrations {
         }
     }
 
+    /**
+     * v10 → v11: vibration per group (Steady, as before, for existing groups) and when a group was
+     * last edited, for sorting Home (owner requests, 2026-10-25). Existing groups count as edited
+     * when they were created.
+     */
+    val MIGRATION_10_11 = object : Migration(10, 11) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE `alarm_groups` ADD COLUMN `vibration` TEXT NOT NULL DEFAULT 'steady'")
+            db.execSQL("ALTER TABLE `alarm_groups` ADD COLUMN `vibrationStrength` INTEGER NOT NULL DEFAULT 100")
+            db.execSQL("ALTER TABLE `alarm_groups` ADD COLUMN `vibrationDelaySeconds` INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE `alarm_groups` ADD COLUMN `updatedAt` INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("UPDATE `alarm_groups` SET `updatedAt` = `createdAt`")
+        }
+    }
+
     val ALL = arrayOf(
         MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9,
-        MIGRATION_9_10,
+        MIGRATION_9_10, MIGRATION_10_11,
     )
 }
 

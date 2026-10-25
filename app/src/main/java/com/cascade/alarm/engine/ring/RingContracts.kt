@@ -7,6 +7,7 @@ import com.cascade.alarm.data.db.AlarmEntity
 import com.cascade.alarm.data.db.AlarmGroupEntity
 import com.cascade.alarm.data.sound.SoundConfig
 import com.cascade.alarm.data.sound.SoundSettings
+import com.cascade.alarm.data.sound.VibrationSetting
 import com.cascade.alarm.data.db.EventType
 import com.cascade.alarm.engine.schedule.Reconciler.FireResult
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -86,23 +87,32 @@ data class RingSound(
     val sound: SoundConfig = SoundConfig.DEFAULT,
     val rampSeconds: Int = SoundSettings.DEFAULT_RAMP_SECONDS,
     val startPercent: Int = SoundSettings.DEFAULT_START_PERCENT,
+    val vibration: VibrationSetting = VibrationSetting(),
 ) {
     companion object {
-        fun of(group: AlarmGroupEntity) = RingSound(group.sound, group.rampSeconds, group.rampStartPercent)
+        fun of(group: AlarmGroupEntity) = RingSound(
+            group.sound,
+            group.rampSeconds,
+            group.rampStartPercent,
+            VibrationSetting.of(group.vibration, group.vibrationStrength, group.vibrationDelaySeconds),
+        )
     }
 }
 
 interface AlarmSoundPlayer {
     /**
      * Starts the alarm sound. If [sound]'s choice cannot play, the player moves down the chain
-     * (chosen → Classic → the phone's alarm sound; vibration throughout) and reports each step
+     * (chosen → Classic → the phone's alarm sound → vibration) and reports each step
      * to [onFallback] with a short reason and what plays [next] ("classic", "system_sound" or
      * "vibration"), for the event log.
      */
     fun start(sound: RingSound, onFallback: (reason: String, next: String) -> Unit = { _, _ -> })
 
-    /** The wake-up check's prompt: vibration only, no alarm sound. */
-    fun startWakeCheck()
+    /**
+     * The wake-up check's prompt: the group's vibration, no alarm sound; or, for a group that does
+     * not vibrate, its sound held at the starting level.
+     */
+    fun startWakeCheck(sound: RingSound)
 
     /** Quieter while the user works on a challenge; full volume again when [ducked] is false (SPEC §6.8). */
     fun setDucked(ducked: Boolean)

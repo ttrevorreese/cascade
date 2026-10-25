@@ -80,6 +80,9 @@ object DataExport {
         put("rampSeconds", group.rampSeconds)
         put("rampStartPercent", group.rampStartPercent)
         put("theme", group.themeId)
+        put("vibration", group.vibration)
+        put("vibrationStrength", group.vibrationStrength)
+        put("vibrationDelaySeconds", group.vibrationDelaySeconds)
         put("createdAt", group.createdAt.toString())
         put("alarms", JsonArray(alarms.map(::alarm)))
     }

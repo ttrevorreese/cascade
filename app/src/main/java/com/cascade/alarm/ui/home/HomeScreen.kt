@@ -4,7 +4,10 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.runtime.CompositionLocalProvider
+import com.cascade.alarm.data.GroupSort
 import com.cascade.alarm.data.billing.Entitlements
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import com.cascade.alarm.data.db.AlarmGroupEntity
 import com.cascade.alarm.ui.settings.UiPreferences
 import com.cascade.alarm.ui.theme.CascadeColors
@@ -20,6 +23,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.semantics.semantics
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
@@ -93,7 +101,7 @@ import javax.inject.Inject
 class HomeViewModel @Inject constructor(
     private val repository: AlarmRepository,
     private val reliability: ReliabilityRepository,
-    preferences: UiPreferences,
+    private val preferences: UiPreferences,
     entitlements: Entitlements,
 ) : ViewModel() {
     /**
@@ -105,8 +113,13 @@ class HomeViewModel @Inject constructor(
             if (!on) null else { group: AlarmGroupEntity -> ThemeResolution.resolve(group.themeId, app) { it.isFree || plus } }
         }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
-    val groups: StateFlow<List<GroupSummary>?> = repository.observeGroupSummaries()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+    val sort: StateFlow<GroupSort> = preferences.groupSort
+
+    val groups: StateFlow<List<GroupSummary>?> = combine(repository.observeGroupSummaries(), preferences.groupSort) { list, sort ->
+        sort.sort(list)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    fun setSort(sort: GroupSort) = preferences.setGroupSort(sort)
 
     /**
      * True on a fresh install: no groups and onboarding never finished. Anyone who already has
@@ -158,6 +171,7 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val groups by viewModel.groups.collectAsStateWithLifecycle()
+    val sort by viewModel.sort.collectAsStateWithLifecycle()
     val needsOnboarding by viewModel.needsOnboarding.collectAsStateWithLifecycle()
     LaunchedEffect(needsOnboarding) { if (needsOnboarding) onOnboard() }
     val themeFor by viewModel.themeFor.collectAsStateWithLifecycle()
@@ -175,6 +189,8 @@ fun HomeScreen(
         onArmedChange = viewModel::setArmed,
         onMove = viewModel::move,
         onCreate = { name -> viewModel.create(name, onOpenGroup) },
+        sort = sort,
+        onSort = viewModel::setSort,
         incidents = incidents,
         blockers = checks.filter { it.blocker && !it.passed },
         adviceOutstanding = checks.any { !it.blocker && !it.passed },
@@ -201,6 +217,9 @@ fun HomeContent(
     onOpenSettings: () -> Unit = {},
     /** A group's own theme for its card; the app theme for every card when null. */
     themeFor: ((AlarmGroupEntity) -> ThemeSpec)? = null,
+    /** [groups] arrive already in this order; the move arrows only show for the custom order. */
+    sort: GroupSort = GroupSort.CUSTOM,
+    onSort: (GroupSort) -> Unit = {},
 ) {
     val c = cascadeColors
     var creating by remember { mutableStateOf(false) }
@@ -266,16 +285,20 @@ fun HomeContent(
                         color = c.textSecondary,
                     )
                 }
-                else -> itemsIndexed(groups, key = { _, it -> it.group.id }) { index, summary ->
+                else -> {
+                    if (groups.size > 1) item { SortRow(sort, onSort) }
+                    itemsIndexed(groups, key = { _, it -> it.group.id }) { index, summary ->
                     GroupCard(
                         summary = summary,
                         theme = themeFor?.invoke(summary.group),
+                        movable = sort == GroupSort.CUSTOM,
                         canMoveUp = index > 0,
                         canMoveDown = index < groups.lastIndex,
                         onClick = { onOpenGroup(summary.group.id) },
                         onArmedChange = { onArmedChange(summary.group.id, it) },
                         onMove = { onMove(summary.group.id, it) },
                     )
+                    }
                 }
             }
         }
@@ -291,6 +314,34 @@ fun HomeContent(
             },
             onDismiss = { creating = false },
         )
+    }
+}
+
+/** "Your order ▾": picks how the groups below are listed. */
+@Composable
+private fun SortRow(sort: GroupSort, onSort: (GroupSort) -> Unit) {
+    val c = cascadeColors
+    var open by remember { mutableStateOf(false) }
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text("Groups", style = CascadeType.body, color = c.textSecondary, modifier = Modifier.weight(1f).semantics { heading() })
+        Box {
+            TextButton(onClick = { open = true }, modifier = Modifier.testTag("group-sort")) {
+                Text(sort.title, style = CascadeType.body, color = c.textSecondary)
+                Icon(CascadeIcons.ChevronDown, contentDescription = null, tint = c.textSecondary, modifier = Modifier.padding(start = 4.dp).size(18.dp))
+            }
+            DropdownMenu(expanded = open, onDismissRequest = { open = false }, containerColor = c.surfaceHigh) {
+                GroupSort.entries.forEach { option ->
+                    DropdownMenuItem(
+                        text = { Text(option.title, style = CascadeType.body, color = c.textPrimary) },
+                        onClick = {
+                            open = false
+                            onSort(option)
+                        },
+                        modifier = Modifier.testTag("sort-${option.key}"),
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -318,6 +369,7 @@ private fun NextAlarm(groups: List<GroupSummary>) {
 private fun GroupCard(
     summary: GroupSummary,
     theme: ThemeSpec?,
+    movable: Boolean,
     canMoveUp: Boolean,
     canMoveDown: Boolean,
     onClick: () -> Unit,
@@ -361,8 +413,13 @@ private fun GroupCard(
                     )
                 }
                 Spacer(Modifier.weight(1f))
-                CascadeIconButton(CascadeIcons.ChevronUp, "Move ${summary.group.name} up", { onMove(-1) }, enabled = canMoveUp)
-                CascadeIconButton(CascadeIcons.ChevronDown, "Move ${summary.group.name} down", { onMove(1) }, enabled = canMoveDown)
+                if (movable) {
+                    CascadeIconButton(CascadeIcons.ChevronUp, "Move ${summary.group.name} up", { onMove(-1) }, enabled = canMoveUp)
+                    CascadeIconButton(CascadeIcons.ChevronDown, "Move ${summary.group.name} down", { onMove(1) }, enabled = canMoveDown)
+                } else {
+                    // Keeps the card's height steady when the arrows are hidden.
+                    Spacer(Modifier.size(48.dp))
+                }
             }
         }
       }
@@ -390,17 +447,38 @@ private fun scheduleLine(summary: GroupSummary, is24Hour: Boolean, locale: Local
     return "$span · ${DaysFormat.describe(summary.days, locale)}"
 }
 
+/** Asks for a name, with the field focused and [initial] selected so typing replaces it. */
 @Composable
-fun NameDialog(title: String, initial: String, confirmLabel: String, onConfirm: (String) -> Unit, onDismiss: () -> Unit) {
-    var name by remember { mutableStateOf(initial) }
+fun NameDialog(
+    title: String,
+    initial: String,
+    confirmLabel: String,
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit,
+    detail: String? = null,
+) {
+    var name by remember { mutableStateOf(TextFieldValue(initial, TextRange(0, initial.length))) }
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = cascadeColors.surface,
         title = { Text(title, style = CascadeType.screenTitle) },
         text = {
-            OutlinedTextField(value = name, onValueChange = { name = it }, singleLine = true, label = { Text("Name") })
+            Column(verticalArrangement = Arrangement.spacedBy(CascadeSpace.m)) {
+                if (detail != null) Text(detail, style = CascadeType.body, color = cascadeColors.textSecondary)
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    singleLine = true,
+                    label = { Text("Name") },
+                    modifier = Modifier.focusRequester(focus).testTag("name-field"),
+                )
+            }
         },
-        confirmButton = { TextButton(onClick = { onConfirm(name) }) { Text(confirmLabel) } },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(name.text) }, modifier = Modifier.testTag("name-confirm")) { Text(confirmLabel) }
+        },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
 }

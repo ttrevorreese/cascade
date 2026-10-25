@@ -9,6 +9,7 @@ import com.cascade.alarm.data.db.time
 import com.cascade.alarm.data.sound.SoundConfig
 import com.cascade.alarm.data.sound.SoundFiles
 import com.cascade.alarm.data.sound.SoundSettings
+import com.cascade.alarm.data.sound.VibrationSetting
 import com.cascade.alarm.engine.TimeSource
 import com.cascade.alarm.engine.schedule.WakeCheck
 import com.cascade.alarm.engine.schedule.Reconciler
@@ -72,13 +73,14 @@ class AlarmRepository @Inject constructor(
                 isArmed = true,
                 sortOrder = nextOrder,
                 createdAt = time.now(),
+                updatedAt = time.now(),
             ),
         )
         return id
     }
 
     suspend fun renameGroup(id: String, name: String) = reconciler.mutate("group_rename") {
-        groups.get(id)?.let { groups.upsert(it.copy(name = groupName(name))) }
+        groups.get(id)?.let { groups.upsert(it.copy(name = groupName(name), updatedAt = time.now())) }
     }
 
     /** The master toggle. Never touches the alarms' own isEnabled values (SPEC §5). */
@@ -87,31 +89,44 @@ class AlarmRepository @Inject constructor(
     }
 
     suspend fun setShiftWithFirst(id: String, enabled: Boolean) = reconciler.mutate("group_shift_setting") {
-        groups.get(id)?.let { groups.upsert(it.copy(shiftWithFirst = enabled)) }
+        groups.get(id)?.let { groups.upsert(it.copy(shiftWithFirst = enabled, updatedAt = time.now())) }
     }
 
     /** Turning the wake-up check off also cancels one already pending in the group. */
     suspend fun setWakeCheck(id: String, enabled: Boolean, delayMinutes: Int) = reconciler.mutate("group_wake_check_$enabled") {
         val group = groups.get(id) ?: return@mutate
-        groups.upsert(group.copy(wakeCheckEnabled = enabled, wakeCheckDelayMinutes = WakeCheck.clampDelay(delayMinutes)))
+        groups.upsert(group.copy(wakeCheckEnabled = enabled, wakeCheckDelayMinutes = WakeCheck.clampDelay(delayMinutes), updatedAt = time.now()))
         if (!enabled) alarms.upsertAll(alarms.inGroup(id).map { it.copy(wakeCheckAt = null) })
     }
 
     /** Saves the group's ladder; rungs are normalised like an alarm's own challenge. */
     suspend fun setEscalationPolicy(id: String, policy: EscalationPolicy) = reconciler.mutate("group_escalation") {
         val group = groups.get(id) ?: return@mutate
-        groups.upsert(group.copy(escalationPolicy = EscalationPolicy(policy.steps.mapNotNull(AlarmRules::normalizeChallenge))))
+        groups.upsert(
+            group.copy(escalationPolicy = EscalationPolicy(policy.steps.mapNotNull(AlarmRules::normalizeChallenge)), updatedAt = time.now()),
+        )
     }
 
-    /** Sets what every alarm in the group plays and how it gets louder; drops a replaced file. */
-    suspend fun setGroupSound(id: String, sound: SoundConfig, rampSeconds: Int, startPercent: Int) {
+    /** Sets what every alarm in the group plays, how it gets louder and how it vibrates; drops a replaced file. */
+    suspend fun setGroupSound(
+        id: String,
+        sound: SoundConfig,
+        rampSeconds: Int,
+        startPercent: Int,
+        vibration: VibrationSetting = VibrationSetting(),
+    ) {
         reconciler.mutate("group_sound") {
             val group = groups.get(id) ?: return@mutate
+            val clamped = VibrationSetting.of(vibration.pattern.key, vibration.strengthPercent, vibration.delaySeconds)
             groups.upsert(
                 group.copy(
                     sound = sound,
                     rampSeconds = SoundSettings.clampRamp(rampSeconds),
                     rampStartPercent = SoundSettings.clampStart(startPercent),
+                    vibration = clamped.pattern.key,
+                    vibrationStrength = clamped.strengthPercent,
+                    vibrationDelaySeconds = clamped.delaySeconds,
+                    updatedAt = time.now(),
                 ),
             )
         }
@@ -120,7 +135,7 @@ class AlarmRepository @Inject constructor(
 
     /** The group's own theme, or null to follow the app theme (DESIGN.md §11). */
     suspend fun setGroupTheme(id: String, themeId: String?) = reconciler.mutate("group_theme") {
-        groups.get(id)?.let { groups.upsert(it.copy(themeId = themeId)) }
+        groups.get(id)?.let { groups.upsert(it.copy(themeId = themeId, updatedAt = time.now())) }
     }
 
     /** Deletes copied audio files that no group plays any more (also ones picked but not saved). */
@@ -133,6 +148,7 @@ class AlarmRepository @Inject constructor(
     /** Moves every alarm in the group by [minutes] (the group screen's −5 / +5 buttons). */
     suspend fun shiftGroup(id: String, minutes: Long) = reconciler.mutate("group_shift") {
         alarms.upsertAll(alarms.inGroup(id).map { AlarmRules.shifted(it, minutes) })
+        groups.touch(id, time.now())
     }
 
     suspend fun deleteGroup(id: String) {
@@ -144,18 +160,26 @@ class AlarmRepository @Inject constructor(
         pruneSoundFiles()
     }
 
+    /** The name a copy of [id] gets unless the user changes it: "Workday copy", "Workday copy 2". */
+    suspend fun copyNameFor(id: String): String {
+        val source = groups.get(id) ?: return ""
+        return AlarmRules.copyName(source.name, visibleGroups().map { it.name })
+    }
+
     /**
-     * A copy of the group, its alarms and all its settings, placed right after it. The copy starts
-     * off, so the two never ring together by surprise. Returns the copy's id, or null if [id] is gone.
+     * A copy of the group, its alarms and all its settings, placed right after it and called [name]
+     * (the [copyNameFor] name when blank). The copy starts off, so the two never ring together by
+     * surprise. Returns the copy's id, or null if [id] is gone.
      */
-    suspend fun duplicateGroup(id: String): String? = reconciler.mutate("group_duplicate") {
+    suspend fun duplicateGroup(id: String, name: String? = null): String? = reconciler.mutate("group_duplicate") {
         val source = groups.get(id) ?: return@mutate null
         val ordered = visibleGroups()
         val copy = source.copy(
             id = UUID.randomUUID().toString(),
-            name = AlarmRules.copyName(source.name, ordered.map { it.name }),
+            name = name?.trim()?.takeIf { it.isNotEmpty() } ?: AlarmRules.copyName(source.name, ordered.map { it.name }),
             isArmed = false,
             createdAt = time.now(),
+            updatedAt = time.now(),
         )
         val placed = ordered.toMutableList().apply { add(indexOfFirst { it.id == id } + 1, copy) }
         groups.upsertAll(placed.mapIndexed { index, group -> group.copy(sortOrder = index) })
@@ -218,6 +242,7 @@ class AlarmRepository @Inject constructor(
         }
         // A new time can move the alarm to another place in the sequence, and so another rung.
         renumber(AlarmRules.ringOrder(alarms.inGroup(saved.groupId)))
+        groups.touch(saved.groupId, time.now())
     }
 
     /** Turning an alarm off also cancels a pending snooze, test ring or wake-up check for it. */
@@ -226,6 +251,7 @@ class AlarmRepository @Inject constructor(
             alarms.upsert(
                 if (enabled) it.copy(isEnabled = true) else it.copy(isEnabled = false, oneTimeTriggerAt = null, wakeCheckAt = null),
             )
+            groups.touch(it.groupId, time.now())
         }
     }
 
@@ -233,6 +259,7 @@ class AlarmRepository @Inject constructor(
         val alarm = alarms.get(id) ?: return@mutate
         alarms.delete(id)
         renumber(alarms.inGroup(alarm.groupId))
+        groups.touch(alarm.groupId, time.now())
     }
 
     // --- Test alarm ---

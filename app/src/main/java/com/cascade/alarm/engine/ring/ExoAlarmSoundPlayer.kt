@@ -21,6 +21,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import com.cascade.alarm.data.sound.SoundConfig
+import com.cascade.alarm.data.sound.VibrationSetting
 import com.cascade.alarm.data.voice.ReadAloud
 import com.cascade.alarm.engine.EngineLog
 import kotlinx.coroutines.CoroutineScope
@@ -33,9 +34,10 @@ import android.media.AudioAttributes as PlatformAudioAttributes
 
 /**
  * Plays the alarm on the alarm stream (USAGE_ALARM), which is what makes it audible in silent
- * mode and exempt from Android 17's background-audio restrictions. Layers, in order of trust:
- * vibration (starts first, needs nothing), the group's sound via Media3, Classic if that cannot
- * play, and the system default alarm sound if Classic fails too.
+ * mode and exempt from Android 17's background-audio restrictions. Layers, in order of trust: the
+ * group's sound via Media3, Classic if that cannot play, the system default alarm sound if Classic
+ * fails too, and vibration. Vibration follows the group's setting (pattern, strength, a delay, or
+ * none) unless every sound has failed: then it vibrates regardless, since nothing else is left.
  *
  * Must be used from the main thread (ExoPlayer's application thread).
  */
@@ -77,12 +79,33 @@ class ExoAlarmSoundPlayer(
     /** 0 once Spotify has taken over; the local sound keeps running silently, ready to come back. */
     private var localShare = 1f
     private var handoff: SpotifyHandoff? = null
+    private var vibrationJob: Job? = null
+    private var vibrating = false
 
     override fun start(sound: RingSound, onFallback: (reason: String, next: String) -> Unit) {
-        startVibration()
+        startVibration(sound.vibration)
+        reportFallback = onFallback
+        val floor = startSound(sound)
+        EngineLog.i("audio started sound=${sound.sound} ramp=${sound.rampSeconds}s start=${sound.startPercent}% vibration=${sound.vibration}")
+        startRamp(sound.rampSeconds, floor)
+        (sound.sound as? SoundConfig.SpotifyPlaylist)?.let(::startSpotify)
+    }
+
+    override fun startWakeCheck(sound: RingSound) {
+        if (!sound.vibration.isOff) {
+            startVibration(sound.vibration.copy(delaySeconds = 0))
+            EngineLog.i("wake check vibration started")
+            return
+        }
+        // A group that never vibrates still needs a prompt: its sound, held at the starting level.
+        startSound(sound)
+        EngineLog.i("wake check sound started (group does not vibrate)")
+    }
+
+    /** Starts the local sound chain at the ramp's floor; returns the floor. */
+    private fun startSound(sound: RingSound): Float {
         ensureAlarmStreamAudible()
         requestFocus()
-        reportFallback = onFallback
         val floor = VolumeRamp.startGain(sound.startPercent)
         rampGain = floor
         val plan = try {
@@ -94,14 +117,7 @@ class ExoAlarmSoundPlayer(
         plan.skipped?.let { report(it, "classic") }
         remaining = ArrayDeque(plan.sources)
         playNext()
-        EngineLog.i("audio started sound=${sound.sound} ramp=${sound.rampSeconds}s start=${sound.startPercent}%")
-        startRamp(sound.rampSeconds, floor)
-        (sound.sound as? SoundConfig.SpotifyPlaylist)?.let(::startSpotify)
-    }
-
-    override fun startWakeCheck() {
-        startVibration()
-        EngineLog.i("wake check vibration started")
+        return floor
     }
 
     override fun stop() {
@@ -116,6 +132,9 @@ class ExoAlarmSoundPlayer(
         reportFallback = { _, _ -> }
         fallback?.stop()
         fallback = null
+        vibrationJob?.cancel()
+        vibrationJob = null
+        vibrating = false
         vibrator.cancel()
         focusRequest?.let { audioManager.abandonAudioFocusRequest(it) }
         focusRequest = null
@@ -268,11 +287,33 @@ class ExoAlarmSoundPlayer(
             EngineLog.e("system alarm sound failed too; vibration only", e)
             null
         }
-        if (fallback == null) report("system_sound_failed", "vibration")
+        if (fallback == null) {
+            report("system_sound_failed", "vibration")
+            // Nothing can be heard: vibrate now, even in a group set not to.
+            if (!vibrating) {
+                vibrationJob?.cancel()
+                vibrateNow(VibrationSetting.LAST_RESORT)
+            }
+        }
     }
 
-    private fun startVibration() {
-        val effect = VibrationEffect.createWaveform(VIBRATION_PATTERN, 0)
+    /** The group's vibration, after its delay; nothing for a group that does not vibrate. */
+    private fun startVibration(setting: VibrationSetting) {
+        if (setting.isOff) return
+        if (setting.delaySeconds <= 0) {
+            vibrateNow(setting)
+            return
+        }
+        vibrationJob = scope.launch {
+            delay(setting.delaySeconds * 1000L)
+            vibrateNow(setting)
+        }
+    }
+
+    private fun vibrateNow(setting: VibrationSetting) {
+        vibrating = true
+        val (timings, amplitudes) = setting.waveform()
+        val effect = VibrationEffect.createWaveform(timings, amplitudes, 0)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             vibrator.vibrate(effect, VibrationAttributes.createForUsage(VibrationAttributes.USAGE_ALARM))
         } else {
@@ -288,7 +329,6 @@ class ExoAlarmSoundPlayer(
 
     companion object {
         private const val RAMP_STEP_MILLIS = 200L
-        private val VIBRATION_PATTERN = longArrayOf(0, 800, 600)
 
         fun rawUri(context: Context, res: Int): Uri = Uri.Builder()
             .scheme(ContentResolver.SCHEME_ANDROID_RESOURCE)

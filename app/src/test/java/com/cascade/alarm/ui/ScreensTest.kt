@@ -16,6 +16,9 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.performScrollToNode
@@ -50,6 +53,45 @@ class ScreensTest {
         daysOfWeek = DayOfWeek.entries.take(5).toSet(), label = null, isEnabled = enabled,
         volumeRampSeconds = 30, timeoutMinutes = 15,
     )
+
+    @Test
+    fun homeSortsGroupsAndOnlyYourOrderHasArrows() {
+        val two = listOf(
+            GroupSummary(group, alarmCount = 1, enabledCount = 1, nextRing = null),
+            GroupSummary(group.copy(id = "h", name = "Gym Day", sortOrder = 1), alarmCount = 1, enabledCount = 1, nextRing = null),
+        )
+        var sort by mutableStateOf(com.cascade.alarm.data.GroupSort.CUSTOM)
+        compose.setContent { HomeContent(two, {}, {}, { _, _ -> }, { _, _ -> }, {}, sort = sort, onSort = { sort = it }) }
+        compose.onNodeWithContentDescription("Move Gym Day up").assertExists()
+        compose.onNodeWithTag("group-sort").performScrollTo().performClick()
+        compose.onNodeWithTag("sort-time").performClick()
+        assertEquals(com.cascade.alarm.data.GroupSort.TIME, sort)
+        compose.onNodeWithText("Earliest first").assertExists()
+        compose.onNodeWithContentDescription("Move Gym Day up").assertDoesNotExist()
+    }
+
+    @Test
+    fun aDuplicateIsNamedBeforeItIsMade() {
+        var made: String? = null
+        compose.setContent {
+            com.cascade.alarm.ui.group.GroupContent(
+                group = group, alarms = listOf(alarm("a", 0, 6)),
+                onBack = {}, onOpenAlarm = {}, onArmedChange = {}, onRename = {}, onDelete = {},
+                onAlarmEnabledChange = { _, _ -> }, onShiftWithFirstChange = {}, onShift = {}, onWakeCheckChange = { _, _ -> },
+                onDuplicate = { made = it },
+            )
+        }
+        compose.onNodeWithTag("duplicate-group").performClick()
+        compose.onNodeWithText("Name the copy").assertExists()
+        compose.onNodeWithTag("name-field").assertTextContains("Workday Wake copy")
+        compose.onNodeWithText("Cancel").performClick()
+        assertEquals(null, made)
+
+        compose.onNodeWithTag("duplicate-group").performClick()
+        compose.onNodeWithTag("name-field").performTextReplacement("Weekend Wake")
+        compose.onNodeWithTag("name-confirm").performClick()
+        assertEquals("Weekend Wake", made)
+    }
 
     @Test
     fun homeShowsEmptyStateThenGroups() {
