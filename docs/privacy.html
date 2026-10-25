@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cascade privacy policy</title>
+<style>
+  :root { --ground: #123524; --surface: #1B4332; --text: #EDF5EE; --muted: #A9C4B2; --accent: #FFC94D; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--ground); color: var(--text); font: 17px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 680px; margin: 0 auto; padding: 48px 20px 80px; }
+  h1 { font-size: 2.2rem; line-height: 1.15; margin: 0 0 4px; }
+  h2 { font-size: 1.2rem; margin: 40px 0 8px; }
+  p, li { color: var(--text); }
+  .muted { color: var(--muted); }
+  .summary { background: var(--surface); border-left: 4px solid var(--accent); border-radius: 12px; padding: 16px 20px; margin: 28px 0; }
+  a { color: var(--accent); }
+  ul { padding-left: 1.2em; }
+  code { font-size: 0.95em; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Cascade privacy policy</h1>
+  <p class="muted">Effective 24 October 2026 · Cascade for Android, by Trevor Reese</p>
+
+  <div class="summary">
+    <strong>The short version:</strong> Cascade collects nothing. It has no account, no analytics, no ads and no
+    servers, and Android does not even give it permission to use the internet. Everything you set up stays on your
+    phone.
+  </div>
+
+  <h2>What Cascade keeps, and where</h2>
+  <p>Cascade stores what it needs to ring your alarms in its own private storage on your phone, where other apps
+  cannot read it:</p>
+  <ul>
+    <li>Your alarm groups, alarms, labels, challenges and settings.</li>
+    <li>A log of what your alarms did (rang, snoozed, dismissed, missed), used for the Reliability Check and Stats.</li>
+    <li>Reference photos you take for the photo-match challenge, and audio files you choose as alarm sounds (Cascade
+    keeps its own copies).</li>
+    <li>Spoken versions of alarm labels, if you turn on read aloud.</li>
+  </ul>
+  <p>None of this is sent anywhere. Cascade turns off Android's cloud backup for its data, so it is not copied to
+  Google Drive either. Uninstalling Cascade deletes all of it.</p>
+
+  <h2>Permissions and why</h2>
+  <ul>
+    <li><strong>Alarms and reminders, full-screen alarms, notifications:</strong> to ring on time and show the alarm over
+    the lock screen.</li>
+    <li><strong>Camera</strong> (only if you use those challenges): to scan a QR code or barcode, or to compare a photo
+    with your reference photo. Images are processed on the phone and are not saved, apart from reference photos you
+    choose to take.</li>
+    <li><strong>Physical activity</strong> (only if you use the walking challenge): to count steps while the challenge is
+    open. Step counts are not stored.</li>
+    <li><strong>Run at startup:</strong> to set your alarms again after the phone restarts.</li>
+  </ul>
+  <p>Cascade does not have the internet permission. Some Google libraries it uses (the on-device barcode reader and
+  Google Play Billing) try to send anonymous usage statistics to Google; without that permission Android blocks them.</p>
+
+  <h2>Purchases</h2>
+  <p>Cascade Plus is bought through Google Play. Google handles the payment under
+  <a href="https://policies.google.com/privacy">Google's privacy policy</a>. Cascade only learns whether you own
+  Cascade Plus, from the Play Store app on your phone; it never sees your payment details.</p>
+
+  <h2>Voices</h2>
+  <p>Read aloud uses your phone's own text-to-speech engine and only voices that work offline. The engine is part of
+  Android or comes from your phone's maker, and runs on the phone.</p>
+
+  <h2>Spotify (test builds only)</h2>
+  <p>Versions of Cascade distributed to a small group of testers can play a Spotify playlist as an alarm. Cascade
+  then asks the Spotify app on your phone to play it; Cascade does not connect to Spotify's servers or see your
+  Spotify account. Spotify's use of your data is covered by
+  <a href="https://www.spotify.com/legal/privacy-policy/">Spotify's privacy policy</a>. The version on Google Play for
+  everyone does not include this.</p>
+
+  <h2>Exporting your data</h2>
+  <p>Settings &gt; Export everything saves your groups, alarms and event log as a file in a place you choose. What
+  happens to that file afterwards is up to you.</p>
+
+  <h2>Children</h2>
+  <p>Cascade is not directed at children and collects no information from anyone.</p>
+
+  <h2>Changes</h2>
+  <p>If this policy changes, the new version will be published at this address with a new effective date. Cascade
+  will never start collecting personal data without saying so here first.</p>
+
+  <h2>Contact</h2>
+  <p>Questions: open an issue at <a href="https://github.com/ttrevorreese/cascade/issues">github.com/ttrevorreese/cascade</a>.</p>
+</main>
+</body>
+</html>

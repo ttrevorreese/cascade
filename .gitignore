@@ -13,6 +13,7 @@
 *.aab
 *.keystore
 *.jks
+keystore.properties
 
 # Personal Claude Code settings
 .claude/settings.local.json

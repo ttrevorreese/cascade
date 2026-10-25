@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -18,10 +20,24 @@ android {
         minSdk = 26
         targetSdk = 36
         versionCode = 1
-        versionName = "0.1.0"
+        versionName = "1.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Spotify (SPEC §9). The Client ID is public by design (it is not a secret).
         buildConfigField("String", "SPOTIFY_CLIENT_ID", "\"${providers.gradleProperty("cascade.spotifyClientId").getOrElse("")}\"")
+    }
+
+    // The upload key lives outside the repo; keystore.properties (git-ignored) says where. See RELEASING.md.
+    val keystoreFile = rootProject.file("keystore.properties")
+    val upload = if (keystoreFile.exists()) {
+        val props = Properties().apply { keystoreFile.inputStream().use(::load) }
+        signingConfigs.create("upload") {
+            storeFile = file(props.getProperty("storeFile"))
+            storePassword = props.getProperty("storePassword")
+            keyAlias = props.getProperty("keyAlias")
+            keyPassword = props.getProperty("keyPassword")
+        }
+    } else {
+        null
     }
 
     buildTypes {
@@ -33,7 +49,11 @@ android {
             // without it; -Pcascade.spotifyInRelease=true builds one for those people.
             val spotify = providers.gradleProperty("cascade.spotifyInRelease").getOrElse("false")
             buildConfigField("boolean", "SPOTIFY_ENABLED", spotify)
-            isMinifyEnabled = false
+            // Without the upload key a release build is signed with the debug key: installable for
+            // testing, and refused by Play, so it can never be uploaded by mistake.
+            signingConfig = upload ?: signingConfigs.getByName("debug")
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }

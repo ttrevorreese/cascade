@@ -2,6 +2,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- No internet, by design (SPEC §11). ML Kit and Play Billing bring Google's datatransport
+         library, which asks for it to send usage statistics; Cascade needs none of it: barcodes are
+         read on the phone, and Billing, Spotify and text-to-speech are other apps reached over IPC. -->
+    <uses-permission android:name="android.permission.INTERNET" tools:node="remove" />
+
     <!-- Exact alarms. USE_EXACT_ALARM (13+) is auto-granted to alarm-clock apps and cannot be
          revoked; Play reviews it. SCHEDULE_EXACT_ALARM covers 12/12L, where it is pre-granted. -->
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />

@@ -48,8 +48,16 @@ under conventions). It is how the next session knows where to pick up.
 - **Spotify** (2026-10-24): built, JVM-tested, checked on the emulator as far as it can (no Spotify there:
   the backup rang, Home explained). Debug builds only by default; for the owner and up to four friends
   (Spotify developer mode). Decisions and the phone checklist: `spec.md` §9 and §10.
-- **M7 is done.** Next: give the owner the M8 plan (Play listing, permission declarations, privacy policy)
-  and wait for approval. Owner decisions (2026-10-24): Cascade Plus is
+- **M7 is done.**
+- **In progress: M8 Release prep** (plan approved 2026-10-24). Done: R8 shrinking + upload-key signing
+  (`keystore.properties`, git-ignored; debug key otherwise), version 1.0.0, release build smoke-tested on
+  the emulator (onboarding, screens, ladder, test alarm), INTERNET permission removed (ML Kit/Billing's
+  datatransport tried to upload usage stats; now blocked, verified), `docs/privacy.html` (GitHub Pages),
+  `RELEASING.md`, README with `docs/screenshots/` (1080x2160, Play's 2:1 limit). Next: `docs/play-console.md`
+  (listing text, data safety, declarations, content rating), 512 px icon and 1024x500 feature graphic.
+  Owner decisions: personal Play account, store name "Cascade: Alarm Groups" (installed label stays
+  "Cascade"), developer name ttrevorreese. Open: applicationId (`com.cascade.alarm` vs
+  `com.ttrevorreese.cascade`), contact email for the listing. Owner decisions (2026-10-24): Cascade Plus is
   $4.99 flat, one-time; no Play Console account yet (create it at M8, then add the `cascade_plus`
   product at that price). Read-aloud must let the owner pick the voice.
 - Before starting a milestone: give the owner a short plan and wait for approval (their kickoff
@@ -69,7 +77,7 @@ under conventions). It is how the next session knows where to pick up.
 | M5 Reliability | done | Reliability Check (problems first), missed/late cards with cause from boot time, test result, OEM guidance, event log share |
 | M6 Audio | done | per-group sound, tones from `scripts/make_tones.py`, picked files copied in, ramp 30–60 s + start level, fallback logged and shown on Home |
 | M7 Polish | done | Appearance, group themes, Plus, snooze, read aloud, stats, settings, onboarding, accessibility, Spotify (debug builds; phone checks in spec §10) |
-| M8 Release prep | | Play listing, permission declarations, privacy policy |
+| M8 Release prep | **in progress** | signing, R8, privacy policy, README done; Play Console texts and graphics next |
 
 ## Sources of truth
 
@@ -110,6 +118,10 @@ under conventions). It is how the next session knows where to pick up.
 - Spotify: App Remote SDK calls stay in `engine/ring/SpotifyAppRemote.kt`; logic in `SpotifyHandoff`
   (tested with fakes). A release build with Spotify: `./gradlew assembleRelease -Pcascade.spotifyInRelease=true`.
   A release key needs its SHA-1 added on Spotify's dashboard (M8).
+- No INTERNET permission (removed with `tools:node="remove"` in the manifest). Never add a library that
+  needs the network; check the merged manifest after adding any dependency.
+- Store screenshots: `adb shell wm size 1080x2160` (Play rejects taller than 2:1) and SystemUI demo mode
+  for a clean status bar; `wm size reset` afterwards.
 - Media3: `setAudioAttributes(..., handleAudioFocus = true)` throws for USAGE_ALARM; always pass false
   (the ring player requests focus itself).
 - Debug-build adb hooks (`DebugCommandReceiver`), e.g.
