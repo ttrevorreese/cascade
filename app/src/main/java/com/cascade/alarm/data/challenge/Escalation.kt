@@ -4,6 +4,7 @@ import com.cascade.alarm.data.db.AlarmEntity
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.time.Duration
+import java.time.Instant
 
 /**
  * A group's ladder (SPEC §5): [steps] index maps to an alarm's place in the sequence, and the last
@@ -33,30 +34,37 @@ object Escalation {
         ),
     )
 
-    /** How far back an alarm that already rang still belongs to the same morning's cascade. */
-    private val CASCADE_WINDOW: Duration = Duration.ofHours(12)
+    /** How far either side of a ring the same morning's cascade reaches. */
+    val CASCADE_WINDOW: Duration = Duration.ofHours(12)
 
     /**
-     * The alarms of [alarm]'s cascade, in ring order: those that are on, [alarm] itself, and those
-     * that rang in the [CASCADE_WINDOW] before it. A one-shot alarm switches itself off as it rings,
-     * so without the last rule each one-shot alarm would think it was the first (fixed 2026-10-25).
+     * The alarms of [alarm]'s cascade, in ring order.
+     *
+     * For a ring at [ringAt] (the trigger that went off): [alarm] itself, the group's alarms that
+     * rang in the [CASCADE_WINDOW] before it, and those that are on and due within the window
+     * after it. A one-shot alarm switches itself off as it rings, and an alarm can repeat on other
+     * days than the rest of its group, so "is on" alone is not the cascade (fixed 2026-10-25).
+     *
+     * Without [ringAt] (the editor and group screen): [alarm] and the alarms that are on.
      */
-    fun cascade(alarm: AlarmEntity, groupAlarms: List<AlarmEntity>): List<AlarmEntity> {
-        val firedAt = alarm.lastFiredFor
-        fun rangBefore(other: AlarmEntity): Boolean {
-            val at = other.lastFiredFor ?: return false
-            return firedAt != null && !at.isAfter(firedAt) && Duration.between(at, firedAt) <= CASCADE_WINDOW
+    fun cascade(alarm: AlarmEntity, groupAlarms: List<AlarmEntity>, ringAt: Instant? = null): List<AlarmEntity> {
+        fun inCascade(other: AlarmEntity): Boolean {
+            if (other.id == alarm.id) return true
+            if (ringAt == null) return other.isEnabled
+            val rang = other.lastFiredFor
+            if (rang != null && !rang.isAfter(ringAt) && Duration.between(rang, ringAt) <= CASCADE_WINDOW) return true
+            val due = other.nextTriggerAt
+            return other.isEnabled && due != null && !due.isBefore(ringAt) && Duration.between(ringAt, due) <= CASCADE_WINDOW
         }
-        return groupAlarms.sortedBy { it.positionInGroup }
-            .filter { it.isEnabled || it.id == alarm.id || rangBefore(it) }
+        return groupAlarms.sortedBy { it.positionInGroup }.filter(::inCascade)
     }
 
     /**
      * [alarm]'s place for escalation within its [cascade], so switched-off alarms do not count and
-     * the last alarm that actually rings gets the hardest rung.
+     * the last alarm that actually rings gets the last rung.
      */
-    fun position(alarm: AlarmEntity, groupAlarms: List<AlarmEntity>): Int =
-        cascade(alarm, groupAlarms).indexOfFirst { it.id == alarm.id }.coerceAtLeast(0)
+    fun position(alarm: AlarmEntity, groupAlarms: List<AlarmEntity>, ringAt: Instant? = null): Int =
+        cascade(alarm, groupAlarms, ringAt).indexOfFirst { it.id == alarm.id }.coerceAtLeast(0)
 
     /** The rung for [position]; the last rung repeats. Null when the ladder is empty. */
     fun rung(policy: EscalationPolicy, position: Int): ChallengeConfig? =

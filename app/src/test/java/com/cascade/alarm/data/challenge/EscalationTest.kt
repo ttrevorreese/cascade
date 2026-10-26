@@ -35,26 +35,51 @@ class EscalationTest {
         assertEquals(1, Escalation.position(alarms[1], alarms))
     }
 
+    private val six = Instant.parse("2026-10-25T06:00:00Z")
+    private fun at(minutes: Int) = six.plusSeconds(minutes * 60L)
+    private fun due(a: AlarmEntity) = a.copy(nextTriggerAt = at(a.positionInGroup * 10))
+    private fun rang(a: AlarmEntity) = a.copy(isEnabled = false, nextTriggerAt = null, lastFiredFor = at(a.positionInGroup * 10))
+
     @Test
     fun `one-shot alarms that already rang this morning still count, so each later one climbs the ladder`() {
-        val morning = Instant.parse("2026-10-25T06:00:00Z")
-        fun rang(a: AlarmEntity, minutes: Long) = a.copy(isEnabled = false, lastFiredFor = morning.plusSeconds(minutes * 60))
-        // a and b rang and switched themselves off; c is ringing now and switched itself off too.
-        val alarms = listOf(rang(alarm("a", 0), 0), rang(alarm("b", 1), 10), rang(alarm("c", 2), 20), alarm("d", 3))
-        assertEquals(listOf(0, 1, 2), alarms.take(3).map { Escalation.position(it, alarms) })
-        assertEquals(ladder.steps[2], Escalation.resolve(alarms[2], ladder, Escalation.position(alarms[2], alarms)))
-        assertEquals(4, Escalation.cascade(alarms[2], alarms).size)
+        // a and b rang and switched themselves off; c is ringing now; d is still to come.
+        val alarms = listOf(rang(alarm("a", 0)), rang(alarm("b", 1)), rang(alarm("c", 2)), due(alarm("d", 3)))
+        assertEquals(2, Escalation.position(alarms[2], alarms, at(20)))
+        assertEquals(ladder.steps[2], Escalation.resolve(alarms[2], ladder, Escalation.position(alarms[2], alarms, at(20))))
+        assertEquals(4, Escalation.cascade(alarms[2], alarms, at(20)).size)
+        // The ring path holds the row as it was before the fire was recorded; only the ring time matters.
+        val beforeFire = due(alarm("c", 2))
+        assertEquals(2, Escalation.position(beforeFire, alarms, at(20)))
+    }
+
+    @Test
+    fun `the same holds on the next morning, when every row still carries yesterday's ring`() {
+        val yesterday = { a: AlarmEntity -> a.copy(lastFiredFor = at(a.positionInGroup * 10).minusSeconds(86_400)) }
+        val alarms = listOf(rang(alarm("a", 0)), rang(alarm("b", 1)), yesterday(due(alarm("c", 2))))
+        assertEquals(2, Escalation.position(alarms[2], alarms, at(20)))
     }
 
     @Test
     fun `an alarm that rang on an earlier day, or was switched off by hand, does not count`() {
-        val now = Instant.parse("2026-10-25T06:20:00Z")
         val alarms = listOf(
-            alarm("a", 0, enabled = false).copy(lastFiredFor = now.minusSeconds(24 * 3600)),
+            alarm("a", 0, enabled = false).copy(lastFiredFor = at(0).minusSeconds(24 * 3600)),
             alarm("b", 1, enabled = false),
-            alarm("c", 2, enabled = false).copy(lastFiredFor = now),
+            due(alarm("c", 2)),
         )
-        assertEquals(0, Escalation.position(alarms[2], alarms))
+        assertEquals(0, Escalation.position(alarms[2], alarms, at(20)))
+    }
+
+    @Test
+    fun `an alarm on that is not due this morning (other days) is not in the cascade`() {
+        val saturday = Instant.parse("2026-10-31T06:20:00Z")
+        val alarms = listOf(rang(alarm("a", 0)), due(alarm("b", 1)), alarm("c", 2).copy(nextTriggerAt = saturday))
+        assertEquals(listOf("a", "b"), Escalation.cascade(alarms[1], alarms, at(10)).map { it.id })
+    }
+
+    @Test
+    fun `alarms due at the same minute are both in the cascade`() {
+        val alarms = listOf(due(alarm("a", 0)), alarm("b", 1).copy(nextTriggerAt = at(0)))
+        assertEquals(listOf("a", "b"), Escalation.cascade(alarms[0], alarms, at(0)).map { it.id })
     }
 
     @Test

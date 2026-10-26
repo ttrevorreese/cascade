@@ -263,6 +263,20 @@ class ScreensTest {
         assertTrue("new alarms have nothing to delete", compose.onAllNodesWithTextCount("Delete alarm") == 0)
     }
 
+    @Test
+    fun settingATimeSwitchesAnAlarmThatRangOnceBackOn() {
+        lateinit var latest: AlarmEntity
+        compose.setContent {
+            var draft by remember { mutableStateOf(alarm("a", 0, 6, enabled = false).copy(daysOfWeek = emptySet())) }
+            latest = draft
+            AlarmEditorContent(draft = draft, isNew = false, onEdit = { transform -> draft = transform(draft) }, onSave = {}, onDelete = {}, onCancel = {})
+        }
+        compose.onNodeWithTag("time").performClick()
+        compose.onNodeWithText("Set time").performClick()
+        compose.waitForIdle()
+        assertTrue(latest.isEnabled)
+    }
+
     private fun ringing(position: Int, total: Int, wakeCheck: Boolean = false) = RingingAlarm(
         alarmId = "a", label = "Gym bag", scheduledFor = Instant.EPOCH, deadline = Instant.now().plusSeconds(60),
         isWakeCheck = wakeCheck, position = position, total = total,

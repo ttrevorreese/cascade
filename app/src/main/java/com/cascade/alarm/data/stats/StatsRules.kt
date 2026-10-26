@@ -97,7 +97,8 @@ object StatsRules {
             dismissed = count(EventType.DISMISSED),
             snoozed = count(EventType.SNOOZED),
             gaveUp = count(EventType.GAVE_UP),
-            missed = count(EventType.MISSED),
+            // A ring skipped because a later alarm of its group was already ringing was not missed.
+            missed = inWindow.count { it.type == EventType.MISSED && metadata(it)["reason"] != "skipped" },
             medianToDismiss = median(toDismiss.map { it.second }),
             byDay = (0 until days).map { offset ->
                 val date = firstDay.plusDays(offset.toLong())

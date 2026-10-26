@@ -40,6 +40,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
+import com.cascade.alarm.ui.reliability.ReliabilityChecks
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.platform.testTag
@@ -100,6 +109,8 @@ fun SettingsScreen(
     val context = LocalContext.current
     val resolver = context.contentResolver
     var noEmailApp by remember { mutableStateOf(false) }
+    var advice by remember { mutableStateOf(0) }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { advice = ReliabilityChecks.check(context).count { !it.passed } }
     val saveFile = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         if (uri != null) viewModel.export(resolver, uri)
     }
@@ -111,6 +122,7 @@ fun SettingsScreen(
         exportResult = exportResult,
         onFeedback = { kind -> noEmailApp = !Feedback.send(context, kind) },
         noEmailApp = noEmailApp,
+        reliabilityAdvice = advice,
     )
 }
 
@@ -131,6 +143,8 @@ fun SettingsContent(
     onFeedback: (Feedback.Kind) -> Unit = {},
     /** The last feedback tap found no email app to open. */
     noEmailApp: Boolean = false,
+    /** Reliability checks not passing; Home's cog carries the same dot. */
+    reliabilityAdvice: Int = 0,
 ) {
     val c = cascadeColors
     // Settings is in the app theme, which is what is in effect here (DESIGN.md §11.2).
@@ -148,7 +162,19 @@ fun SettingsContent(
             item { LinkRow("Stats", "Rings, snoozes, challenges and wake-up checks", onOpenStats, "open-stats") }
             item { LinkRow("Appearance", "${theme.name} · $animationText", onOpenAppearance, "open-appearance") }
             item { LinkRow("Read-aloud voice", voiceText(voice), onOpenVoice, "open-voice") }
-            item { LinkRow("Reliability Check", "What could stop an alarm on this phone, and a test alarm", onOpenReliability, "open-reliability-check") }
+            item {
+                LinkRow(
+                    "Reliability Check",
+                    when (reliabilityAdvice) {
+                        0 -> "What could stop an alarm on this phone, and a test alarm"
+                        1 -> "1 thing to look at, and a test alarm"
+                        else -> "$reliabilityAdvice things to look at, and a test alarm"
+                    },
+                    onOpenReliability,
+                    "open-reliability-check",
+                    dot = reliabilityAdvice > 0,
+                )
+            }
             item { SectionLabel("For new groups") }
             item {
                 Text(
@@ -266,14 +292,22 @@ private fun SectionLabel(text: String) {
 }
 
 @Composable
-private fun LinkRow(title: String, detail: String, onClick: () -> Unit, tag: String) {
+private fun LinkRow(title: String, detail: String, onClick: () -> Unit, tag: String, dot: Boolean = false) {
     val c = cascadeColors
     Row(
         Modifier.fillMaxWidth().heightIn(min = 64.dp).clickable(onClick = onClick).padding(vertical = CascadeSpace.m).testTag(tag),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
-            Text(title, style = CascadeType.rowLabel, color = c.textPrimary)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(title, style = CascadeType.rowLabel, color = c.textPrimary)
+                if (dot) {
+                    Box(
+                        Modifier.padding(start = 8.dp).size(7.dp).clip(CircleShape).background(c.status.warn)
+                            .semantics { contentDescription = "Advice waiting" },
+                    )
+                }
+            }
             Text(detail, style = CascadeType.body, color = c.textSecondary)
         }
         // The back chevron turned round: this row leads somewhere.

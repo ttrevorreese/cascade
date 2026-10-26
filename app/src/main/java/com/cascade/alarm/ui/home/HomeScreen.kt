@@ -260,17 +260,18 @@ fun HomeContent(
             item {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text("Cascade", style = CascadeType.cardTitle, color = c.textSecondary, modifier = Modifier.weight(1f))
-                    TextButton(onClick = onOpenReliability, modifier = Modifier.testTag("open-reliability")) {
-                        Text("Reliability", style = CascadeType.body, color = c.textSecondary)
+                    // Reliability lives in Settings (owner request, 2026-10-25: the text link took too much
+                    // room); blockers still get the banner below, which opens it directly.
+                    Box(Modifier.testTag("open-settings")) {
+                        CascadeIconButton(CascadeIcons.Cog, "Settings", onOpenSettings)
                         if (adviceOutstanding) {
                             // Advice, not an emergency: a dot, never a ramp colour (DESIGN.md §1).
                             Box(
-                                Modifier.padding(start = 6.dp).size(7.dp).clip(CircleShape).background(c.status.warn)
-                                    .semantics { contentDescription = "Advice waiting" },
+                                Modifier.align(Alignment.TopEnd).padding(top = 10.dp, end = 10.dp).size(7.dp).clip(CircleShape)
+                                    .background(c.status.warn).semantics { contentDescription = "Advice waiting" },
                             )
                         }
                     }
-                    CascadeIconButton(CascadeIcons.Settings, "Settings", onOpenSettings)
                 }
             }
             if (blockers.isNotEmpty()) {

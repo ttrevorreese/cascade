@@ -202,6 +202,8 @@ class ExoAlarmSoundPlayer(
                     false,
                 )
                 repeatMode = Player.REPEAT_MODE_ONE
+                // Its own wake lock too, so playback never depends on the ring's alone.
+                setWakeMode(C.WAKE_MODE_LOCAL)
                 addListener(object : Player.Listener {
                     override fun onPlayerError(error: PlaybackException) {
                         EngineLog.e("sound failed to play; trying the next", error)

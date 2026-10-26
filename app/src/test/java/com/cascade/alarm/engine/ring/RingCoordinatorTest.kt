@@ -77,11 +77,11 @@ class RingCoordinatorTest {
         var failSequence = false
         var failChallenge = false
         /** The real resolution with an empty ladder: the alarm's own override, None meaning plain. */
-        override suspend fun challengeFor(alarm: AlarmEntity): ChallengeConfig? {
+        override suspend fun challengeFor(alarm: AlarmEntity, ringAt: Instant): ChallengeConfig? {
             if (failChallenge) error("db unavailable")
             return Escalation.resolve(alarm, EscalationPolicy(), 0)
         }
-        override suspend fun sequencePosition(alarm: AlarmEntity): SequencePosition {
+        override suspend fun sequencePosition(alarm: AlarmEntity, ringAt: Instant): SequencePosition {
             if (failSequence) error("db unavailable")
             return sequence
         }

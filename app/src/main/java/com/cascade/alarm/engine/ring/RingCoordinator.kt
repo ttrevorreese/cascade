@@ -28,6 +28,8 @@ import java.time.Instant
  * - A ring interrupted by power-off resumes on boot with a fresh timeout and a CHEAT_DETECTED event.
  * - A wake-up check is a quiet prompt with a short deadline. Answering it ends the sequence;
  *   missing it (or powering off during it) rings the alarm again, whose dismissal checks again.
+ * - One ring at a time: a new fire takes over, except that a ring never gives way to an earlier
+ *   alarm of its own group (a snooze landing after the last alarm must not replace it).
  */
 class RingCoordinator(
     private val scope: CoroutineScope,
@@ -62,6 +64,11 @@ class RingCoordinator(
             EngineLog.i("wake check skipped while alarm=${current.alarmId} rings")
             return@withLock
         }
+        if (current != null && current.alarmId != alarmId && isEarlierInGroup(ringResult.alarm, current.alarmId)) {
+            EngineLog.i("fire skipped: alarm=$alarmId is earlier in the group than ringing alarm=${current.alarmId}")
+            bestEffort { store.log(alarmId, EventType.MISSED, "reason" to "skipped", "scheduledFor" to scheduledFor, "ringing" to current.alarmId) }
+            return@withLock
+        }
         if (current != null && (current.alarmId != alarmId || current.scheduledFor != scheduledFor)) {
             bestEffort { store.log(current.alarmId, EventType.MISSED, "reason" to "superseded", "by" to alarmId) }
         }
@@ -88,6 +95,12 @@ class RingCoordinator(
         }
         wakeLock.acquire(RingDefaults.INITIAL_WAKE_LOCK)
         var ring = persisted
+        if (afterBoot && Duration.between(persisted.startedAt, now()) > RingDefaults.RESUME_AFTER_POWER_OFF) {
+            // Off for hours (a flat battery overnight, say): ringing now would be a stray alarm.
+            EngineLog.i("not resuming ring alarm=${persisted.alarmId}: started ${persisted.startedAt}, too long ago")
+            finish(EventType.MISSED, "reason" to "power_off", ring = persisted)
+            return@withLock
+        }
         if (afterBoot) {
             ring = persisted.copy(startedAt = now())
             bestEffort { store.setActiveRing(ring) }
@@ -178,12 +191,12 @@ class RingCoordinator(
         wakeLock.acquire(remaining.plus(RingDefaults.WAKE_LOCK_MARGIN))
         // Only shapes the screen; ringing must never wait on or fail because of it.
         val sequence = alarm?.let {
-            try { store.sequencePosition(it) } catch (e: Exception) { null }
+            try { store.sequencePosition(it, ring.scheduledFor) } catch (e: Exception) { null }
         } ?: SequencePosition(0, 1)
         val ringing = RingingAlarm(
             ring.alarmId, alarm?.label, ring.scheduledFor, deadline, ring.isWakeCheck,
             position = sequence.position, total = sequence.total,
-            challenge = if (ring.isWakeCheck) null else challengeFor(alarm),
+            challenge = if (ring.isWakeCheck) null else challengeFor(alarm, ring.scheduledFor),
             startedAt = ring.startedAt,
             // Only the look; a failure means the app theme, never a delay.
             groupThemeId = alarm?.let { try { store.themeFor(it) } catch (e: Exception) { null } },
@@ -226,14 +239,24 @@ class RingCoordinator(
      * Fail open: an alarm that could not be loaded rings with the plain Dismiss button; if only
      * its group's ladder cannot be read, the alarm's own override still applies.
      */
-    private suspend fun challengeFor(alarm: AlarmEntity?): ChallengeConfig? {
+    private suspend fun challengeFor(alarm: AlarmEntity?, ringAt: Instant): ChallengeConfig? {
         alarm ?: return null
         return try {
-            store.challengeFor(alarm)
+            store.challengeFor(alarm, ringAt)
         } catch (e: Exception) {
             EngineLog.e("cannot resolve escalation alarm=${alarm.id}", e)
             alarm.challengeOverride?.takeUnless { it == ChallengeConfig.None }
         }
+    }
+
+    /**
+     * Whether [incoming] comes before the ringing [currentId] in the same group. Unknown means no:
+     * the new fire takes over, as it always did.
+     */
+    private suspend fun isEarlierInGroup(incoming: AlarmEntity?, currentId: String): Boolean {
+        incoming ?: return false
+        val ringing = try { store.alarm(currentId) } catch (e: Exception) { null } ?: return false
+        return ringing.groupId == incoming.groupId && incoming.positionInGroup < ringing.positionInGroup
     }
 
     /** Fail open: the group's sound if it can be read, else Classic with the default ramp. */

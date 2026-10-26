@@ -5,50 +5,68 @@ import com.cascade.alarm.data.db.AlarmGroupEntity
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
+import java.time.DayOfWeek
 import java.time.Instant
 
 class WakeCheckTest {
-    private val dismissedAt = Instant.parse("2026-10-19T10:30:00Z")
+    private val six = Instant.parse("2026-10-19T10:00:00Z") // Monday 06:00 EDT
     private val group = AlarmGroupEntity("g", "Workday", "#000000", "default", true, 0, Instant.EPOCH, wakeCheckEnabled = true, wakeCheckDelayMinutes = 3)
 
-    private fun alarm(id: String, position: Int, enabled: Boolean = true) = AlarmEntity(
+    private fun at(minutes: Int) = six.plusSeconds(minutes * 60L)
+
+    /** An alarm at 06:[position*10] that is still to ring this morning. */
+    private fun due(id: String, position: Int) = AlarmEntity(
         id = id, groupId = "g", positionInGroup = position, hour = 6, minute = position * 10, daysOfWeek = emptySet(),
-        label = null, isEnabled = enabled, volumeRampSeconds = 30, timeoutMinutes = 15,
+        label = null, isEnabled = true, volumeRampSeconds = 30, timeoutMinutes = 15, nextTriggerAt = at(position * 10),
     )
 
-    private val sequence = listOf(alarm("a", 0), alarm("b", 1), alarm("c", 2))
+    /** The same alarm after it rang as a one-shot: off, nothing scheduled. */
+    private fun rang(alarm: AlarmEntity) = alarm.copy(isEnabled = false, nextTriggerAt = null, lastFiredFor = at(alarm.positionInGroup * 10))
+
+    private val dismissedAt = at(25)
 
     @Test
     fun `dismissing the last alarm schedules a check after the group's delay`() {
-        assertEquals(dismissedAt.plusSeconds(180), WakeCheck.checkAt(sequence[2], group, sequence, dismissedAt))
+        val alarms = listOf(rang(due("a", 0)), rang(due("b", 1)), rang(due("c", 2)))
+        assertEquals(dismissedAt.plusSeconds(180), WakeCheck.checkAt(alarms[2], group, alarms, at(20), dismissedAt))
     }
 
     @Test
     fun `dismissing an earlier alarm schedules nothing because more are coming`() {
-        assertNull(WakeCheck.checkAt(sequence[1], group, sequence, dismissedAt))
+        val alarms = listOf(rang(due("a", 0)), rang(due("b", 1)), due("c", 2))
+        assertNull(WakeCheck.checkAt(alarms[1], group, alarms, at(10), at(12)))
     }
 
     @Test
     fun `switched-off alarms after it do not count`() {
-        val alarms = listOf(alarm("a", 0), alarm("b", 1), alarm("c", 2, enabled = false))
-        assertEquals(dismissedAt.plusSeconds(180), WakeCheck.checkAt(alarms[1], group, alarms, dismissedAt))
+        val alarms = listOf(rang(due("a", 0)), rang(due("b", 1)), due("c", 2).copy(isEnabled = false, nextTriggerAt = null))
+        assertEquals(at(15).plusSeconds(180), WakeCheck.checkAt(alarms[1], group, alarms, at(10), at(15)))
+    }
+
+    @Test
+    fun `a later alarm that repeats on other days is not due this morning and does not count`() {
+        val weekendOnly = due("c", 2).copy(daysOfWeek = setOf(DayOfWeek.SATURDAY), nextTriggerAt = Instant.parse("2026-10-24T10:20:00Z"))
+        val alarms = listOf(rang(due("a", 0)), rang(due("b", 1)), weekendOnly)
+        assertEquals(at(15).plusSeconds(180), WakeCheck.checkAt(alarms[1], group, alarms, at(10), at(15)))
     }
 
     @Test
     fun `a one-shot last alarm that disabled itself on ringing still gets a check`() {
-        val alarms = listOf(alarm("a", 0), alarm("b", 1, enabled = false))
-        assertEquals(dismissedAt.plusSeconds(180), WakeCheck.checkAt(alarms[1], group, alarms, dismissedAt))
+        val alarms = listOf(rang(due("a", 0)), rang(due("b", 1)))
+        assertEquals(at(15).plusSeconds(180), WakeCheck.checkAt(alarms[1], group, alarms, at(10), at(15)))
     }
 
     @Test
     fun `no check when the group has it off or is disarmed`() {
-        assertNull(WakeCheck.checkAt(sequence[2], group.copy(wakeCheckEnabled = false), sequence, dismissedAt))
-        assertNull(WakeCheck.checkAt(sequence[2], group.copy(isArmed = false), sequence, dismissedAt))
+        val alarms = listOf(rang(due("a", 0)), rang(due("b", 1)), rang(due("c", 2)))
+        assertNull(WakeCheck.checkAt(alarms[2], group.copy(wakeCheckEnabled = false), alarms, at(20), dismissedAt))
+        assertNull(WakeCheck.checkAt(alarms[2], group.copy(isArmed = false), alarms, at(20), dismissedAt))
     }
 
     @Test
     fun `delay is kept between one and five minutes`() {
-        assertEquals(dismissedAt.plusSeconds(60), WakeCheck.checkAt(sequence[2], group.copy(wakeCheckDelayMinutes = 0), sequence, dismissedAt))
-        assertEquals(dismissedAt.plusSeconds(300), WakeCheck.checkAt(sequence[2], group.copy(wakeCheckDelayMinutes = 9), sequence, dismissedAt))
+        val alarms = listOf(rang(due("a", 0)), rang(due("b", 1)), rang(due("c", 2)))
+        assertEquals(dismissedAt.plusSeconds(60), WakeCheck.checkAt(alarms[2], group.copy(wakeCheckDelayMinutes = 0), alarms, at(20), dismissedAt))
+        assertEquals(dismissedAt.plusSeconds(300), WakeCheck.checkAt(alarms[2], group.copy(wakeCheckDelayMinutes = 9), alarms, at(20), dismissedAt))
     }
 }

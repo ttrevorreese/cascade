@@ -316,9 +316,9 @@ class AlarmRepositoryTest {
         reconciler.recordFire(ids[1], sixTen)
         time.now = sixTen.plusSeconds(30)
 
-        reconciler.scheduleWakeCheck(ids[0]) // not the last alarm: nothing
+        reconciler.afterDismiss(ids[0]) // not the last alarm: nothing
         assertNull(repo.alarm(ids[0])!!.wakeCheckAt)
-        reconciler.scheduleWakeCheck(ids[1])
+        reconciler.afterDismiss(ids[1])
         val check = sixTen.plusSeconds(150)
         assertEquals(check, repo.alarm(ids[1])!!.wakeCheckAt)
         assertEquals(check, scheduler.scheduled[ids[1]])
@@ -332,7 +332,7 @@ class AlarmRepositoryTest {
     @Test
     fun `no wake-up check unless the group turns it on`() = runBlocking {
         val (_, ids) = sequence("Workday", 6 to 0)
-        reconciler.scheduleWakeCheck(ids[0])
+        reconciler.afterDismiss(ids[0])
         assertNull(repo.alarm(ids[0])!!.wakeCheckAt)
     }
 
@@ -341,7 +341,7 @@ class AlarmRepositoryTest {
         val (groupId, ids) = sequence("Workday", 6 to 0)
         repo.setWakeCheck(groupId, enabled = true, delayMinutes = 9)
         assertEquals(5, db.alarmGroupDao().get(groupId)!!.wakeCheckDelayMinutes)
-        reconciler.scheduleWakeCheck(ids[0])
+        reconciler.afterDismiss(ids[0])
         assertEquals(now.plusSeconds(300), scheduler.scheduled[ids[0]])
         repo.setWakeCheck(groupId, enabled = false, delayMinutes = 5)
         assertNull(repo.alarm(ids[0])!!.wakeCheckAt)
@@ -352,7 +352,7 @@ class AlarmRepositoryTest {
     fun `turning the alarm off cancels its pending wake-up check`() = runBlocking {
         val (groupId, ids) = sequence("Workday", 6 to 0)
         repo.setWakeCheck(groupId, enabled = true, delayMinutes = 3)
-        reconciler.scheduleWakeCheck(ids[0])
+        reconciler.afterDismiss(ids[0])
         repo.setAlarmEnabled(ids[0], false)
         assertNull(repo.alarm(ids[0])!!.wakeCheckAt)
         assertFalse(ids[0] in scheduler.scheduled)
@@ -369,15 +369,18 @@ class AlarmRepositoryTest {
         assertEquals(EscalationPolicy(listOf(ChallengeConfig.Math(Difficulty.EASY, 10), ChallengeConfig.TypePhrase("up"))), saved)
 
         val store = RoomRingStore(reconciler, db.alarmDao(), db.alarmGroupDao(), db.activeRingDao(), EventLog(db.alarmEventDao(), time))
-        assertEquals(ChallengeConfig.Math(Difficulty.EASY, 10), store.challengeFor(repo.alarm(ids[0])!!))
-        assertEquals(ChallengeConfig.TypePhrase("up"), store.challengeFor(repo.alarm(ids[2])!!)) // the last rung repeats
-        // Switching off the middle alarm moves the last one down a rung.
-        repo.setAlarmEnabled(ids[1], false)
-        assertEquals(ChallengeConfig.TypePhrase("up"), store.challengeFor(repo.alarm(ids[2])!!))
-        repo.setAlarmEnabled(ids[1], true)
+        val due = ids.map { repo.alarm(it)!!.nextTriggerAt!! }
+        assertEquals(ChallengeConfig.Math(Difficulty.EASY, 10), store.challengeFor(repo.alarm(ids[0])!!, due[0]))
+        // The morning goes by: each alarm rings in turn, and the last rung repeats for the third.
+        for (i in ids.indices) {
+            time.now = due[i]
+            reconciler.recordFire(ids[i], due[i])
+        }
+        assertEquals(ChallengeConfig.TypePhrase("up"), store.challengeFor(repo.alarm(ids[1])!!, due[1]))
+        assertEquals(ChallengeConfig.TypePhrase("up"), store.challengeFor(repo.alarm(ids[2])!!, due[2]))
         // An alarm's own None opts out of the ladder.
         repo.saveAlarm(repo.alarm(ids[0])!!.copy(challengeOverride = ChallengeConfig.None))
-        assertEquals(null, store.challengeFor(repo.alarm(ids[0])!!))
+        assertEquals(null, store.challengeFor(repo.alarm(ids[0])!!, due[0]))
     }
 
     @Test

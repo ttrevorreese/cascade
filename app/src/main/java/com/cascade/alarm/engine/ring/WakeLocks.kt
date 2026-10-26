@@ -2,6 +2,7 @@ package com.cascade.alarm.engine.ring
 
 import android.content.Context
 import android.os.PowerManager
+import android.os.SystemClock
 import java.time.Duration
 
 /**
@@ -54,14 +55,28 @@ class ScreenWaker(context: Context) {
     }
 }
 
+/**
+ * The ringing wake lock. Acquiring only ever extends it: a fire that arrives mid-ring (a duplicate,
+ * a skipped wake-up check) takes the short initial hold, which must not cut a 60-minute ring's
+ * lock down to that (fixed 2026-10-25).
+ */
 class AndroidRingWakeLock(context: Context) : RingWakeLock {
     private val lock = context.getSystemService(PowerManager::class.java)
         .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "cascade:ringing")
         .apply { setReferenceCounted(false) }
+    private var heldUntil = 0L
 
-    override fun acquire(timeout: Duration) = lock.acquire(timeout.toMillis())
+    @Synchronized
+    override fun acquire(timeout: Duration) {
+        val until = SystemClock.elapsedRealtime() + timeout.toMillis()
+        if (lock.isHeld && until <= heldUntil) return
+        lock.acquire(timeout.toMillis())
+        heldUntil = until
+    }
 
+    @Synchronized
     override fun release() {
+        heldUntil = 0L
         if (lock.isHeld) lock.release()
     }
 }

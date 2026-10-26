@@ -1,6 +1,7 @@
 package com.cascade.alarm.engine.schedule
 
 import androidx.room.withTransaction
+import com.cascade.alarm.data.challenge.Escalation
 import com.cascade.alarm.data.db.AlarmEntity
 import com.cascade.alarm.data.db.CascadeDatabase
 import com.cascade.alarm.data.db.EventType
@@ -32,8 +33,9 @@ class Reconciler @Inject constructor(
 
     sealed interface FireResult {
         /**
-         * Ring. [alarm] is null if it could not be loaded; ring with defaults anyway. [wakeCheck]
-         * means this trigger is the alarm's wake-up check, not the alarm itself.
+         * Ring. [alarm] is the row as saved after this fire (snoozes reset for a regular ring, a
+         * one-shot switched off), or null if it could not be loaded; ring with defaults anyway.
+         * [wakeCheck] means this trigger is the alarm's wake-up check, not the alarm itself.
          */
         data class Ring(val alarm: AlarmEntity?, val wakeCheck: Boolean = false) : FireResult
         data object Duplicate : FireResult
@@ -70,15 +72,18 @@ class Reconciler @Inject constructor(
                 if (alarmId != AlarmFireReceiver.UNKNOWN_ALARM) result = FireResult.Deleted
                 return@withTransaction null
             }
+            val armed = db.alarmGroupDao().get(alarm.groupId)?.isArmed ?: true
             if (alarm.lastFiredFor == scheduledFor) {
                 result = FireResult.Duplicate
-                return@withTransaction null
+                // AlarmManager has used up this alarm's registration (e.g. the clock was set back and
+                // the trigger came round again), so schedule the next one or nothing rings tomorrow.
+                return@withTransaction planAndPersist(alarm, alarm, armed, "duplicate")
             }
             val wakeCheck = scheduledFor == alarm.wakeCheckAt
-            result = FireResult.Ring(alarm, wakeCheck)
             events.record(alarmId, EventType.FIRED, "scheduledFor" to scheduledFor, "wakeCheck" to wakeCheck)
-            val armed = db.alarmGroupDao().get(alarm.groupId)?.isArmed ?: true
-            planAndPersist(alarm, ReconcilePlanner.afterFiring(alarm, scheduledFor), armed, "fired")
+            planAndPersist(alarm, ReconcilePlanner.afterFiring(alarm, scheduledFor), armed, "fired").also {
+                result = FireResult.Ring(it.alarm, wakeCheck)
+            }
         }
         plan?.let(::apply)
         result
@@ -96,11 +101,23 @@ class Reconciler @Inject constructor(
         if (alarm.snoozesUsed != 0) db.alarmDao().upsert(alarm.copy(snoozesUsed = 0))
     }
 
-    /** Called when the user dismisses [alarmId]: schedules a wake-up check if it was the group's last. */
-    suspend fun scheduleWakeCheck(alarmId: String) = mutate("wake_check") { db ->
+    /**
+     * Called when the user dismisses [alarmId]. Earlier alarms' pending snoozes are dropped: the
+     * user is past them, and they would only ring an easier alarm again (one landing after the
+     * hardest was solved would undo the ladder). If it was the last alarm of its cascade, the
+     * wake-up check is scheduled.
+     */
+    suspend fun afterDismiss(alarmId: String) = mutate("dismissed") { db ->
         val alarm = db.alarmDao().get(alarmId) ?: return@mutate
         val group = db.alarmGroupDao().get(alarm.groupId) ?: return@mutate
-        val at = WakeCheck.checkAt(alarm, group, db.alarmDao().inGroup(alarm.groupId), time.now()) ?: return@mutate
+        val groupAlarms = db.alarmDao().inGroup(alarm.groupId)
+        val snoozed = groupAlarms.filter { it.id != alarm.id && it.oneTimeTriggerAt != null && it.positionInGroup < alarm.positionInGroup }
+        if (snoozed.isNotEmpty()) {
+            EngineLog.i("dismissed alarm=$alarmId; dropping earlier snoozes of ${snoozed.map { it.id }}")
+            db.alarmDao().upsertAll(snoozed.map { it.copy(oneTimeTriggerAt = null) })
+        }
+        val ringAt = alarm.lastFiredFor ?: time.now()
+        val at = WakeCheck.checkAt(alarm, group, groupAlarms, ringAt, time.now()) ?: return@mutate
         db.alarmDao().upsert(alarm.copy(wakeCheckAt = at))
     }
 

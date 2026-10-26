@@ -1,5 +1,6 @@
 package com.cascade.alarm.engine.schedule
 
+import com.cascade.alarm.data.challenge.Escalation
 import com.cascade.alarm.data.db.AlarmEntity
 import com.cascade.alarm.data.db.AlarmGroupEntity
 import java.time.Duration
@@ -17,14 +18,15 @@ object WakeCheck {
     val ANSWER_WINDOW: Duration = Duration.ofSeconds(60)
 
     /**
-     * When to check after [alarm] was dismissed at [dismissedAt], or null for no check. Only the
-     * group's last alarm is followed by one: an earlier alarm still has the rest of the sequence
-     * behind it. Switched-off alarms later in the group do not count; [alarm] itself may be off
-     * because a one-shot alarm disables itself when it rings.
+     * When to check after [alarm]'s ring at [ringAt] was dismissed at [dismissedAt], or null for no
+     * check. Only the last alarm of the cascade is followed by one: an earlier alarm still has the
+     * rest of the sequence behind it. Later alarms that are off, or not due this morning, do not
+     * count ([Escalation.cascade]); [alarm] itself may be off, as a one-shot alarm disables itself
+     * when it rings.
      */
-    fun checkAt(alarm: AlarmEntity, group: AlarmGroupEntity, groupAlarms: List<AlarmEntity>, dismissedAt: Instant): Instant? {
+    fun checkAt(alarm: AlarmEntity, group: AlarmGroupEntity, groupAlarms: List<AlarmEntity>, ringAt: Instant, dismissedAt: Instant): Instant? {
         if (!group.isArmed || !group.wakeCheckEnabled) return null
-        if (groupAlarms.any { it.id != alarm.id && it.isEnabled && it.positionInGroup > alarm.positionInGroup }) return null
+        if (Escalation.cascade(alarm, groupAlarms, ringAt).lastOrNull()?.id != alarm.id) return null
         return dismissedAt.plus(Duration.ofMinutes(clampDelay(group.wakeCheckDelayMinutes).toLong()))
     }
 

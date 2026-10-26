@@ -298,7 +298,9 @@ fun AlarmEditorContent(
             containerColor = c.surface,
             confirmButton = {
                 TextButton(onClick = {
-                    onEdit { it.copy(hour = pickerState.hour, minute = pickerState.minute) }
+                    // Setting a time means "ring then": a one-shot alarm that already rang (and so
+                    // switched itself off) comes back on, as in the Clock app (2026-10-25).
+                    onEdit { it.copy(hour = pickerState.hour, minute = pickerState.minute, isEnabled = true) }
                     pickingTime = false
                 }) { Text("Set time") }
             },

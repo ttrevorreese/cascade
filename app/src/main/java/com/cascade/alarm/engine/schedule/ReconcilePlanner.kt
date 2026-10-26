@@ -64,11 +64,15 @@ object ReconcilePlanner {
         return Plan(current.copy(nextTriggerAt = next, oneTimeTriggerAt = oneTime, wakeCheckAt = wakeCheck), action, missed)
     }
 
-    /** Bookkeeping when the trigger for [scheduledFor] rings. Follow with [plan] to schedule the next. */
+    /**
+     * Bookkeeping when the trigger for [scheduledFor] rings. Follow with [plan] to schedule the next.
+     * A regular ring starts with every snooze, however the last ring ended (a snooze re-ring is the
+     * one-time trigger and keeps its count).
+     */
     fun afterFiring(alarm: AlarmEntity, scheduledFor: Instant): AlarmEntity = when {
         scheduledFor == alarm.oneTimeTriggerAt -> alarm.copy(lastFiredFor = scheduledFor, oneTimeTriggerAt = null)
         scheduledFor == alarm.wakeCheckAt -> alarm.copy(lastFiredFor = scheduledFor, wakeCheckAt = null)
-        alarm.daysOfWeek.isEmpty() -> alarm.copy(lastFiredFor = scheduledFor, isEnabled = false)
-        else -> alarm.copy(lastFiredFor = scheduledFor)
+        alarm.daysOfWeek.isEmpty() -> alarm.copy(lastFiredFor = scheduledFor, isEnabled = false, snoozesUsed = 0)
+        else -> alarm.copy(lastFiredFor = scheduledFor, snoozesUsed = 0)
     }
 }

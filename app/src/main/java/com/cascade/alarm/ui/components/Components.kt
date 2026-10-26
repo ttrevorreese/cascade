@@ -195,6 +195,18 @@ object CascadeIcons {
         moveTo(8.5f, 11f); lineTo(8.5f, 8f); arcToRelative(3.5f, 3.5f, 0f, false, true, 7f, 0f); lineTo(15.5f, 11f)
     }
 
+    /** A cog: Settings, Home's one way into everything that is not an alarm (2026-10-25). */
+    val Cog = line("cog") {
+        // Hub, rim, and eight teeth.
+        moveTo(15f, 12f); arcToRelative(3f, 3f, 0f, true, true, -6f, 0f); arcToRelative(3f, 3f, 0f, true, true, 6f, 0f)
+        moveTo(18.5f, 12f); arcToRelative(6.5f, 6.5f, 0f, true, true, -13f, 0f); arcToRelative(6.5f, 6.5f, 0f, true, true, 13f, 0f)
+        for (i in 0 until 8) {
+            val a = Math.toRadians(i * 45.0)
+            moveTo(12f + 6.5f * kotlin.math.cos(a).toFloat(), 12f + 6.5f * kotlin.math.sin(a).toFloat())
+            lineTo(12f + 9.5f * kotlin.math.cos(a).toFloat(), 12f + 9.5f * kotlin.math.sin(a).toFloat())
+        }
+    }
+
     /** Two sliders, each with a round knob: settings. */
     val Settings = line("settings") {
         moveTo(4f, 8f); lineTo(6f, 8f); moveTo(11f, 8f); lineTo(20f, 8f)

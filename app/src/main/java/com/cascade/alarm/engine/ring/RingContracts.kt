@@ -60,14 +60,17 @@ interface RingStore {
     suspend fun clearActiveRing()
     suspend fun log(alarmId: String, type: EventType, vararg metadata: Pair<String, Any?>)
 
-    /** The user dismissed [alarmId]; schedules its wake-up check if it was the group's last. */
+    /**
+     * The user dismissed [alarmId]. If it was its cascade's last alarm, the sequence is over:
+     * earlier alarms' pending snoozes are dropped and the wake-up check is scheduled.
+     */
     suspend fun afterDismiss(alarmId: String)
 
-    /** [alarm]'s place among its group's alarms that are on, counting itself even if it is off. */
-    suspend fun sequencePosition(alarm: AlarmEntity): SequencePosition
+    /** [alarm]'s place in the cascade of its ring at [ringAt] ([com.cascade.alarm.data.challenge.Escalation.cascade]). */
+    suspend fun sequencePosition(alarm: AlarmEntity, ringAt: Instant): SequencePosition
 
-    /** What dismissing [alarm] takes, from its override or its group's ladder (SPEC §5); null = plain. */
-    suspend fun challengeFor(alarm: AlarmEntity): ChallengeConfig?
+    /** What dismissing [alarm]'s ring at [ringAt] takes, from its override or its group's ladder (SPEC §5); null = plain. */
+    suspend fun challengeFor(alarm: AlarmEntity, ringAt: Instant): ChallengeConfig?
 
     /** [alarm]'s group's sound and ramp, read at fire time. */
     suspend fun soundFor(alarm: AlarmEntity): RingSound
@@ -163,6 +166,12 @@ object RingDefaults {
 
     /** Held from the moment a fire arrives until the alarm's real timeout is known. */
     val INITIAL_WAKE_LOCK: Duration = Duration.ofMinutes(TIMEOUT_MINUTES + 2L)
+
+    /**
+     * A ring cut short by power-off resumes on boot (anti-cheat, SPEC §6.7) only if it started
+     * this recently; after longer the phone was simply off, and the ring is logged as missed.
+     */
+    val RESUME_AFTER_POWER_OFF: Duration = Duration.ofHours(3)
 
     /** Margin beyond the ring deadline before the wake lock self-releases. */
     val WAKE_LOCK_MARGIN: Duration = Duration.ofMinutes(1)

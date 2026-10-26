@@ -28,17 +28,17 @@ class RoomRingStore @Inject constructor(
     override suspend fun clearActiveRing() = activeRingDao.clear()
     override suspend fun log(alarmId: String, type: EventType, vararg metadata: Pair<String, Any?>) =
         events.record(alarmId, type, *metadata)
-    override suspend fun afterDismiss(alarmId: String) = reconciler.scheduleWakeCheck(alarmId)
-    override suspend fun sequencePosition(alarm: AlarmEntity): SequencePosition {
+    override suspend fun afterDismiss(alarmId: String) = reconciler.afterDismiss(alarmId)
+    override suspend fun sequencePosition(alarm: AlarmEntity, ringAt: Instant): SequencePosition {
         val group = alarmDao.inGroup(alarm.groupId)
-        val total = Escalation.cascade(alarm, group).size.coerceAtLeast(1)
-        return SequencePosition(Escalation.position(alarm, group), total)
+        val total = Escalation.cascade(alarm, group, ringAt).size.coerceAtLeast(1)
+        return SequencePosition(Escalation.position(alarm, group, ringAt), total)
     }
 
     /** Resolved at fire time, never cached, so a ladder edited last night applies this morning. */
-    override suspend fun challengeFor(alarm: AlarmEntity): ChallengeConfig? {
+    override suspend fun challengeFor(alarm: AlarmEntity, ringAt: Instant): ChallengeConfig? {
         val policy = groupDao.get(alarm.groupId)?.escalationPolicy ?: EscalationPolicy()
-        return Escalation.resolve(alarm, policy, Escalation.position(alarm, alarmDao.inGroup(alarm.groupId)))
+        return Escalation.resolve(alarm, policy, Escalation.position(alarm, alarmDao.inGroup(alarm.groupId), ringAt))
     }
 
     override suspend fun soundFor(alarm: AlarmEntity): RingSound =
