@@ -51,6 +51,16 @@ class UiPreferences @Inject constructor(@ApplicationContext context: Context) {
         mutableGroupSort.value = sort
     }
 
+    private val mutableOnFirst = MutableStateFlow(prefs.getBoolean(ON_FIRST, false))
+
+    /** Home lists groups that are on before those that are off, within [groupSort]. */
+    val onFirst: StateFlow<Boolean> = mutableOnFirst.asStateFlow()
+
+    fun setOnFirst(on: Boolean) {
+        prefs.edit().putBoolean(ON_FIRST, on).apply()
+        mutableOnFirst.value = on
+    }
+
     private val mutableOnboarded = MutableStateFlow(prefs.getBoolean(ONBOARDED, false))
 
     /** Onboarding has been finished or skipped; it is only offered while there are no groups. */
@@ -92,5 +102,6 @@ class UiPreferences @Inject constructor(@ApplicationContext context: Context) {
         const val GROUP_THEMES_ON_HOME = "group_themes_on_home"
         const val ONBOARDED = "onboarded"
         const val GROUP_SORT = "group_sort"
+        const val ON_FIRST = "group_sort_on_first"
     }
 }

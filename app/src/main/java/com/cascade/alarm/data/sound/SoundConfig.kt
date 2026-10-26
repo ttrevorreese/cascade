@@ -23,6 +23,13 @@ sealed interface SoundConfig {
     data class DeviceAudio(val fileName: String, val displayName: String) : SoundConfig
 
     /**
+     * A different one of [toneKeys] each ring, picked at random (owner request, 2026-10-25: leave
+     * out the tones too soft to wake them). Unknown keys are skipped; none left plays [Tones.DEFAULT].
+     */
+    @Serializable @SerialName("random")
+    data class RandomTone(val toneKeys: List<String>) : SoundConfig
+
+    /**
      * A playlist or album played by the Spotify app (SPEC §9, M7). [fallback] is a local sound: it
      * starts first and keeps ringing whenever Spotify cannot play. [uri] is `spotify:playlist:…`.
      */
@@ -32,7 +39,7 @@ sealed interface SoundConfig {
     /** What plays on the phone itself: this, or a Spotify choice's [SpotifyPlaylist.fallback]. */
     val local: SoundConfig
         get() = when (this) {
-            is SpotifyPlaylist -> fallback as? BuiltIn ?: fallback as? DeviceAudio ?: DEFAULT
+            is SpotifyPlaylist -> fallback.takeUnless { it is SpotifyPlaylist } ?: DEFAULT
             else -> this
         }
 

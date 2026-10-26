@@ -43,7 +43,7 @@ class SoundPreview @Inject constructor(
     /** Must be called on the main thread. */
     fun play(sound: RingSound, scope: CoroutineScope) {
         stop()
-        val source = SoundPlan.of(sound.sound, soundFiles::file).sources.first()
+        val source = SoundPlan.of(sound.sound, fileFor = soundFiles::file).sources.first()
         val floor = VolumeRamp.startGain(sound.startPercent)
         player = ExoPlayer.Builder(context).build().apply {
             setAudioAttributes(

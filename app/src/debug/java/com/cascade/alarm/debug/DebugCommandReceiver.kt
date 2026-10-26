@@ -100,9 +100,11 @@ class DebugCommandReceiver : BroadcastReceiver() {
                         }
                     }
                     // Sets the first listed group's sound (and the test alarm's): --es tone <key> | --es file <name>
-                    // (a name that was never copied in, to exercise the fallback), --ei ramp, --ei start.
+                    // (a name that was never copied in, to exercise the fallback) | --es random <key,key,...>,
+                    // --ei ramp, --ei start.
                     "SET_SOUND" -> {
                         val sound = intent.getStringExtra("file")?.let { SoundConfig.DeviceAudio(it, it) }
+                            ?: intent.getStringExtra("random")?.let { SoundConfig.RandomTone(it.split(",")) }
                             ?: SoundConfig.BuiltIn(intent.getStringExtra("tone") ?: Tones.DEFAULT.key)
                         val ramp = intent.getIntExtra("ramp", SoundSettings.DEFAULT_RAMP_SECONDS)
                         val start = intent.getIntExtra("start", SoundSettings.DEFAULT_START_PERCENT)

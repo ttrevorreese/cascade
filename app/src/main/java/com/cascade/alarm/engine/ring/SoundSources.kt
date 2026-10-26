@@ -4,6 +4,7 @@ import androidx.annotation.RawRes
 import com.cascade.alarm.data.sound.SoundConfig
 import com.cascade.alarm.data.sound.Tones
 import java.io.File
+import kotlin.random.Random
 
 /** Something the player can try to play. */
 sealed interface SoundSource {
@@ -22,12 +23,16 @@ data class SoundPlan(val sources: List<SoundSource>, val skipped: String? = null
     companion object {
         private val CLASSIC = SoundSource.Bundled(Tones.DEFAULT.res)
 
-        /** [fileFor] finds a copied audio file; it must not throw. */
-        fun of(config: SoundConfig, fileFor: (String) -> File?): SoundPlan = when (config) {
+        /** [fileFor] finds a copied audio file; it must not throw. [random] picks for [SoundConfig.RandomTone]. */
+        fun of(config: SoundConfig, random: Random = Random.Default, fileFor: (String) -> File?): SoundPlan = when (config) {
             is SoundConfig.BuiltIn -> {
                 val tone = Tones.byKey(config.toneKey)
                 if (tone == null) SoundPlan(listOf(CLASSIC), skipped = "unknown_tone")
                 else SoundPlan(listOf(SoundSource.Bundled(tone.res), CLASSIC).distinct())
+            }
+            is SoundConfig.RandomTone -> {
+                val known = config.toneKeys.filter { Tones.byKey(it) != null }
+                of(SoundConfig.BuiltIn(if (known.isEmpty()) "" else known.random(random)), random, fileFor)
             }
             is SoundConfig.DeviceAudio -> {
                 val file = fileFor(config.fileName)
@@ -35,7 +40,7 @@ data class SoundPlan(val sources: List<SoundSource>, val skipped: String? = null
                 else SoundPlan(listOf(SoundSource.LocalFile(file), CLASSIC))
             }
             // Spotify plays in its own app; on the phone the backup rings first (SPEC §9).
-            is SoundConfig.SpotifyPlaylist -> of(config.local, fileFor)
+            is SoundConfig.SpotifyPlaylist -> of(config.local, random, fileFor)
         }
     }
 }

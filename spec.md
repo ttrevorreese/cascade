@@ -85,6 +85,7 @@ Use `AlarmManager.setAlarmClock()`. Not `setExactAndAllowWhileIdle()`, not `Work
 - `ACTIVITY_RECOGNITION` — step challenge only, requested at the point of use.
 - `CAMERA` — photo and QR challenges only, requested at the point of use.
 - `WAKE_LOCK`.
+- `SYSTEM_ALERT_WINDOW` ("Display over other apps", added 2026-10-25) — optional, offered in the Reliability Check as advice. While the phone is unlocked and in use, Android shows a full-screen intent only as a heads-up banner; with this granted the ring service also starts `AlarmActivity` itself (an exemption from the background-start limits). Without it the banner remains the way in.
 
 **Scheduling model:** schedule only the *next* occurrence of each enabled alarm, never a batch of future ones. Reschedule on: alarm fired, alarm edited, group toggled, device boot, timezone change, DST transition, app update.
 
@@ -95,7 +96,7 @@ Register receivers for `BOOT_COMPLETED`, `MY_PACKAGE_REPLACED`, `TIMEZONE_CHANGE
 1. `AlarmManager` fires a `PendingIntent` into a `BroadcastReceiver`.
 2. The receiver immediately acquires a wake lock and starts a foreground service. Do no other work in the receiver — it has a hard execution budget.
 3. The foreground service (`type="mediaPlayback"`) owns the alarm's lifetime: audio playback, volume ramp, timeout handling, and the ongoing notification.
-4. The service posts a notification with a **full-screen intent** pointing at `AlarmActivity`.
+4. The service posts a notification with a **full-screen intent** pointing at `AlarmActivity`, and, when "Display over other apps" is granted, also starts `AlarmActivity` directly so it takes over an unlocked phone in use (2026-10-25).
 5. `AlarmActivity` sets `setShowWhenLocked(true)`, `setTurnScreenOn(true)`, and requests dismissal of the keyguard. It renders over the lock screen.
 
 **Audio:** play on `AudioManager.STREAM_ALARM`. This stream bypasses silent mode and Do Not Disturb by design, which is exactly the intended behavior. Request `AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE`. Implement volume ramp as a gradual increase over a configurable 0–120 second window, starting at a configurable floor.
@@ -103,6 +104,7 @@ Register receivers for `BOOT_COMPLETED`, `MY_PACKAGE_REPLACED`, `TIMEZONE_CHANGE
 **Decided 2026-10-23 (M6):**
 - **Sound is set per group, not per alarm**: every alarm in a sequence sounds the same. The group holds `sound`, `rampSeconds` and `rampStartPercent`; the alarm's old `volumeRampSeconds` column stays unused (SQLite cannot drop it before API 34).
 - **Ramp: 30–60 s** to full volume (owner's choice; default 45 s), rising linearly in decibels. **Start at: 5–60% of full**, in *perceived* loudness (half as loud = −10 dB), default 15% (≈ the M1 floor). Full volume is the phone's alarm-stream volume; a muted alarm stream is raised to a third for the ring and restored.
+- **Random** (owner request, 2026-10-25): the Sound screen's last tone choice; every tone is ticked at first and the user unticks the ones to leave out (at least one stays). Each ring picks one at random (`SoundPlan`); unknown keys are skipped, none left plays Classic. It can also be Spotify's backup.
 - **Eight built-in tones**, gentlest first: Dawn, Chimes, Marimba, Classic (the M1 tone, default), Pulse, Digital, Rising, Klaxon. Synthesised by `scripts/make_tones.py` (no licensing), WAV so they loop without a gap. Keys are stored; never rename one.
 - **A file from the phone** is picked with the system file picker and **copied** into device-protected storage (`files/sounds/`, max 20 MB, checked to play as audio), so it plays before the first unlock after a reboot and survives the original being moved. Copies no group uses are deleted on the next sound save, group delete, or visit to the sound screen.
 - **Fallback chain at ring time:** the group's sound → Classic → the phone's default alarm sound, vibration throughout. Each step is logged as `SOUND_FALLBACK` (reason, what played instead) and shows once on Home as "Your 6:00 alarm could not play its sound", until acknowledged.
@@ -177,6 +179,7 @@ data class Alarm(
 sealed interface SoundConfig {
     data class BuiltIn(val toneKey: String) : SoundConfig
     data class DeviceAudio(val fileName: String, val displayName: String) : SoundConfig  // app's own copy
+    data class RandomTone(val toneKeys: List<String>) : SoundConfig  // added 2026-10-25: one of these tones per ring, picked at random
     data class SpotifyPlaylist(
         val playlistUri: String,
         val playlistName: String,
@@ -217,7 +220,7 @@ data class AlarmEvent(                   // append-only audit log
 **Escalation resolution:** `alarm.challengeOverride ?: group.escalationPolicy.steps.getOrElse(alarm.positionInGroup) { steps.last() }`.
 
 **Escalation decisions (2026-10-22, M4 planning):**
-- The position used for escalation counts **only the alarms that are on** (the same position the firing screen's sequence dots show). Switching off the last alarm makes the one before it the last, so the final alarm that actually rings always gets the hardest rung.
+- The position used for escalation counts **only the alarms that are on** (the same position the firing screen's sequence dots show). Switching off the last alarm makes the one before it the last, so the final alarm that actually rings always gets the hardest rung. **Fixed 2026-10-25:** a one-shot alarm switches itself off as it rings, so alarms that rang in the 12 hours before this one also count (`Escalation.cascade`); before, every one-shot alarm after the first got rung 1.
 - The policy is resolved when the alarm fires, never cached, so ladder edits apply to the next ring without rescheduling. If the group cannot be read, the alarm's own override applies, else plain Dismiss.
 - New groups start with an empty ladder. The escalation editor offers a one-tap **suggested ladder** (easy sums → type a phrase → harder sums → steps) to edit from. Existing groups migrate with an empty ladder, so nothing changes for alarms already set up.
 
@@ -361,6 +364,7 @@ Each milestone should end in a working, installable app.
   - Themes on the firing screen: ring a group in a light theme (Paper) and one in a dark theme (Night) from the lock screen, before and after the first unlock after a reboot; the notification's accent is the group's last ramp stop.
   - Background animations: each of the ten smooth on the S22 at 120 Hz, no noticeable battery drain with Home left open for 10 minutes, faint but visible at low brightness; then once the theme picker lands (M7), walk one theme per family and judge whether the family's animation suits it.
   - Launcher icon crop on One UI; the light and pastel themes, and Pewter/Loam on OLED at low brightness (DESIGN.md §2.1, §8).
+  - Owner fixes 2026-10-25: with "Display over other apps" on (Reliability), ring an alarm while using another app unlocked and check the alarm screen takes over (checked on the emulator, Android 16; One UI may differ), and with it off that the banner shows. Ring a group of one-shot alarms (no repeat days) with a 3-rung ladder: alarms 2 and 3 get rungs 2 and 3, and the screen counts "2 of N". A group on Random: several rings play different tones, never an unticked one.
   - The manual matrix above: Doze, DND, silent mode, after reboot, after update, battery optimisation on and off.
 
 ---

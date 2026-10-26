@@ -39,6 +39,14 @@ class GroupSortTest {
     }
 
     @Test
+    fun `on first puts groups that are on ahead of the rest, each part keeping the chosen order`() {
+        val off = all.map { if (it.group.id == "work" || it.group.id == "gym") it.copy(group = it.group.copy(isArmed = false)) else it }
+        assertEquals(listOf("empty", "weekend", "gym", "work"), GroupSort.CUSTOM.sort(off, onFirst = true).ids())
+        assertEquals(listOf("weekend", "empty", "work", "gym"), GroupSort.TIME.sort(off, onFirst = true).ids())
+        assertEquals(listOf("gym", "work", "empty", "weekend"), GroupSort.CUSTOM.sort(off, onFirst = false).ids())
+    }
+
+    @Test
     fun `an unknown saved choice reads as your order`() {
         assertEquals(GroupSort.CUSTOM, GroupSort.byKey("alphabetical"))
         assertEquals(GroupSort.MODIFIED, GroupSort.byKey("modified"))

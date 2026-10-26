@@ -6,12 +6,14 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
+import android.provider.Settings
 import androidx.core.app.ServiceCompat
 import androidx.compose.ui.graphics.toArgb
 import com.cascade.alarm.data.billing.Entitlements
 import com.cascade.alarm.data.sound.SoundFiles
 import com.cascade.alarm.data.voice.SpeechCache
 import com.cascade.alarm.data.voice.VoicePreferences
+import com.cascade.alarm.ui.ring.AlarmActivity
 import com.cascade.alarm.ui.ring.ringTheme
 import com.cascade.alarm.ui.settings.UiPreferences
 import com.cascade.alarm.engine.EngineLog
@@ -119,6 +121,24 @@ class AlarmRingService : Service(), RingPresenter {
         promoteToForeground()
         getSystemService(android.app.NotificationManager::class.java)
             .notify(RingNotifications.NOTIFICATION_ID, notifications.build(ringing))
+        openAlarmScreen()
+    }
+
+    /**
+     * While the phone is in use, Android shows a full-screen intent only as a banner. "Display over
+     * other apps" exempts us from the background-start limits, so open the alarm screen directly;
+     * without it the notification stays the way in (fixed 2026-10-25).
+     */
+    private fun openAlarmScreen() {
+        if (!Settings.canDrawOverlays(this)) return
+        try {
+            startActivity(
+                Intent(this, AlarmActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_USER_ACTION),
+            )
+        } catch (e: Exception) {
+            EngineLog.e("cannot open the alarm screen; the notification remains", e)
+        }
     }
 
     override fun finish() {

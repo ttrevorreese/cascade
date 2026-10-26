@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import java.time.Instant
 
 class EscalationTest {
     private fun alarm(id: String, position: Int, enabled: Boolean = true, override: ChallengeConfig? = null) = AlarmEntity(
@@ -32,6 +33,28 @@ class EscalationTest {
     fun `a one-shot alarm that switched itself off as it rang still counts itself`() {
         val alarms = listOf(alarm("a", 0), alarm("b", 1, enabled = false))
         assertEquals(1, Escalation.position(alarms[1], alarms))
+    }
+
+    @Test
+    fun `one-shot alarms that already rang this morning still count, so each later one climbs the ladder`() {
+        val morning = Instant.parse("2026-10-25T06:00:00Z")
+        fun rang(a: AlarmEntity, minutes: Long) = a.copy(isEnabled = false, lastFiredFor = morning.plusSeconds(minutes * 60))
+        // a and b rang and switched themselves off; c is ringing now and switched itself off too.
+        val alarms = listOf(rang(alarm("a", 0), 0), rang(alarm("b", 1), 10), rang(alarm("c", 2), 20), alarm("d", 3))
+        assertEquals(listOf(0, 1, 2), alarms.take(3).map { Escalation.position(it, alarms) })
+        assertEquals(ladder.steps[2], Escalation.resolve(alarms[2], ladder, Escalation.position(alarms[2], alarms)))
+        assertEquals(4, Escalation.cascade(alarms[2], alarms).size)
+    }
+
+    @Test
+    fun `an alarm that rang on an earlier day, or was switched off by hand, does not count`() {
+        val now = Instant.parse("2026-10-25T06:20:00Z")
+        val alarms = listOf(
+            alarm("a", 0, enabled = false).copy(lastFiredFor = now.minusSeconds(24 * 3600)),
+            alarm("b", 1, enabled = false),
+            alarm("c", 2, enabled = false).copy(lastFiredFor = now),
+        )
+        assertEquals(0, Escalation.position(alarms[2], alarms))
     }
 
     @Test

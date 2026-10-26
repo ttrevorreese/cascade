@@ -70,6 +70,25 @@ class SoundScreensTest {
     }
 
     @Test
+    fun randomStartsWithEveryToneAndTonesCanBeLeftOutButNotAll() {
+        var draft by mutableStateOf(RingSound())
+        content({ draft }, onChange = { draft = it })
+        scrollTo("tone-random")
+        compose.onNodeWithTag("tone-random").performClick()
+        assertEquals(SoundConfig.RandomTone(com.cascade.alarm.data.sound.Tones.ALL.map { it.key }), draft.sound)
+        scrollTo("random-dawn")
+        compose.onNodeWithTag("random-dawn").performClick()
+        assertEquals(false, "dawn" in (draft.sound as SoundConfig.RandomTone).toneKeys)
+
+        draft = RingSound(SoundConfig.RandomTone(listOf("klaxon")))
+        scrollTo("random-klaxon")
+        compose.onNodeWithTag("random-klaxon").performClick()
+        assertEquals(SoundConfig.RandomTone(listOf("klaxon")), draft.sound)
+        compose.onNodeWithTag("random-chimes").performClick()
+        assertEquals(SoundConfig.RandomTone(listOf("chimes", "klaxon")), draft.sound)
+    }
+
+    @Test
     fun theSelectedToneReadsAsSelected() {
         content({ RingSound(SoundConfig.BuiltIn("dawn")) })
         compose.onNodeWithText("Dawn").assertExists()

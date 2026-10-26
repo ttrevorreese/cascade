@@ -21,6 +21,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import com.cascade.alarm.data.sound.SoundConfig
+import com.cascade.alarm.data.sound.Tones
 import com.cascade.alarm.data.sound.VibrationSetting
 import com.cascade.alarm.data.voice.ReadAloud
 import com.cascade.alarm.engine.EngineLog
@@ -109,12 +110,15 @@ class ExoAlarmSoundPlayer(
         val floor = VolumeRamp.startGain(sound.startPercent)
         rampGain = floor
         val plan = try {
-            SoundPlan.of(sound.sound, fileFor)
+            SoundPlan.of(sound.sound, fileFor = fileFor)
         } catch (e: Exception) {
             EngineLog.e("cannot resolve sound; using Classic", e)
             SoundPlan.of(SoundConfig.DEFAULT) { null }.copy(skipped = "unreadable")
         }
         plan.skipped?.let { report(it, "classic") }
+        if (sound.sound.local is SoundConfig.RandomTone) EngineLog.i(
+            "random tone picked ${(plan.sources.firstOrNull() as? SoundSource.Bundled)?.let { picked -> Tones.ALL.firstOrNull { it.res == picked.res }?.key }}",
+        )
         remaining = ArrayDeque(plan.sources)
         playNext()
         return floor

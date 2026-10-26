@@ -59,6 +59,18 @@ object ReliabilityChecks {
                     ),
                 )
             }
+            add(
+                ReliabilityCheck(
+                    title = "Display over other apps",
+                    // While the phone is in use Android shows a full-screen alarm as a banner only;
+                    // this lets the ring service open the alarm screen itself (2026-10-25).
+                    passed = Settings.canDrawOverlays(context),
+                    blocker = false,
+                    consequence = "Without it an alarm that rings while you are using the phone shows as a banner " +
+                        "until you tap it. On the page that opens, turn on Cascade.",
+                    fixIntent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, packageUri),
+                ),
+            )
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 add(
                     ReliabilityCheck(

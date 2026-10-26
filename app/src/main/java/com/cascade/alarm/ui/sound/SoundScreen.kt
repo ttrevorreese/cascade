@@ -349,6 +349,23 @@ fun SoundContent(
                     tag = "tone-${tone.key}",
                 )
             }
+            item {
+                val random = sound as? SoundConfig.RandomTone
+                Column(Modifier.fillMaxWidth()) {
+                    ChoiceRow(
+                        title = "Random",
+                        detail = "A different tone each time, from the ones you tick",
+                        selected = random != null,
+                        onSelect = {
+                            if (random == null) onChange(draft.copy(sound = draft.sound.withLocal(SoundConfig.RandomTone(Tones.ALL.map { it.key }))))
+                        },
+                        tag = "tone-random",
+                    )
+                    if (random != null) {
+                        RandomTones(random.toneKeys) { keys -> onChange(draft.copy(sound = draft.sound.withLocal(SoundConfig.RandomTone(keys)))) }
+                    }
+                }
+            }
             item { SectionLabel("From your phone") }
             item {
                 val file = sound as? SoundConfig.DeviceAudio
@@ -447,6 +464,10 @@ object SoundText {
     fun name(sound: SoundConfig): String = when (sound) {
         is SoundConfig.BuiltIn -> (Tones.byKey(sound.toneKey) ?: Tones.DEFAULT).name
         is SoundConfig.DeviceAudio -> sound.displayName
+        is SoundConfig.RandomTone -> {
+            val known = sound.toneKeys.mapNotNull(Tones::byKey)
+            if (known.size == 1) known.single().name else "Random from ${known.size} tones"
+        }
         is SoundConfig.SpotifyPlaylist -> "${sound.name} on Spotify"
     }
 
@@ -590,6 +611,29 @@ internal fun volumeNote(alarmVolume: Pair<Int, Int>?): String {
         "Your phone's alarm volume is off. While an alarm rings, Cascade turns it up to a third and puts it back afterwards."
     } else {
         "Full volume is your phone's alarm volume, now $current of $max."
+    }
+}
+
+/** The tones Random picks from, in [Tones] order; the last one ticked stays ticked. */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun RandomTones(chosen: List<String>, onChange: (List<String>) -> Unit) {
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier.padding(start = CascadeSpace.s, top = CascadeSpace.xs).testTag("random-tones"),
+    ) {
+        Tones.ALL.forEach { tone ->
+            val ticked = tone.key in chosen
+            FilterChip(
+                selected = ticked,
+                onClick = {
+                    val keys = if (ticked) chosen - tone.key else chosen + tone.key
+                    if (keys.isNotEmpty()) onChange(Tones.ALL.map { it.key }.filter { it in keys })
+                },
+                label = { Text(tone.name) },
+                modifier = Modifier.testTag("random-${tone.key}"),
+            )
+        }
     }
 }
 

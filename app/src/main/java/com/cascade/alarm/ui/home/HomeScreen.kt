@@ -8,6 +8,7 @@ import com.cascade.alarm.data.GroupSort
 import com.cascade.alarm.data.billing.Entitlements
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import com.cascade.alarm.data.db.AlarmGroupEntity
 import com.cascade.alarm.ui.settings.UiPreferences
 import com.cascade.alarm.ui.theme.CascadeColors
@@ -116,11 +117,15 @@ class HomeViewModel @Inject constructor(
 
     val sort: StateFlow<GroupSort> = preferences.groupSort
 
-    val groups: StateFlow<List<GroupSummary>?> = combine(repository.observeGroupSummaries(), preferences.groupSort) { list, sort ->
-        sort.sort(list)
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+    val onFirst: StateFlow<Boolean> = preferences.onFirst
+
+    val groups: StateFlow<List<GroupSummary>?> =
+        combine(repository.observeGroupSummaries(), preferences.groupSort, preferences.onFirst) { list, sort, onFirst ->
+            sort.sort(list, onFirst)
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     fun setSort(sort: GroupSort) = preferences.setGroupSort(sort)
+    fun setOnFirst(on: Boolean) = preferences.setOnFirst(on)
 
     /**
      * True on a fresh install: no groups and onboarding never finished. Anyone who already has
@@ -173,6 +178,7 @@ fun HomeScreen(
 ) {
     val groups by viewModel.groups.collectAsStateWithLifecycle()
     val sort by viewModel.sort.collectAsStateWithLifecycle()
+    val onFirst by viewModel.onFirst.collectAsStateWithLifecycle()
     val needsOnboarding by viewModel.needsOnboarding.collectAsStateWithLifecycle()
     LaunchedEffect(needsOnboarding) { if (needsOnboarding) onOnboard() }
     val themeFor by viewModel.themeFor.collectAsStateWithLifecycle()
@@ -192,6 +198,8 @@ fun HomeScreen(
         onCreate = { name -> viewModel.create(name, onOpenGroup) },
         sort = sort,
         onSort = viewModel::setSort,
+        onFirst = onFirst,
+        onOnFirst = viewModel::setOnFirst,
         incidents = incidents,
         blockers = checks.filter { it.blocker && !it.passed },
         adviceOutstanding = checks.any { !it.blocker && !it.passed },
@@ -221,6 +229,9 @@ fun HomeContent(
     /** [groups] arrive already in this order; the move arrows only show for the custom order. */
     sort: GroupSort = GroupSort.CUSTOM,
     onSort: (GroupSort) -> Unit = {},
+    /** Groups that are on are listed first; [groups] arrive already in that order too. */
+    onFirst: Boolean = false,
+    onOnFirst: (Boolean) -> Unit = {},
 ) {
     val c = cascadeColors
     var creating by remember { mutableStateOf(false) }
@@ -287,12 +298,13 @@ fun HomeContent(
                     )
                 }
                 else -> {
-                    if (groups.size > 1) item { SortRow(sort, onSort) }
+                    if (groups.size > 1) item { SortRow(sort, onSort, onFirst, onOnFirst) }
                     itemsIndexed(groups, key = { _, it -> it.group.id }) { index, summary ->
                     GroupCard(
                         summary = summary,
                         theme = themeFor?.invoke(summary.group),
-                        movable = sort == GroupSort.CUSTOM,
+                        // The arrows move a group within your order; with on-first they would seem to skip.
+                        movable = sort == GroupSort.CUSTOM && !onFirst,
                         canMoveUp = index > 0,
                         canMoveDown = index < groups.lastIndex,
                         onClick = { onOpenGroup(summary.group.id) },
@@ -318,16 +330,16 @@ fun HomeContent(
     }
 }
 
-/** "Your order ▾": picks how the groups below are listed. */
+/** "Your order ▾": picks how the groups below are listed, and whether those that are on come first. */
 @Composable
-private fun SortRow(sort: GroupSort, onSort: (GroupSort) -> Unit) {
+private fun SortRow(sort: GroupSort, onSort: (GroupSort) -> Unit, onFirst: Boolean, onOnFirst: (Boolean) -> Unit) {
     val c = cascadeColors
     var open by remember { mutableStateOf(false) }
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text("Groups", style = CascadeType.body, color = c.textSecondary, modifier = Modifier.weight(1f).semantics { heading() })
         Box {
             TextButton(onClick = { open = true }, modifier = Modifier.testTag("group-sort")) {
-                Text(sort.title, style = CascadeType.body, color = c.textSecondary)
+                Text(if (onFirst) "${sort.title}, on first" else sort.title, style = CascadeType.body, color = c.textSecondary)
                 Icon(CascadeIcons.ChevronDown, contentDescription = null, tint = c.textSecondary, modifier = Modifier.padding(start = 4.dp).size(18.dp))
             }
             DropdownMenu(expanded = open, onDismissRequest = { open = false }, containerColor = c.surfaceHigh) {
@@ -341,6 +353,14 @@ private fun SortRow(sort: GroupSort, onSort: (GroupSort) -> Unit) {
                         modifier = Modifier.testTag("sort-${option.key}"),
                     )
                 }
+                HorizontalDivider(color = c.line)
+                // A switch, not a choice: it works with any order above, so the menu stays open.
+                DropdownMenuItem(
+                    text = { Text("Groups that are on first", style = CascadeType.body, color = c.textPrimary) },
+                    onClick = { onOnFirst(!onFirst) },
+                    trailingIcon = { CascadeSwitch(onFirst, onOnFirst, label = "Groups that are on first") },
+                    modifier = Modifier.testTag("sort-on-first"),
+                )
             }
         }
     }

@@ -31,8 +31,7 @@ class RoomRingStore @Inject constructor(
     override suspend fun afterDismiss(alarmId: String) = reconciler.scheduleWakeCheck(alarmId)
     override suspend fun sequencePosition(alarm: AlarmEntity): SequencePosition {
         val group = alarmDao.inGroup(alarm.groupId)
-        // A one-shot alarm switches itself off when it rings, so it still counts itself.
-        val total = group.count { it.isEnabled || it.id == alarm.id }.coerceAtLeast(1)
+        val total = Escalation.cascade(alarm, group).size.coerceAtLeast(1)
         return SequencePosition(Escalation.position(alarm, group), total)
     }
 

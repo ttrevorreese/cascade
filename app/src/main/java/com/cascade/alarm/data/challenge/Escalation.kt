@@ -3,6 +3,7 @@ package com.cascade.alarm.data.challenge
 import com.cascade.alarm.data.db.AlarmEntity
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import java.time.Duration
 
 /**
  * A group's ladder (SPEC §5): [steps] index maps to an alarm's place in the sequence, and the last
@@ -32,16 +33,30 @@ object Escalation {
         ),
     )
 
+    /** How far back an alarm that already rang still belongs to the same morning's cascade. */
+    private val CASCADE_WINDOW: Duration = Duration.ofHours(12)
+
     /**
-     * [alarm]'s place for escalation: counted among its group's alarms that are on, so the last
-     * alarm that actually rings gets the hardest rung. It counts itself even when off, because a
-     * one-shot alarm switches itself off as it rings.
+     * The alarms of [alarm]'s cascade, in ring order: those that are on, [alarm] itself, and those
+     * that rang in the [CASCADE_WINDOW] before it. A one-shot alarm switches itself off as it rings,
+     * so without the last rule each one-shot alarm would think it was the first (fixed 2026-10-25).
+     */
+    fun cascade(alarm: AlarmEntity, groupAlarms: List<AlarmEntity>): List<AlarmEntity> {
+        val firedAt = alarm.lastFiredFor
+        fun rangBefore(other: AlarmEntity): Boolean {
+            val at = other.lastFiredFor ?: return false
+            return firedAt != null && !at.isAfter(firedAt) && Duration.between(at, firedAt) <= CASCADE_WINDOW
+        }
+        return groupAlarms.sortedBy { it.positionInGroup }
+            .filter { it.isEnabled || it.id == alarm.id || rangBefore(it) }
+    }
+
+    /**
+     * [alarm]'s place for escalation within its [cascade], so switched-off alarms do not count and
+     * the last alarm that actually rings gets the hardest rung.
      */
     fun position(alarm: AlarmEntity, groupAlarms: List<AlarmEntity>): Int =
-        groupAlarms.sortedBy { it.positionInGroup }
-            .filter { it.isEnabled || it.id == alarm.id }
-            .indexOfFirst { it.id == alarm.id }
-            .coerceAtLeast(0)
+        cascade(alarm, groupAlarms).indexOfFirst { it.id == alarm.id }.coerceAtLeast(0)
 
     /** The rung for [position]; the last rung repeats. Null when the ladder is empty. */
     fun rung(policy: EscalationPolicy, position: Int): ChallengeConfig? =

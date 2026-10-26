@@ -71,6 +71,21 @@ class ScreensTest {
     }
 
     @Test
+    fun homeCanListGroupsThatAreOnFirst() {
+        val two = listOf(
+            GroupSummary(group, alarmCount = 1, enabledCount = 1, nextRing = null),
+            GroupSummary(group.copy(id = "h", name = "Gym Day", sortOrder = 1), alarmCount = 1, enabledCount = 1, nextRing = null),
+        )
+        var onFirst by mutableStateOf(false)
+        compose.setContent { HomeContent(two, {}, {}, { _, _ -> }, { _, _ -> }, {}, onFirst = onFirst, onOnFirst = { onFirst = it }) }
+        compose.onNodeWithTag("group-sort").performScrollTo().performClick()
+        compose.onNodeWithTag("sort-on-first").performClick()
+        assertEquals(true, onFirst)
+        compose.onNodeWithText("Your order, on first").assertExists()
+        compose.onNodeWithContentDescription("Move Gym Day up").assertDoesNotExist()
+    }
+
+    @Test
     fun aDuplicateIsNamedBeforeItIsMade() {
         var made: String? = null
         compose.setContent {

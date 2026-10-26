@@ -69,6 +69,12 @@ under conventions). It is how the next session knows where to pick up.
   selling Plus (RELEASING.md "Selling Cascade Plus later"; no GitHub issue yet, the connector token was invalid). Owner decisions (2026-10-24): Cascade Plus is
   $4.99 flat, one-time; no Play Console account yet (create it at M8, then add the `cascade_plus`
   product at that price). Read-aloud must let the owner pick the voice.
+- **Owner fixes (2026-10-25, third round):** the alarm screen now opens over an unlocked phone in use when
+  "Display over other apps" is granted (SYSTEM_ALERT_WINDOW, a Reliability advice row; the full-screen intent is
+  only a banner then); the ladder counted only alarms that were on, so one-shot alarms (which switch themselves
+  off as they ring) all got rung 1 (`Escalation.cascade` now counts alarms that rang in the last 12 h); Home's sort
+  menu has a "Groups that are on first" switch (hides the move arrows); Sound has Random, from the tones the user
+  ticks (`SoundConfig.RandomTone`, no schema change). Checked on the emulator; phone checks in spec §10.
 - Before starting a milestone: give the owner a short plan and wait for approval (their kickoff
   notes in `design/CLAUDE_CODE_PROMPT.md`), unless they have said to go ahead.
 
@@ -141,7 +147,7 @@ under conventions). It is how the next session knows where to pick up.
   `adb shell am broadcast -a com.cascade.alarm.debug.SEED_DEMO -p com.ttrevorreese.cascade`:
   `RING_IN`, `SET_TIMEOUT`, `SET_DAILY`, `DISABLE`, `DISMISS`, `SET_WAKE_CHECK`, `SEED_DEMO`,
   `RING_POSITION --ei position N`, `SET_CHALLENGE --ei position N --es kind math|phrase|barcode|memory|steps|clear`,
-  `SET_SOUND --es tone <key> | --es file <name> [--ei ramp S --ei start P]` (first group and the test
+  `SET_SOUND --es tone <key> | --es file <name> | --es random <key,key> [--ei ramp S --ei start P]` (first group and the test
   alarm; a file name that was never copied in exercises the fallback),
   `SET_THEME --es theme <id> [--es group <id>|follow]` (app theme; first group's own theme),
   `SET_ANIMATION --es animation theme|none|<key>`, `SET_PLUS --ez owned true|false` (pretend Cascade

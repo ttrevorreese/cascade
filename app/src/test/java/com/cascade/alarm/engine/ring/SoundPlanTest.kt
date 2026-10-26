@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 import java.io.File
+import kotlin.random.Random
 
 class SoundPlanTest {
     private val classic = SoundSource.Bundled(R.raw.tone_classic)
@@ -49,6 +50,32 @@ class SoundPlanTest {
         val plan = SoundPlan.of(SoundConfig.SpotifyPlaylist("spotify:playlist:x", "Wake up", SoundConfig.BuiltIn("klaxon"))) { null }
         assertEquals(listOf(SoundSource.Bundled(R.raw.tone_klaxon), classic), plan.sources)
         assertNull(plan.skipped)
+    }
+
+    @Test
+    fun `random plays one of the chosen tones, with Classic behind it`() {
+        val chosen = SoundConfig.RandomTone(listOf("chimes", "klaxon", "digital"))
+        val played = (0 until 200).map { seed -> SoundPlan.of(chosen, Random(seed)) { null }.sources }.toSet()
+        assertEquals(
+            setOf(R.raw.tone_chimes, R.raw.tone_klaxon, R.raw.tone_digital).map { listOf(SoundSource.Bundled(it), classic) }.toSet(),
+            played,
+        )
+    }
+
+    @Test
+    fun `random skips tones this version does not know, and with none left plays Classic`() {
+        val plan = SoundPlan.of(SoundConfig.RandomTone(listOf("from-a-newer-version", "klaxon")), Random(1)) { null }
+        assertEquals(listOf(SoundSource.Bundled(R.raw.tone_klaxon), classic), plan.sources)
+        val none = SoundPlan.of(SoundConfig.RandomTone(listOf("from-a-newer-version")), Random(1)) { null }
+        assertEquals(listOf(classic), none.sources)
+        assertEquals("unknown_tone", none.skipped)
+    }
+
+    @Test
+    fun `random survives storage and can be Spotify's backup`() {
+        val random = SoundConfig.RandomTone(listOf("dawn", "klaxon"))
+        assertEquals(random, SoundConfig.decode(SoundConfig.encode(random)))
+        assertEquals(random, SoundConfig.SpotifyPlaylist("spotify:playlist:x", "Wake up", random).local)
     }
 
     @Test

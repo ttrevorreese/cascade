@@ -10,13 +10,18 @@ enum class GroupSort(val key: String, val title: String) {
     MODIFIED("modified", "Recently changed"),
     ;
 
-    fun sort(groups: List<GroupSummary>): List<GroupSummary> = when (this) {
-        CUSTOM -> groups.sortedBy { it.group.sortOrder }
-        // By the first alarm's time of day; a group with no alarms goes last.
-        TIME -> groups.sortedWith(
-            compareBy<GroupSummary>({ it.firstTime == null }, { it.firstTime }, { it.group.sortOrder }),
-        )
-        MODIFIED -> groups.sortedWith(compareByDescending<GroupSummary> { it.group.updatedAt }.thenBy { it.group.sortOrder })
+    /** [onFirst]: groups that are on come before those that are off (owner request, 2026-10-25). */
+    fun sort(groups: List<GroupSummary>, onFirst: Boolean = false): List<GroupSummary> {
+        val sorted = when (this) {
+            CUSTOM -> groups.sortedBy { it.group.sortOrder }
+            // By the first alarm's time of day; a group with no alarms goes last.
+            TIME -> groups.sortedWith(
+                compareBy<GroupSummary>({ it.firstTime == null }, { it.firstTime }, { it.group.sortOrder }),
+            )
+            MODIFIED -> groups.sortedWith(compareByDescending<GroupSummary> { it.group.updatedAt }.thenBy { it.group.sortOrder })
+        }
+        // sortedBy is stable, so each part keeps the order above.
+        return if (onFirst) sorted.sortedBy { !it.group.isArmed } else sorted
     }
 
     companion object {
