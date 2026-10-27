@@ -2,6 +2,8 @@ package com.cascade.alarm.di
 
 import android.app.AlarmManager
 import android.content.Context
+import com.cascade.alarm.engine.ScheduleObserver
+import com.cascade.alarm.engine.ScheduleSideEffects
 import com.cascade.alarm.engine.SystemTimeSource
 import com.cascade.alarm.engine.TimeSource
 import com.cascade.alarm.engine.ring.RingStore
@@ -26,6 +28,9 @@ abstract class EngineModule {
 
     @Binds
     abstract fun ringStore(impl: RoomRingStore): RingStore
+
+    @Binds
+    abstract fun scheduleObserver(impl: ScheduleSideEffects): ScheduleObserver
 
     companion object {
         @Provides

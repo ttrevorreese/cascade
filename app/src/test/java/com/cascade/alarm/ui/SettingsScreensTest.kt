@@ -47,6 +47,41 @@ class SettingsScreensTest {
     }
 
     @Test
+    fun bedtimeReminderIsOffUntilTurnedOnAndThenPicksTheSleep() {
+        var on by mutableStateOf(false)
+        var sleep by mutableStateOf(480)
+        compose.setContent { SettingsContent(AnimationChoice.None, {}, {}, {}, bedtimeOn = on, bedtimeSleep = sleep, onBedtime = { o, s -> on = o; sleep = s }) }
+        compose.onNode(hasScrollAction()).performScrollToNode(hasTestTag("bedtime"))
+        compose.onNodeWithTag("bedtime-450").assertDoesNotExist()
+        compose.onNodeWithTag("bedtime").performClick()
+        assertEquals(true, on)
+        compose.onNode(hasScrollAction()).performScrollToNode(hasTestTag("bedtime-450"))
+        compose.onNodeWithTag("bedtime-450").performClick()
+        assertEquals(450, sleep)
+        compose.onNodeWithText("7½ h before the next alarm", substring = true).assertExists()
+    }
+
+    @Test
+    fun feedbackThroughTheFormKeepsTheAddressOff() {
+        compose.setContent { SettingsContent(AnimationChoice.None, {}, {}, {}, usesForm = true) }
+        compose.onNode(hasScrollAction()).performScrollToNode(hasTestTag("feedback-other"))
+        compose.onNodeWithText("cascadealarmgroup.app@gmail.com", substring = true).assertDoesNotExist()
+        compose.onNodeWithText("Opens a short form", substring = true).assertExists()
+    }
+
+    @Test
+    fun theFormLinkCarriesTheKindAndThePhone() {
+        val uri = com.cascade.alarm.ui.settings.Feedback.formUri(
+            com.cascade.alarm.ui.settings.Feedback.Kind.PROBLEM, "1.0.0", "16", "Samsung SM-S908U",
+            url = "https://docs.google.com/forms/d/e/abc/viewform",
+        )!!
+        assertEquals("pp_url", uri.getQueryParameter("usp"))
+        org.junit.Assert.assertTrue(uri.toString().startsWith("https://docs.google.com/forms/d/e/abc/viewform?"))
+        org.junit.Assert.assertNull(com.cascade.alarm.ui.settings.Feedback.formUri(com.cascade.alarm.ui.settings.Feedback.Kind.IDEA, url = ""))
+        assertEquals("Bug report", com.cascade.alarm.ui.settings.Feedback.Kind.PROBLEM.formChoice)
+    }
+
+    @Test
     fun feedbackOffersThreeKindsAndSaysWhenThereIsNoEmailApp() {
         val sent = mutableListOf<com.cascade.alarm.ui.settings.Feedback.Kind>()
         var noEmailApp by mutableStateOf(false)

@@ -1,5 +1,8 @@
 package com.cascade.alarm.ui.home
 
+import java.time.Instant
+import com.cascade.alarm.ui.group.NextMorningText
+import com.cascade.alarm.ui.RingsInNotice
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -105,6 +108,7 @@ class HomeViewModel @Inject constructor(
     private val reliability: ReliabilityRepository,
     private val preferences: UiPreferences,
     entitlements: Entitlements,
+    private val ringsIn: RingsInNotice,
 ) : ViewModel() {
     /**
      * Each group's theme for its card, resolved the same way as at fire time (DESIGN.md §11.1);
@@ -156,7 +160,7 @@ class HomeViewModel @Inject constructor(
         mutableIncidents.value = reliability.incidents()
     }
 
-    fun setArmed(groupId: String, armed: Boolean) = launch { repository.setGroupArmed(groupId, armed) }
+    fun setArmed(groupId: String, armed: Boolean) = launch { repository.setGroupArmed(groupId, armed); ringsIn.show(groupId) }
     fun move(groupId: String, delta: Int) = launch { repository.moveGroup(groupId, delta) }
 
     fun create(name: String, onCreated: (String) -> Unit) {
@@ -465,7 +469,9 @@ private fun scheduleLine(summary: GroupSummary, is24Hour: Boolean, locale: Local
     // An off group still shows its times, so "Earliest first" explains itself.
     if (!summary.group.isArmed) return if (first == null) "Off · $count" else "Off · ${span(first, summary.lastTime ?: first, is24Hour)}"
     if (first == null) return "No alarms yet"
-    return "${span(first, summary.lastTime ?: first, is24Hour)} · ${DaysFormat.describe(summary.days, locale)}"
+    val line = "${span(first, summary.lastTime ?: first, is24Hour)} · ${DaysFormat.describe(summary.days, locale)}"
+    // A skip, pause or one-off move shows first; the hero above already says when it rings.
+    return NextMorningText.cardWord(summary.group, Instant.now(), ZoneId.systemDefault())?.let { "$it · $line" } ?: line
 }
 
 private fun span(first: LocalTime, last: LocalTime, is24Hour: Boolean): String {

@@ -1,5 +1,8 @@
 package com.cascade.alarm.ui.settings
 
+import com.cascade.alarm.engine.bedtime.BedtimeRules
+import com.cascade.alarm.engine.bedtime.BedtimePreferences
+import com.cascade.alarm.engine.ScheduleSideEffects
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
@@ -76,7 +79,17 @@ class SettingsViewModel @Inject constructor(
     voice: VoicePreferences,
     private val defaultsPreferences: NewAlarmDefaultsPreferences,
     private val exporter: DataExporter,
+    private val bedtimePreferences: BedtimePreferences,
+    private val sideEffects: ScheduleSideEffects,
 ) : ViewModel() {
+    val bedtimeOn: StateFlow<Boolean> = bedtimePreferences.enabled
+    val bedtimeSleep: StateFlow<Int> = bedtimePreferences.sleepMinutes
+
+    fun setBedtime(on: Boolean, sleepMinutes: Int) {
+        bedtimePreferences.set(on, sleepMinutes)
+        sideEffects.refresh()
+    }
+
     val animation: StateFlow<AnimationChoice> = preferences.animation
     val voice: StateFlow<VoiceChoice> = voice.choice
     val defaults: StateFlow<NewAlarmDefaults> = defaultsPreferences.value
@@ -106,6 +119,8 @@ fun SettingsScreen(
     val voice by viewModel.voice.collectAsStateWithLifecycle()
     val defaults by viewModel.defaults.collectAsStateWithLifecycle()
     val exportResult by viewModel.exportResult.collectAsStateWithLifecycle()
+    val bedtimeOn by viewModel.bedtimeOn.collectAsStateWithLifecycle()
+    val bedtimeSleep by viewModel.bedtimeSleep.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val resolver = context.contentResolver
     var noEmailApp by remember { mutableStateOf(false) }
@@ -123,6 +138,9 @@ fun SettingsScreen(
         onFeedback = { kind -> noEmailApp = !Feedback.send(context, kind) },
         noEmailApp = noEmailApp,
         reliabilityAdvice = advice,
+        bedtimeOn = bedtimeOn,
+        bedtimeSleep = bedtimeSleep,
+        onBedtime = viewModel::setBedtime,
     )
 }
 
@@ -145,6 +163,10 @@ fun SettingsContent(
     noEmailApp: Boolean = false,
     /** Reliability checks not passing; Home's cog carries the same dot. */
     reliabilityAdvice: Int = 0,
+    bedtimeOn: Boolean = false,
+    bedtimeSleep: Int = BedtimeRules.DEFAULT_SLEEP_MINUTES,
+    onBedtime: (on: Boolean, sleepMinutes: Int) -> Unit = { _, _ -> },
+    usesForm: Boolean = Feedback.usesForm,
 ) {
     val c = cascadeColors
     // Settings is in the app theme, which is what is in effect here (DESIGN.md §11.2).
@@ -175,6 +197,8 @@ fun SettingsContent(
                     dot = reliabilityAdvice > 0,
                 )
             }
+            item { SectionLabel("Bedtime") }
+            item { BedtimeSection(bedtimeOn, bedtimeSleep, onBedtime) }
             item { SectionLabel("For new groups") }
             item {
                 Text(
@@ -197,10 +221,11 @@ fun SettingsContent(
             item { SectionLabel("Feedback") }
             item {
                 Text(
-                    if (noEmailApp) {
-                        "There is no email app on this phone. Write to ${Feedback.ADDRESS} from any device."
-                    } else {
-                        "Opens your email app with a message to the developer, ${Feedback.ADDRESS}. You see it before anything is sent."
+                    when {
+                        noEmailApp && usesForm -> "There is no browser or email app on this phone to send it with."
+                        noEmailApp -> "There is no email app on this phone. Write to ${Feedback.ADDRESS} from any device."
+                        usesForm -> "Opens a short form in your browser. Only what you type is sent, and your email address only if you add it for a reply."
+                        else -> "Opens your email app with a message to the developer, ${Feedback.ADDRESS}. You see it before anything is sent."
                     },
                     style = CascadeType.body,
                     color = if (noEmailApp) c.textPrimary else c.textSecondary,
@@ -218,6 +243,32 @@ fun SettingsContent(
 internal fun voiceText(voice: VoiceChoice): String {
     val speed = ReadAloud.RATES.firstOrNull { it.first == voice.rate }?.second ?: "Normal"
     return "${voice.label ?: "Phone's default voice"} · $speed speed"
+}
+
+/** A reminder to go to bed, the chosen amount of sleep before the next alarm (2026-10-26). */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun BedtimeSection(on: Boolean, sleepMinutes: Int, onChange: (on: Boolean, sleepMinutes: Int) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(CascadeSpace.s)) {
+        SwitchRow(
+            "Bedtime reminder",
+            if (on) "A notification ${BedtimeRules.sleepName(sleepMinutes)} before the next alarm of a group that is on" else "Off",
+            on,
+            "bedtime",
+        ) { onChange(it, sleepMinutes) }
+        if (on) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                BedtimeRules.SLEEP_CHOICES.forEach { minutes ->
+                    FilterChip(
+                        selected = sleepMinutes == minutes,
+                        onClick = { onChange(true, minutes) },
+                        label = { Text(BedtimeRules.sleepName(minutes)) },
+                        modifier = Modifier.testTag("bedtime-$minutes"),
+                    )
+                }
+            }
+        }
+    }
 }
 
 @OptIn(ExperimentalLayoutApi::class)

@@ -11,10 +11,13 @@ import com.cascade.alarm.data.sound.SoundFiles
 import com.cascade.alarm.data.sound.SoundSettings
 import com.cascade.alarm.data.sound.VibrationSetting
 import com.cascade.alarm.engine.TimeSource
+import com.cascade.alarm.engine.schedule.GroupTiming
 import com.cascade.alarm.engine.schedule.WakeCheck
 import com.cascade.alarm.engine.schedule.Reconciler
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import java.time.LocalDate
+import java.time.LocalTime
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -41,6 +44,9 @@ class AlarmRepository @Inject constructor(
         }
 
     fun observeGroup(id: String): Flow<AlarmGroupEntity?> = groups.observe(id)
+
+    /** The group as Home shows it, read now; null if it is gone. */
+    suspend fun groupSummary(id: String): GroupSummary? = groups.get(id)?.let { AlarmRules.summarize(it, alarms.inGroup(id)) }
 
     fun observeAlarms(groupId: String): Flow<List<AlarmEntity>> = alarms.observeInGroup(groupId)
 
@@ -148,8 +154,48 @@ class AlarmRepository @Inject constructor(
     /** Moves every alarm in the group by [minutes] (the group screen's −5 / +5 buttons). */
     suspend fun shiftGroup(id: String, minutes: Long) = reconciler.mutate("group_shift") {
         alarms.upsertAll(alarms.inGroup(id).map { AlarmRules.shifted(it, minutes) })
+        dropOneOffMove(id)
         groups.touch(id, time.now())
     }
+
+    // --- Skip, pause, next time only (2026-10-26) ---
+
+    /** The group's next morning does not ring; returns false when nothing is due to skip. */
+    suspend fun skipNext(id: String): Boolean = reconciler.mutate("group_skip_next") {
+        val group = groups.get(id) ?: return@mutate false
+        val timing = GroupTiming.skipNext(alarms.inGroup(id), GroupTiming.of(group), time.now(), time.zone()) ?: return@mutate false
+        groups.upsert(group.withTiming(timing))
+        true
+    }
+
+    /** Nothing regular rings until [date] starts; false unless [date] is after today. */
+    suspend fun pauseUntil(id: String, date: LocalDate): Boolean = reconciler.mutate("group_pause") {
+        val group = groups.get(id) ?: return@mutate false
+        val timing = GroupTiming.pauseUntil(date, time.now(), time.zone()) ?: return@mutate false
+        groups.upsert(group.withTiming(timing))
+        true
+    }
+
+    /** The next morning's first alarm rings at [firstTime] instead, the rest moving with it. */
+    suspend fun moveNextMorning(id: String, firstTime: LocalTime): GroupTiming.MoveResult = reconciler.mutate("group_move_next") {
+        val group = groups.get(id) ?: return@mutate GroupTiming.MoveResult.NothingDue
+        val result = GroupTiming.moveNext(alarms.inGroup(id), GroupTiming.of(group), firstTime, time.now(), time.zone())
+        if (result is GroupTiming.MoveResult.Moved) groups.upsert(group.withTiming(result.timing))
+        result
+    }
+
+    /** Back to the regular schedule: undoes a skip, a pause and a one-off move. */
+    suspend fun resumeSchedule(id: String) = reconciler.mutate("group_resume") {
+        groups.get(id)?.let { groups.upsert(it.withTiming(GroupTiming.NONE)) }
+    }
+
+    /** New times replace a one-off move, which was worked out from the old ones. */
+    private suspend fun dropOneOffMove(id: String) {
+        groups.get(id)?.takeIf { it.onceFrom != null }?.let { groups.upsert(it.copy(onceFrom = null, onceShiftMinutes = 0)) }
+    }
+
+    private fun AlarmGroupEntity.withTiming(timing: GroupTiming) =
+        copy(skipUntil = timing.skipUntil, onceFrom = timing.onceFrom, onceShiftMinutes = timing.onceShiftMinutes)
 
     suspend fun deleteGroup(id: String) {
         reconciler.mutate("group_delete") {
@@ -180,6 +226,9 @@ class AlarmRepository @Inject constructor(
             isArmed = false,
             createdAt = time.now(),
             updatedAt = time.now(),
+            skipUntil = null,
+            onceFrom = null,
+            onceShiftMinutes = 0,
         )
         val placed = ordered.toMutableList().apply { add(indexOfFirst { it.id == id } + 1, copy) }
         groups.upsertAll(placed.mapIndexed { index, group -> group.copy(sortOrder = index) })
@@ -234,6 +283,7 @@ class AlarmRepository @Inject constructor(
             readLabelAloud = alarm.readLabelAloud,
         )
         alarms.upsert(saved)
+        if (existing != null && existing.time != saved.time) dropOneOffMove(saved.groupId)
         if (existing != null && existing.positionInGroup == 0 && groups.get(saved.groupId)?.shiftWithFirst == true) {
             val minutes = AlarmRules.shiftMinutes(existing.time, saved.time)
             if (minutes != 0L) {

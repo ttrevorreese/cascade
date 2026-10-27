@@ -6,6 +6,7 @@ import com.cascade.alarm.data.challenge.EscalationPolicy
 import com.cascade.alarm.data.sound.SoundConfig
 import java.time.DayOfWeek
 import java.time.Instant
+import java.time.LocalDateTime
 import java.util.EnumSet
 
 class Converters {
@@ -14,6 +15,14 @@ class Converters {
 
     @TypeConverter
     fun epochMillisToInstant(value: Long?): Instant? = value?.let(Instant::ofEpochMilli)
+
+    /** Wall-clock times (a group's skip or one-off move) as ISO text, "2026-10-19T06:10:01". */
+    @TypeConverter
+    fun localDateTimeToText(value: LocalDateTime?): String? = value?.toString()
+
+    /** Never throws: unreadable text means no skip, so the group rings as normal. */
+    @TypeConverter
+    fun textToLocalDateTime(value: String?): LocalDateTime? = value?.let { runCatching { LocalDateTime.parse(it) }.getOrNull() }
 
     /** Bit (n-1) set for ISO day n (Monday = bit 0). */
     @TypeConverter

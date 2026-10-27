@@ -271,10 +271,76 @@ class ScreensTest {
             latest = draft
             AlarmEditorContent(draft = draft, isNew = false, onEdit = { transform -> draft = transform(draft) }, onSave = {}, onDelete = {}, onCancel = {})
         }
-        compose.onNodeWithTag("time").performClick()
-        compose.onNodeWithText("Set time").performClick()
+        compose.onNodeWithTag("time-step5").performClick()
         compose.waitForIdle()
         assertTrue(latest.isEnabled)
+        assertEquals(LocalTime.of(6, 5), LocalTime.of(latest.hour, latest.minute))
+    }
+
+    @Test
+    fun theTimeCanBeTypedOrNudgedByMinutes() {
+        lateinit var latest: AlarmEntity
+        compose.setContent {
+            var draft by remember { mutableStateOf(alarm("a", 0, 6)) }
+            latest = draft
+            AlarmEditorContent(draft = draft, isNew = false, onEdit = { transform -> draft = transform(draft) }, onSave = {}, onDelete = {}, onCancel = {})
+        }
+        fun time() = LocalTime.of(latest.hour, latest.minute)
+        compose.onNodeWithTag("time").performTextReplacement("715")
+        compose.waitForIdle()
+        assertEquals(LocalTime.of(7, 15), time())
+        compose.onNodeWithTag("time-step10").performClick()
+        compose.onNodeWithTag("time-step-1").performClick()
+        compose.waitForIdle()
+        assertEquals(LocalTime.of(7, 24), time())
+        compose.onNodeWithTag("time").assertTextContains("7:24")
+        compose.onNodeWithTag("time-pm").performClick()
+        compose.waitForIdle()
+        assertEquals(LocalTime.of(19, 24), time())
+        compose.onNodeWithTag("time").performTextReplacement("6:30 am")
+        compose.waitForIdle()
+        assertEquals(LocalTime.of(6, 30), time())
+        // Half-typed is not a time: the last good one stands and the box says so.
+        compose.onNodeWithTag("time").performTextReplacement("6:7")
+        compose.onNodeWithTag("time-invalid").assertExists()
+        assertEquals(LocalTime.of(6, 30), time())
+    }
+
+    @Test
+    fun theGroupCanSkipPauseOrMoveItsNextMorningAndGoBack() {
+        val calls = mutableListOf<String>()
+        var current by mutableStateOf(group)
+        compose.setContent {
+            GroupContent(
+                group = current, alarms = listOf(alarm("a", 0, 6).copy(nextTriggerAt = Instant.parse("2026-10-19T10:00:00Z"))),
+                onBack = {}, onOpenAlarm = {}, onArmedChange = {}, onRename = {}, onDelete = {},
+                onAlarmEnabledChange = { _, _ -> }, onShiftWithFirstChange = {}, onShift = {}, onWakeCheckChange = { _, _ -> },
+                onSkipNext = { calls += "skip" },
+                onPauseUntil = { calls += "pause $it" },
+                onMoveNext = { time, done -> calls += "move $time"; done(com.cascade.alarm.engine.schedule.GroupTiming.MoveResult.InThePast) },
+                onResumeSchedule = { calls += "resume" },
+                now = Instant.parse("2026-10-19T02:00:00Z"),
+            )
+        }
+        compose.onNodeWithTag("next-morning").assertTextContains("Next ring", substring = true)
+        compose.onNodeWithTag("resume-schedule").assertDoesNotExist()
+        compose.onNodeWithTag("skip-next").performClick()
+        assertEquals(listOf("skip"), calls)
+        // A move into the past keeps the dialog open with the reason.
+        compose.onNodeWithTag("move-next").performClick()
+        compose.onNodeWithTag("move-time").performTextReplacement("530")
+        compose.onNodeWithTag("move-confirm").performClick()
+        compose.onNodeWithTag("move-problem").assertExists()
+        assertEquals("move 05:30", calls.last())
+        compose.onNodeWithText("Cancel").performClick()
+        compose.onNodeWithTag("pause-until").performClick()
+        compose.onNodeWithTag("pause-confirm").performClick()
+        assertTrue(calls.last(), calls.last().startsWith("pause 2026-10-"))
+        // Skipped: the screen says so and offers the way back.
+        current = group.copy(skipUntil = java.time.LocalDateTime.of(2099, 10, 19, 6, 0, 1))
+        compose.onNodeWithTag("next-morning").assertTextContains("Skipped.", substring = true)
+        compose.onNodeWithTag("resume-schedule").performClick()
+        assertEquals("resume", calls.last())
     }
 
     private fun ringing(position: Int, total: Int, wakeCheck: Boolean = false) = RingingAlarm(

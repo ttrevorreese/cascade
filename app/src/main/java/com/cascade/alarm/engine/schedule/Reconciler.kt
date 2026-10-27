@@ -7,6 +7,7 @@ import com.cascade.alarm.data.db.CascadeDatabase
 import com.cascade.alarm.data.db.EventType
 import com.cascade.alarm.engine.EngineLog
 import com.cascade.alarm.engine.EventLog
+import com.cascade.alarm.engine.ScheduleObserver
 import com.cascade.alarm.engine.TimeSource
 import com.cascade.alarm.engine.receivers.AlarmFireReceiver
 import com.cascade.alarm.engine.schedule.ReconcilePlanner.Action
@@ -28,6 +29,7 @@ class Reconciler @Inject constructor(
     private val scheduler: AlarmScheduler,
     private val time: TimeSource,
     private val events: EventLog,
+    private val observer: ScheduleObserver = ScheduleObserver.None,
 ) {
     private val mutex = Mutex()
 
@@ -58,6 +60,7 @@ class Reconciler @Inject constructor(
         }
         (before - plans.map { it.alarm.id }.toSet()).forEach(scheduler::cancel)
         plans.forEach(::apply)
+        tellObserver()
         result
     }
 
@@ -72,21 +75,32 @@ class Reconciler @Inject constructor(
                 if (alarmId != AlarmFireReceiver.UNKNOWN_ALARM) result = FireResult.Deleted
                 return@withTransaction null
             }
-            val armed = db.alarmGroupDao().get(alarm.groupId)?.isArmed ?: true
+            val group = db.alarmGroupDao().get(alarm.groupId)
+            val armed = group?.isArmed ?: true
+            val timing = group?.let(GroupTiming::of) ?: GroupTiming.NONE
             if (alarm.lastFiredFor == scheduledFor) {
                 result = FireResult.Duplicate
                 // AlarmManager has used up this alarm's registration (e.g. the clock was set back and
                 // the trigger came round again), so schedule the next one or nothing rings tomorrow.
-                return@withTransaction planAndPersist(alarm, alarm, armed, "duplicate")
+                return@withTransaction planAndPersist(alarm, alarm, armed, "duplicate", timing)
             }
             val wakeCheck = scheduledFor == alarm.wakeCheckAt
             events.record(alarmId, EventType.FIRED, "scheduledFor" to scheduledFor, "wakeCheck" to wakeCheck)
-            planAndPersist(alarm, ReconcilePlanner.afterFiring(alarm, scheduledFor), armed, "fired").also {
+            planAndPersist(alarm, ReconcilePlanner.afterFiring(alarm, scheduledFor), armed, "fired", timing).also {
                 result = FireResult.Ring(it.alarm, wakeCheck)
             }
         }
         plan?.let(::apply)
+        tellObserver()
         result
+    }
+
+    private fun tellObserver() {
+        try {
+            observer.scheduleChanged()
+        } catch (e: Exception) {
+            EngineLog.e("schedule observer failed", e)
+        }
     }
 
     /** The user snoozed [alarmId]: it rings again at [at], through the one-time trigger. */
@@ -122,14 +136,31 @@ class Reconciler @Inject constructor(
     }
 
     private suspend fun planAll(reason: String): List<Plan> {
-        val armed = db.alarmGroupDao().all().associate { it.id to it.isArmed }
+        val groups = db.alarmGroupDao().all().map { group ->
+            // A skip or one-off move that is over is dropped, so it can never catch a later morning.
+            val timing = GroupTiming.of(group)
+            val cleared = timing.cleared(time.now(), time.zone())
+            if (cleared == timing) {
+                group
+            } else {
+                group.copy(skipUntil = cleared.skipUntil, onceFrom = cleared.onceFrom, onceShiftMinutes = cleared.onceShiftMinutes)
+                    .also { db.alarmGroupDao().upsert(it) }
+            }
+        }.associateBy { it.id }
         return db.alarmDao().all().map { alarm ->
-            planAndPersist(alarm, alarm, armed[alarm.groupId] ?: false, reason)
+            val group = groups[alarm.groupId]
+            planAndPersist(alarm, alarm, group?.isArmed ?: false, reason, group?.let(GroupTiming::of) ?: GroupTiming.NONE)
         }
     }
 
-    private suspend fun planAndPersist(before: AlarmEntity, edited: AlarmEntity, groupArmed: Boolean, reason: String): Plan {
-        val plan = ReconcilePlanner.plan(edited, groupArmed, time.now(), time.zone())
+    private suspend fun planAndPersist(
+        before: AlarmEntity,
+        edited: AlarmEntity,
+        groupArmed: Boolean,
+        reason: String,
+        timing: GroupTiming = GroupTiming.NONE,
+    ): Plan {
+        val plan = ReconcilePlanner.plan(edited, groupArmed, time.now(), time.zone(), timing)
         if (plan.alarm != before) db.alarmDao().upsert(plan.alarm)
         plan.missed?.let {
             events.record(before.id, EventType.MISSED, "scheduledFor" to it, "reason" to "not_fired")

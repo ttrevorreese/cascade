@@ -19,4 +19,14 @@
     </plurals>
     <string name="ring_no_snooze">No snooze.</string>
     <string name="ring_snoozes_used">No snoozes left.</string>
+    <string name="bedtime_channel">Bedtime reminder</string>
+    <string name="bedtime_title">Bedtime</string>
+    <string name="widget_name">Next alarm</string>
+    <string name="widget_description">When your next alarm rings, with a way to skip it.</string>
+    <string name="widget_label">Next alarm</string>
+    <string name="widget_nothing">Nothing scheduled</string>
+    <string name="widget_skip">Skip next</string>
+    <string name="widget_skip_confirm">Tap again to skip</string>
+    <string name="widget_preview_time">6:30 AM</string>
+    <string name="widget_preview_detail">Tomorrow · Workday</string>
 </resources>

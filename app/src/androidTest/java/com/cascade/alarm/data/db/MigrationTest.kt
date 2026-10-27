@@ -3,6 +3,7 @@ package com.cascade.alarm.data.db
 import androidx.room.testing.MigrationTestHelper
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -254,6 +255,24 @@ class MigrationTest {
                 assertEquals(100, c.getInt(1))
                 assertEquals(0, c.getInt(2))
                 assertEquals(1234L, c.getLong(3))
+            }
+        }
+    }
+
+    @Test
+    fun v11GroupsRingAsNormalWithNothingSkippedOrMoved() {
+        helper.createDatabase(db, 11).use { v11 ->
+            v11.execSQL(
+                "INSERT INTO alarm_groups (id, name, colorHex, iconKey, isArmed, sortOrder, createdAt) " +
+                    "VALUES ('g', 'Workday', '#000000', 'default', 1, 0, 1234)",
+            )
+        }
+        helper.runMigrationsAndValidate(db, 12, true, Migrations.MIGRATION_11_12).use { v12 ->
+            v12.query("SELECT skipUntil, onceFrom, onceShiftMinutes FROM alarm_groups WHERE id = 'g'").use { c ->
+                c.moveToFirst()
+                assertTrue(c.isNull(0))
+                assertTrue(c.isNull(1))
+                assertEquals(0, c.getInt(2))
             }
         }
     }

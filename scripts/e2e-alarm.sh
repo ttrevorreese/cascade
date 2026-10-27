@@ -198,7 +198,8 @@ if (( RUN_WAKE_CHECK )); then
   wait_for_log "ringing alarm=system-test-alarm deadline=.* wakeCheck=false" 45 && pass "rang" || fail "did not ring"
   debug_cmd DISMISS
   wait_for_log "event DISMISSED" 10 && pass "dismissed" || fail "dismiss not logged"
-  check "check scheduled after the last alarm" "\"reason\":\"wake_check\""
+  # The SCHEDULED event of the reconcile that follows a dismissal (named "dismissed" since 2026-10-26).
+  wait_for_log "\"reason\":\"dismissed\"" 10 && pass "check scheduled after the last alarm" || fail "check scheduled after the last alarm"
   sh input keyevent KEYCODE_SLEEP
   if wait_for_log "wakeCheck=true" 90; then pass "check appeared about a minute later"; else fail "no wake-up check within 90s"; fi
   check "check only vibrates" "wake check vibration started"

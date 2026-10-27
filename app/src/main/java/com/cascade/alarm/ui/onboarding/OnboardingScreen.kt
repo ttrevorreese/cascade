@@ -1,5 +1,6 @@
 package com.cascade.alarm.ui.onboarding
 
+import com.cascade.alarm.ui.components.TimeEntry
 import android.Manifest
 import android.os.Build
 import androidx.activity.compose.BackHandler
@@ -25,8 +26,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TimePicker
-import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -210,16 +209,13 @@ private fun FirstGroup(is24Hour: Boolean, onCreate: (StarterPlan) -> Unit, onSki
     var count by rememberSaveable { mutableIntStateOf(StarterPlan().count) }
     var step by rememberSaveable { mutableIntStateOf(StarterPlan().stepMinutes) }
     var everyDay by rememberSaveable { mutableStateOf(false) }
-    var pickingTime by remember { mutableStateOf(false) }
     val plan = StarterPlan(name.trim().ifEmpty { StarterPlan().name }, LocalTime.of(hour, minute), count, step, if (everyDay) StarterPlan.EVERY_DAY else StarterPlan.WEEKDAYS)
 
     Title("Your first group")
     OutlinedTextField(name, { name = it }, label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth().testTag("starter-name"))
     Column(verticalArrangement = Arrangement.spacedBy(CascadeSpace.xs)) {
         Text("First alarm", style = CascadeType.rowLabel, color = c.textPrimary)
-        TextButton(onClick = { pickingTime = true }, modifier = Modifier.testTag("starter-time")) {
-            Text(TimeText.time(hour, minute, is24Hour), style = CascadeType.homeNextAlarm, color = c.textPrimary)
-        }
+        TimeEntry(LocalTime.of(hour, minute), is24Hour, { hour = it.hour; minute = it.minute }, tag = "starter-time")
     }
     Choice("How many alarms", StarterPlan.COUNTS, count, { "$it" }, "starter-count") { count = it }
     Choice("Minutes apart", StarterPlan.STEPS, step, { "$it min" }, "starter-step") { step = it }
@@ -231,22 +227,6 @@ private fun FirstGroup(is24Hour: Boolean, onCreate: (StarterPlan) -> Unit, onSki
     )
     PrimaryButton("Make this group", { onCreate(plan) }, Modifier.fillMaxWidth().testTag("starter-create"))
     TextButton(onClick = onSkip, modifier = Modifier.testTag("onboarding-skip")) { Text("Skip, I'll start from scratch") }
-
-    if (pickingTime) {
-        val pickerState = rememberTimePickerState(hour, minute, is24Hour)
-        AlertDialog(
-            onDismissRequest = { pickingTime = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    hour = pickerState.hour
-                    minute = pickerState.minute
-                    pickingTime = false
-                }) { Text("Set time") }
-            },
-            dismissButton = { TextButton(onClick = { pickingTime = false }) { Text("Cancel") } },
-            text = { TimePicker(pickerState) },
-        )
-    }
 }
 
 @OptIn(ExperimentalLayoutApi::class)

@@ -9,6 +9,7 @@ import com.cascade.alarm.data.sound.SoundSettings
 import com.cascade.alarm.data.sound.VibrationPattern
 import com.cascade.alarm.data.sound.VibrationSetting
 import java.time.Instant
+import java.time.LocalDateTime
 
 /**
  * SPEC §5 `AlarmGroup`. Arming is a master switch that never mutates its alarms' own isEnabled
@@ -61,4 +62,13 @@ data class AlarmGroupEntity(
     /** The last edit to the group or its alarms (not arming it); Home can sort by it. */
     @ColumnInfo(defaultValue = "0")
     val updatedAt: Instant = Instant.EPOCH,
+    /**
+     * Regular rings before this wall-clock time do not happen: "Skip next" or "Pause until"
+     * (2026-10-26, [com.cascade.alarm.engine.schedule.GroupTiming]). Null when the group rings as normal.
+     */
+    val skipUntil: LocalDateTime? = null,
+    /** The first regular ring of the morning moved by [onceShiftMinutes] ("Next time only"). */
+    val onceFrom: LocalDateTime? = null,
+    @ColumnInfo(defaultValue = "0")
+    val onceShiftMinutes: Int = 0,
 )

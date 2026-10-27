@@ -1,5 +1,20 @@
 package com.cascade.alarm.ui.group
 
+import java.time.format.DateTimeFormatter
+import java.time.ZoneOffset
+import java.time.ZoneId
+import java.time.LocalTime
+import java.time.LocalDate
+import java.time.Instant
+import com.cascade.alarm.ui.components.TimeEntry
+import com.cascade.alarm.ui.RingsInNotice
+import com.cascade.alarm.engine.schedule.GroupTiming
+import com.cascade.alarm.data.db.time
+import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.material3.SelectableDates
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DatePicker
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -91,6 +106,7 @@ data class GroupUiState(val loaded: Boolean = false, val group: AlarmGroupEntity
 class GroupViewModel @Inject constructor(
     savedState: SavedStateHandle,
     private val repository: AlarmRepository,
+    private val ringsIn: RingsInNotice,
 ) : ViewModel() {
     private val groupId: String = checkNotNull(savedState["groupId"])
 
@@ -99,13 +115,23 @@ class GroupViewModel @Inject constructor(
             GroupUiState(loaded = true, group = group, alarms = alarms)
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), GroupUiState())
 
-    fun setArmed(armed: Boolean) = launch { repository.setGroupArmed(groupId, armed) }
+    fun setArmed(armed: Boolean) = launch { repository.setGroupArmed(groupId, armed); ringsIn.show(groupId) }
+    fun skipNext() = launch { if (repository.skipNext(groupId)) ringsIn.show(groupId) }
+    fun pauseUntil(date: LocalDate) = launch { if (repository.pauseUntil(groupId, date)) ringsIn.show(groupId) }
+    fun resumeSchedule() = launch { repository.resumeSchedule(groupId); ringsIn.show(groupId) }
+
+    /** Reports whether it worked, so the dialog can stay open with the reason when it did not. */
+    fun moveNextMorning(firstTime: LocalTime, onResult: (GroupTiming.MoveResult) -> Unit) = launch {
+        val result = repository.moveNextMorning(groupId, firstTime)
+        onResult(result)
+        if (result is GroupTiming.MoveResult.Moved) ringsIn.show(groupId)
+    }
     fun rename(name: String) = launch { repository.renameGroup(groupId, name) }
     fun delete() = launch { repository.deleteGroup(groupId) }
     /** The name the copy's dialog starts with: "Workday copy", or "Workday copy 2" when taken. */
     fun suggestCopyName(onReady: (String) -> Unit) = launch { onReady(repository.copyNameFor(groupId)) }
     fun duplicate(name: String, onDone: (copyId: String) -> Unit) = launch { repository.duplicateGroup(groupId, name)?.let(onDone) }
-    fun setAlarmEnabled(alarmId: String, enabled: Boolean) = launch { repository.setAlarmEnabled(alarmId, enabled) }
+    fun setAlarmEnabled(alarmId: String, enabled: Boolean) = launch { repository.setAlarmEnabled(alarmId, enabled); ringsIn.show(groupId) }
     fun setShiftWithFirst(enabled: Boolean) = launch { repository.setShiftWithFirst(groupId, enabled) }
     fun shift(minutes: Long) = launch { repository.shiftGroup(groupId, minutes) }
     fun setWakeCheck(enabled: Boolean, delayMinutes: Int) = launch { repository.setWakeCheck(groupId, enabled, delayMinutes) }
@@ -143,6 +169,10 @@ fun GroupScreen(
         onShiftWithFirstChange = viewModel::setShiftWithFirst,
         onShift = viewModel::shift,
         onWakeCheckChange = viewModel::setWakeCheck,
+        onSkipNext = viewModel::skipNext,
+        onPauseUntil = viewModel::pauseUntil,
+        onMoveNext = viewModel::moveNextMorning,
+        onResumeSchedule = viewModel::resumeSchedule,
         onOpenEscalation = onOpenEscalation,
         onOpenSound = onOpenSound,
         onOpenTheme = onOpenTheme,
@@ -169,6 +199,11 @@ fun GroupContent(
     onSuggestCopyName: (onReady: (String) -> Unit) -> Unit = { it("${group.name} copy") },
     /** Makes the copy with the name the user confirmed, and opens it. */
     onDuplicate: (name: String) -> Unit = {},
+    onSkipNext: () -> Unit = {},
+    onPauseUntil: (LocalDate) -> Unit = {},
+    onMoveNext: (LocalTime, onResult: (GroupTiming.MoveResult) -> Unit) -> Unit = { _, _ -> },
+    onResumeSchedule: () -> Unit = {},
+    now: Instant = Instant.now(),
 ) {
     val c = cascadeColors
     val policy = group.escalationPolicy
@@ -178,6 +213,8 @@ fun GroupContent(
     var confirmingDelete by remember { mutableStateOf(false) }
     // The copy is named first and only made on "Make copy" (owner request, 2026-10-25).
     var copyName by remember { mutableStateOf<String?>(null) }
+    var pausing by remember { mutableStateOf(false) }
+    var moving by remember { mutableStateOf(false) }
     Scaffold(
         containerColor = c.ground,
         topBar = {
@@ -215,6 +252,17 @@ fun GroupContent(
                     onCheckedChange = onArmedChange,
                     tag = "group-armed",
                 )
+            }
+            if (alarms.isNotEmpty() && group.isArmed) {
+                item {
+                    NextMorning(
+                        group, alarms, now,
+                        onSkipNext = onSkipNext,
+                        onPause = { pausing = true },
+                        onMove = { moving = true },
+                        onResume = onResumeSchedule,
+                    )
+                }
             }
             if (alarms.isNotEmpty()) {
                 item {
@@ -290,6 +338,13 @@ fun GroupContent(
             detail = "It starts off, with the same alarms and settings. You can change them next.",
         )
     }
+    if (pausing) {
+        PauseDialog(now, onPause = { pausing = false; onPauseUntil(it) }, onDismiss = { pausing = false })
+    }
+    if (moving) {
+        val first = alarms.filter { it.isEnabled }.minByOrNull { it.positionInGroup } ?: alarms.first()
+        MoveNextDialog(first.time, onMove = onMoveNext, onDone = { moving = false })
+    }
     if (confirmingDelete) {
         AlertDialog(
             onDismissRequest = { confirmingDelete = false },
@@ -308,6 +363,105 @@ fun GroupContent(
             dismissButton = { TextButton(onClick = { confirmingDelete = false }) { Text("Cancel") } },
         )
     }
+}
+
+/**
+ * Skip the next morning, pause until a date, or move the next morning only (2026-10-26). Says
+ * what is in effect and when the group rings next, with a way back to the regular schedule.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun NextMorning(
+    group: AlarmGroupEntity,
+    alarms: List<AlarmEntity>,
+    now: Instant,
+    onSkipNext: () -> Unit,
+    onPause: () -> Unit,
+    onMove: () -> Unit,
+    onResume: () -> Unit,
+) {
+    val c = cascadeColors
+    val is24Hour = is24HourClock()
+    val next = alarms.mapNotNull { it.nextTriggerAt }.minOrNull()
+    val status = NextMorningText.status(group, next, now, is24Hour, ZoneId.systemDefault())
+    Column(Modifier.fillMaxWidth().padding(bottom = CascadeSpace.l), verticalArrangement = Arrangement.spacedBy(CascadeSpace.s)) {
+        Text("Next morning", style = CascadeType.rowLabel, color = c.textPrimary)
+        Text(status.text, style = CascadeType.body, color = if (status.changed) c.textPrimary else c.textSecondary, modifier = Modifier.testTag("next-morning"))
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(CascadeSpace.s), verticalArrangement = Arrangement.spacedBy(CascadeSpace.s)) {
+            val compact = PaddingValues(horizontal = 14.dp)
+            if (status.changed) SecondaryButton("Back to normal", onResume, Modifier.testTag("resume-schedule"), small = true, contentPadding = compact)
+            SecondaryButton("Skip next", onSkipNext, Modifier.testTag("skip-next"), small = true, contentPadding = compact)
+            SecondaryButton("Pause until…", onPause, Modifier.testTag("pause-until"), small = true, contentPadding = compact)
+            SecondaryButton("Next time only…", onMove, Modifier.testTag("move-next"), small = true, contentPadding = compact)
+        }
+    }
+}
+
+/** Pick the first day the group rings again; only days after today. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PauseDialog(now: Instant, onPause: (LocalDate) -> Unit, onDismiss: () -> Unit) {
+    val today = now.atZone(ZoneId.systemDefault()).toLocalDate()
+    val state = rememberDatePickerState(
+        initialSelectedDateMillis = today.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli(),
+        selectableDates = object : SelectableDates {
+            override fun isSelectableDate(utcTimeMillis: Long) =
+                Instant.ofEpochMilli(utcTimeMillis).atZone(ZoneOffset.UTC).toLocalDate().isAfter(today)
+            override fun isSelectableYear(year: Int) = year >= today.year
+        },
+    )
+    val picked = state.selectedDateMillis?.let { Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate() }
+    DatePickerDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = { picked?.let(onPause) }, enabled = picked != null, modifier = Modifier.testTag("pause-confirm")) {
+                Text(picked?.let { "Ring again ${it.format(DateTimeFormatter.ofPattern("EEE d MMM"))}" } ?: "Pick a day")
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    ) {
+        DatePicker(state, title = { Text("Ring again on", modifier = Modifier.padding(start = 24.dp, top = 16.dp)) })
+    }
+}
+
+/** The next morning starts at a new time; the rest of its alarms keep their gaps. */
+@Composable
+private fun MoveNextDialog(
+    usual: LocalTime,
+    onMove: (LocalTime, onResult: (GroupTiming.MoveResult) -> Unit) -> Unit,
+    onDone: () -> Unit,
+) {
+    val c = cascadeColors
+    var time by remember { mutableStateOf(usual) }
+    var problem by remember { mutableStateOf<String?>(null) }
+    AlertDialog(
+        onDismissRequest = onDone,
+        containerColor = c.surface,
+        title = { Text("Next time only", style = CascadeType.screenTitle) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(CascadeSpace.m)) {
+                Text(
+                    "The first alarm rings at this time next time, and the others keep their gaps. After that, back to normal.",
+                    style = CascadeType.body,
+                    color = c.textSecondary,
+                )
+                TimeEntry(time, is24HourClock(), { time = it; problem = null }, tag = "move-time")
+                problem?.let { Text(it, style = CascadeType.body, color = c.textPrimary, modifier = Modifier.testTag("move-problem")) }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                onMove(time) { result ->
+                    when (result) {
+                        is GroupTiming.MoveResult.Moved -> onDone()
+                        GroupTiming.MoveResult.InThePast -> problem = "That time has already passed. Pick a later one."
+                        GroupTiming.MoveResult.NothingDue -> problem = "No alarm in this group is on, so there is nothing to move."
+                    }
+                }
+            }, modifier = Modifier.testTag("move-confirm")) { Text("Move next time") }
+        },
+        dismissButton = { TextButton(onClick = onDone) { Text("Cancel") } },
+    )
 }
 
 @Composable

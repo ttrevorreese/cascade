@@ -75,6 +75,14 @@ under conventions). It is how the next session knows where to pick up.
   off as they ring) all got rung 1 (`Escalation.cascade` now counts alarms that rang in the last 12 h); Home's sort
   menu has a "Groups that are on first" switch (hides the move arrows); Sound has Random, from the tones the user
   ticks (`SoundConfig.RandomTone`, no schema change). Checked on the emulator; phone checks in spec §10.
+- **Fourth round (2026-10-26, schema v12):** time box with ±1/5/10 buttons (`TimeEntry`, editor, onboarding,
+  "Next time only"); per group Skip next / Pause until / Next time only (`GroupTiming`, wall-clock
+  `skipUntil`/`onceFrom`, cleared by the reconciler once over); two groups at once: the harder ring keeps the screen
+  and covers the other (`RingCoordinator.asksLess`, covered alarms get `afterDismiss` too); "rings in" toast
+  (`RingsInNotice`); Settings > Bedtime reminder (`engine/bedtime`, exact alarm, off by default); home-screen widget
+  (`widget/NextAlarmWidget`, two-tap Skip); feedback form plumbing (`Feedback.FORM_URL`, empty until the owner makes
+  the form: `docs/feedback-form.md`; REMIND the owner). The reconciler tells a `ScheduleObserver`
+  (`ScheduleSideEffects`: bedtime + widget, own scope) after every change. Sim tests: `ScheduleChangesTest`.
 - Before starting a milestone: give the owner a short plan and wait for approval (their kickoff
   notes in `design/CLAUDE_CODE_PROMPT.md`), unless they have said to go ahead.
 
@@ -186,6 +194,9 @@ under conventions). It is how the next session knows where to pick up.
   and Play is never asked); release builds bind `PlayPlusStore`.
 - Vibration is the group's too (`VibrationSetting`, RingSound.vibration). Fail open: a group set to Off still
   vibrates when no sound can play, and its wake-up check plays the sound at its start level instead.
+- Skip/pause/move are wall-clock (`LocalDateTime`), like alarm times; never store them as instants. Nothing that
+  only follows the schedule (widget, bedtime) may run on the ring path: hang it on `ScheduleObserver`.
+- A widget receiver must not wait inside `goAsync` for a second tap: broadcasts to it are serialised.
 - `updatedAt` on a group marks user edits (group settings, its alarms); arming and reordering do not touch it.
 - Navigation's swipe-back gesture has its own `predictivePopEnter/ExitTransition` (default a zoom); keep them
   equal to the pop transitions.

@@ -1,5 +1,6 @@
 package com.cascade.alarm.ui.alarm
 
+import com.cascade.alarm.ui.RingsInNotice
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -20,8 +21,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TimePicker
-import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -55,6 +54,7 @@ import com.cascade.alarm.ui.components.CascadeSwitch
 import com.cascade.alarm.ui.components.CascadeTopBar
 import com.cascade.alarm.ui.components.PrimaryButton
 import com.cascade.alarm.ui.components.SecondaryButton
+import com.cascade.alarm.ui.components.TimeEntry
 import com.cascade.alarm.ui.theme.CascadeSpace
 import com.cascade.alarm.ui.theme.CascadeType
 import com.cascade.alarm.ui.theme.cascadeColors
@@ -117,6 +117,7 @@ class AlarmEditorViewModel @Inject constructor(
     private val speechPreview: SpeechPreview,
     private val voice: VoicePreferences,
     private val defaults: NewAlarmDefaultsPreferences,
+    private val ringsIn: RingsInNotice,
 ) : ViewModel() {
     val previewStatus: StateFlow<SpeechPreview.Status> = speechPreview.status
 
@@ -159,6 +160,7 @@ class AlarmEditorViewModel @Inject constructor(
         viewModelScope.launch {
             repository.saveAlarm(draft)
             onDone()
+            ringsIn.show(draft.groupId)
         }
     }
 
@@ -207,7 +209,6 @@ fun AlarmEditorContent(
     val c = cascadeColors
     val is24Hour = is24HourClock()
     val locale = currentLocale()
-    var pickingTime by remember { mutableStateOf(false) }
     var confirmingDelete by remember { mutableStateOf(false) }
     Scaffold(
         containerColor = Color.Transparent, // the floating dots show through (AmbientBackdrop)
@@ -221,9 +222,9 @@ fun AlarmEditorContent(
             Modifier.padding(padding).padding(horizontal = CascadeSpace.gutter).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(CascadeSpace.l),
         ) {
-            TextButton(onClick = { pickingTime = true }, modifier = Modifier.testTag("time")) {
-                Text(TimeText.time(draft.hour, draft.minute, is24Hour), style = CascadeType.homeNextAlarm, color = c.textPrimary)
-            }
+            // Setting a time means "ring then": a one-shot alarm that already rang (and so switched
+            // itself off) comes back on, as in the Clock app (2026-10-25).
+            TimeEntry(draft.time, is24Hour, { t -> onEdit { it.copy(hour = t.hour, minute = t.minute, isEnabled = true) } })
             // The group is listed in ring order, so a new time can give this alarm another place and rung.
             moved?.let { (place, total) ->
                 Text(
@@ -291,23 +292,6 @@ fun AlarmEditorContent(
         }
     }
 
-    if (pickingTime) {
-        val pickerState = rememberTimePickerState(draft.hour, draft.minute, is24Hour)
-        AlertDialog(
-            onDismissRequest = { pickingTime = false },
-            containerColor = c.surface,
-            confirmButton = {
-                TextButton(onClick = {
-                    // Setting a time means "ring then": a one-shot alarm that already rang (and so
-                    // switched itself off) comes back on, as in the Clock app (2026-10-25).
-                    onEdit { it.copy(hour = pickerState.hour, minute = pickerState.minute, isEnabled = true) }
-                    pickingTime = false
-                }) { Text("Set time") }
-            },
-            dismissButton = { TextButton(onClick = { pickingTime = false }) { Text("Cancel") } },
-            text = { TimePicker(pickerState) },
-        )
-    }
     if (confirmingDelete) {
         AlertDialog(
             onDismissRequest = { confirmingDelete = false },

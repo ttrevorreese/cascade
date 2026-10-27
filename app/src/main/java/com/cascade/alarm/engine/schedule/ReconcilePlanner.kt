@@ -31,9 +31,10 @@ object ReconcilePlanner {
      *
      * The one-time trigger rings regardless of [AlarmEntity.isEnabled]: a one-shot alarm disables
      * itself when it rings, yet its snooze must still fire. Disarming the group cancels everything
-     * in it, one-time triggers included. A pending wake-up check works the same way.
+     * in it, one-time triggers included. A pending wake-up check works the same way. [timing] (the
+     * group's skip, pause or one-off move) only changes the regular schedule.
      */
-    fun plan(alarm: AlarmEntity, groupArmed: Boolean, now: Instant, zone: ZoneId): Plan {
+    fun plan(alarm: AlarmEntity, groupArmed: Boolean, now: Instant, zone: ZoneId, timing: GroupTiming = GroupTiming.NONE): Plan {
         if (!groupArmed) {
             return Plan(alarm.copy(nextTriggerAt = null, oneTimeTriggerAt = null, wakeCheckAt = null), Action.Cancel)
         }
@@ -58,7 +59,7 @@ object ReconcilePlanner {
 
         val oneTime = current.oneTimeTriggerAt?.takeIf { it.isAfter(now) }
         val wakeCheck = current.wakeCheckAt?.takeIf { it.isAfter(now) }
-        val regular = if (current.isEnabled) NextOccurrence.after(current.time, current.daysOfWeek, now, zone) else null
+        val regular = if (current.isEnabled) timing.next(current.time, current.daysOfWeek, now, zone) else null
         val next = listOfNotNull(oneTime, wakeCheck, regular).minOrNull()
         val action = if (next != null) Action.Schedule(next) else Action.Cancel
         return Plan(current.copy(nextTriggerAt = next, oneTimeTriggerAt = oneTime, wakeCheckAt = wakeCheck), action, missed)

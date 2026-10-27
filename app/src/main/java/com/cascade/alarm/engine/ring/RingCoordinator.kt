@@ -2,7 +2,9 @@ package com.cascade.alarm.engine.ring
 
 import com.cascade.alarm.data.Snooze
 import com.cascade.alarm.data.SnoozeState
+import com.cascade.alarm.data.SystemTestAlarm
 import com.cascade.alarm.data.challenge.ChallengeConfig
+import com.cascade.alarm.data.challenge.Escalation
 import com.cascade.alarm.data.db.ActiveRingEntity
 import com.cascade.alarm.data.db.AlarmEntity
 import com.cascade.alarm.data.db.EventType
@@ -29,7 +31,10 @@ import java.time.Instant
  * - A wake-up check is a quiet prompt with a short deadline. Answering it ends the sequence;
  *   missing it (or powering off during it) rings the alarm again, whose dismissal checks again.
  * - One ring at a time: a new fire takes over, except that a ring never gives way to an earlier
- *   alarm of its own group (a snooze landing after the last alarm must not replace it).
+ *   alarm of its own group (a snooze landing after the last alarm must not replace it), nor to
+ *   another group's alarm that asks less of the user (an easier challenge, or the same one where
+ *   the ringing alarm is its group's last). The alarm that does not ring is "covered": answering
+ *   the one that rings counts for it too, so its group's wake-up check still follows (2026-10-26).
  */
 class RingCoordinator(
     private val scope: CoroutineScope,
@@ -43,6 +48,9 @@ class RingCoordinator(
 ) {
     private val mutex = Mutex()
     private var timeoutJob: Job? = null
+
+    /** Other groups' alarms answered by the ring in progress, with when they were covered. */
+    private val covered = mutableMapOf<String, Instant>()
 
     suspend fun onFire(alarmId: String, scheduledFor: Instant) = mutex.withLock {
         wakeLock.acquire(RingDefaults.INITIAL_WAKE_LOCK)
@@ -69,8 +77,19 @@ class RingCoordinator(
             bestEffort { store.log(alarmId, EventType.MISSED, "reason" to "skipped", "scheduledFor" to scheduledFor, "ringing" to current.alarmId) }
             return@withLock
         }
+        val currentAlarm = current?.takeIf { it.alarmId != alarmId }?.let { try { store.alarm(it.alarmId) } catch (e: Exception) { null } }
+        val otherGroup = currentAlarm != null && ringResult.alarm != null && currentAlarm.groupId != ringResult.alarm.groupId
+        // The test alarm never keeps a real one from ringing.
+        val ringingIsReal = current != null && !current.isWakeCheck && current.alarmId != SystemTestAlarm.ALARM_ID
+        if (current != null && otherGroup && ringingIsReal && !ringResult.wakeCheck && asksLess(ringResult.alarm, scheduledFor, current)) {
+            EngineLog.i("fire covered: alarm=$alarmId asks less than ringing alarm=${current.alarmId}")
+            bestEffort { store.log(alarmId, EventType.MISSED, "reason" to "covered", "scheduledFor" to scheduledFor, "ringing" to current.alarmId) }
+            covered[alarmId] = now()
+            return@withLock
+        }
         if (current != null && (current.alarmId != alarmId || current.scheduledFor != scheduledFor)) {
             bestEffort { store.log(current.alarmId, EventType.MISSED, "reason" to "superseded", "by" to alarmId) }
+            if (otherGroup && !current.isWakeCheck) covered[current.alarmId] = now()
         }
         val ring = ActiveRingEntity(alarmId = alarmId, scheduledFor = scheduledFor, startedAt = now(), isWakeCheck = ringResult.wakeCheck)
         bestEffort { store.setActiveRing(ring) }
@@ -134,8 +153,31 @@ class RingCoordinator(
         // For Stats: what was asked and how many wrong answers it took.
         val challenge = current?.challenge?.let { it::class.simpleName }
         val type = if (gaveUp) EventType.GAVE_UP else EventType.DISMISSED
+        val alsoAnswered = coveredNow().filter { it != active?.first }
         finish(type, "reason" to "user", "challenge" to challenge, "misses" to misses.takeIf { challenge != null })
         if (active != null) bestEffort { store.afterDismiss(active.first) }
+        alsoAnswered.forEach { id -> bestEffort { store.afterDismiss(id) } }
+    }
+
+    /** Covered alarms from this morning; older ones belong to a ring that ended long ago. */
+    private fun coveredNow(): List<String> {
+        val since = now().minus(Escalation.CASCADE_WINDOW)
+        return covered.filterValues { it.isAfter(since) }.keys.toList()
+    }
+
+    /**
+     * Whether [incoming] (another group's alarm) asks less than the [ringing] one: an easier
+     * challenge, or the same and only the ringing one is its group's last. Unknown means no.
+     */
+    private suspend fun asksLess(incoming: AlarmEntity?, ringAt: Instant, ringing: RingingAlarm): Boolean {
+        incoming ?: return false
+        val challenge = challengeFor(incoming, ringAt)
+        val sequence = try { store.sequencePosition(incoming, ringAt) } catch (e: Exception) { return false }
+        val incomingLast = sequence.position >= sequence.total - 1
+        val ringingLast = ringing.position >= ringing.total - 1
+        val mine = Escalation.difficulty(challenge)
+        val theirs = Escalation.difficulty(ringing.challenge)
+        return mine < theirs || (mine == theirs && ringingLast && !incomingLast)
     }
 
     /**
@@ -292,6 +334,8 @@ class RingCoordinator(
         val alarmId = state.current.value?.alarmId
             ?: ring?.alarmId
             ?: try { store.activeRing()?.alarmId } catch (e: Exception) { null }
+        // A snoozed ring comes back and still answers for what it covered.
+        if (type != EventType.SNOOZED) covered.clear()
         try {
             // Clear the persisted ring before telling observers it's over, so "not ringing" in
             // memory always implies "not ringing" on disk.

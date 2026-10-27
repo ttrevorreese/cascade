@@ -85,6 +85,12 @@ for the whole 14 days, then apply for production access.
 Upload the `.aab` built **without** Spotify to production, roll out, and tag the commit
 (`git tag v1.0.0`).
 
+## Feedback form (owner step, reminder set 2026-10-26)
+
+Settings > Feedback uses the email app (which shows the contact address) until the Google Form
+exists. Setup, the Apps Script that emails each response with an emoji subject, and how to connect
+the app: `docs/feedback-form.md`.
+
 ## Selling Cascade Plus later (owner decision pending)
 
 Cascade launches with no purchases (`PLUS_FOR_SALE` is false in release builds: only the six free

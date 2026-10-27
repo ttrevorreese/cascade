@@ -4,4 +4,8 @@
     <color name="ic_launcher_background">#FF123524</color>
     <!-- First frame before Compose draws; matches the default theme's ground. -->
     <color name="window_background">#FF123524</color>
+    <!-- The widget before the app themes it, and its preview in the widget list: Forest (themes.json). -->
+    <color name="widget_surface">#FF1A4532</color>
+    <color name="widget_text">#FFECF5EE</color>
+    <color name="widget_text_secondary">#FF92B8A0</color>
 </resources>
