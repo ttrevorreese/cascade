@@ -76,7 +76,7 @@ under conventions). It is how the next session knows where to pick up.
   menu has a "Groups that are on first" switch (hides the move arrows); Sound has Random, from the tones the user
   ticks (`SoundConfig.RandomTone`, no schema change). Checked on the emulator; phone checks in spec §10.
 - **Fourth round (2026-10-26, schema v12):** time box with ±1/5/10 buttons (`TimeEntry`, editor, onboarding,
-  "Next time only"); per group Skip next / Pause until / Next time only (`GroupTiming`, wall-clock
+  "Next time only"); per group Skip next (confirm dialog naming the morning) / Pause until / Next time only (`GroupTiming`, wall-clock
   `skipUntil`/`onceFrom`, cleared by the reconciler once over); two groups at once: the harder ring keeps the screen
   and covers the other (`RingCoordinator.asksLess`, covered alarms get `afterDismiss` too); "rings in" toast
   (`RingsInNotice`); Settings > Bedtime reminder (`engine/bedtime`, exact alarm, off by default); home-screen widget

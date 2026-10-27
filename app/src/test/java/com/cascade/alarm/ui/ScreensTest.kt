@@ -316,6 +316,7 @@ class ScreensTest {
                 onBack = {}, onOpenAlarm = {}, onArmedChange = {}, onRename = {}, onDelete = {},
                 onAlarmEnabledChange = { _, _ -> }, onShiftWithFirstChange = {}, onShift = {}, onWakeCheckChange = { _, _ -> },
                 onSkipNext = { calls += "skip" },
+                onPreviewSkip = { it(listOf(Instant.parse("2026-10-19T10:00:00Z"), Instant.parse("2026-10-19T10:35:00Z"))) },
                 onPauseUntil = { calls += "pause $it" },
                 onMoveNext = { time, done -> calls += "move $time"; done(com.cascade.alarm.engine.schedule.GroupTiming.MoveResult.InThePast) },
                 onResumeSchedule = { calls += "resume" },
@@ -324,7 +325,14 @@ class ScreensTest {
         }
         compose.onNodeWithTag("next-morning").assertTextContains("Next ring", substring = true)
         compose.onNodeWithTag("resume-schedule").assertDoesNotExist()
+        // Skip asks first, and Cancel skips nothing.
         compose.onNodeWithTag("skip-next").performClick()
+        compose.onNodeWithTag("skip-question").assertTextContains("Skip ", substring = true)
+        compose.onNodeWithText("Those 2 alarms won't ring", substring = true).assertExists()
+        compose.onNodeWithText("Cancel").performClick()
+        assertEquals(emptyList<String>(), calls)
+        compose.onNodeWithTag("skip-next").performClick()
+        compose.onNodeWithTag("skip-confirm").performClick()
         assertEquals(listOf("skip"), calls)
         // A move into the past keeps the dialog open with the reason.
         compose.onNodeWithTag("move-next").performClick()

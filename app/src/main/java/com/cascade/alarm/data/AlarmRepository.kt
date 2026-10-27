@@ -16,6 +16,7 @@ import com.cascade.alarm.engine.schedule.WakeCheck
 import com.cascade.alarm.engine.schedule.Reconciler
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
 import java.util.UUID
@@ -159,6 +160,13 @@ class AlarmRepository @Inject constructor(
     }
 
     // --- Skip, pause, next time only (2026-10-26) ---
+
+    /** The rings Skip next would skip, for its confirmation; empty when nothing is due. */
+    suspend fun nextMorningRings(id: String): List<Instant> {
+        val group = groups.get(id) ?: return emptyList()
+        val plain = GroupTiming.of(group).copy(onceFrom = null, onceShiftMinutes = 0)
+        return GroupTiming.nextCascade(alarms.inGroup(id), plain, time.now(), time.zone()).map { it.at }
+    }
 
     /** The group's next morning does not ring; returns false when nothing is due to skip. */
     suspend fun skipNext(id: String): Boolean = reconciler.mutate("group_skip_next") {

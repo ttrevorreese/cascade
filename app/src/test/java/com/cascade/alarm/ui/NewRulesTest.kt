@@ -98,6 +98,13 @@ class NewRulesTest {
         assertNull(NextMorningText.cardWord(skipped, at(19, 7, 0), zone))
     }
 
+    @Test
+    fun `skip asks about the morning by its first and last time`() {
+        assertEquals("Skip Mon 6:00 AM – 6:35 AM?", NextMorningText.skipQuestion(listOf(at(19, 6, 0), at(19, 6, 35)), false, zone))
+        assertEquals("Skip Mon 6:00 AM?", NextMorningText.skipQuestion(listOf(at(19, 6, 0)), false, zone))
+        assertTrue(NextMorningText.skipDetail(1).startsWith("That alarm won't ring."))
+    }
+
     // --- Bedtime ---
 
     @Test

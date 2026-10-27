@@ -117,6 +117,7 @@ class GroupViewModel @Inject constructor(
 
     fun setArmed(armed: Boolean) = launch { repository.setGroupArmed(groupId, armed); ringsIn.show(groupId) }
     fun skipNext() = launch { if (repository.skipNext(groupId)) ringsIn.show(groupId) }
+    fun previewSkip(onReady: (List<Instant>) -> Unit) = launch { onReady(repository.nextMorningRings(groupId)) }
     fun pauseUntil(date: LocalDate) = launch { if (repository.pauseUntil(groupId, date)) ringsIn.show(groupId) }
     fun resumeSchedule() = launch { repository.resumeSchedule(groupId); ringsIn.show(groupId) }
 
@@ -170,6 +171,7 @@ fun GroupScreen(
         onShift = viewModel::shift,
         onWakeCheckChange = viewModel::setWakeCheck,
         onSkipNext = viewModel::skipNext,
+        onPreviewSkip = viewModel::previewSkip,
         onPauseUntil = viewModel::pauseUntil,
         onMoveNext = viewModel::moveNextMorning,
         onResumeSchedule = viewModel::resumeSchedule,
@@ -200,6 +202,8 @@ fun GroupContent(
     /** Makes the copy with the name the user confirmed, and opens it. */
     onDuplicate: (name: String) -> Unit = {},
     onSkipNext: () -> Unit = {},
+    /** What Skip next would skip, so it can ask first (2026-10-26: one stray tap must not cost a morning). */
+    onPreviewSkip: (onReady: (List<Instant>) -> Unit) -> Unit = { it(emptyList()) },
     onPauseUntil: (LocalDate) -> Unit = {},
     onMoveNext: (LocalTime, onResult: (GroupTiming.MoveResult) -> Unit) -> Unit = { _, _ -> },
     onResumeSchedule: () -> Unit = {},
@@ -214,6 +218,7 @@ fun GroupContent(
     // The copy is named first and only made on "Make copy" (owner request, 2026-10-25).
     var copyName by remember { mutableStateOf<String?>(null) }
     var pausing by remember { mutableStateOf(false) }
+    var skipping by remember { mutableStateOf<List<Instant>?>(null) }
     var moving by remember { mutableStateOf(false) }
     Scaffold(
         containerColor = c.ground,
@@ -257,7 +262,7 @@ fun GroupContent(
                 item {
                     NextMorning(
                         group, alarms, now,
-                        onSkipNext = onSkipNext,
+                        onSkipNext = { onPreviewSkip { skipping = it } },
                         onPause = { pausing = true },
                         onMove = { moving = true },
                         onResume = onResumeSchedule,
@@ -338,6 +343,9 @@ fun GroupContent(
             detail = "It starts off, with the same alarms and settings. You can change them next.",
         )
     }
+    skipping?.let { rings ->
+        SkipDialog(rings, onSkip = { skipping = null; onSkipNext() }, onDismiss = { skipping = null })
+    }
     if (pausing) {
         PauseDialog(now, onPause = { pausing = false; onPauseUntil(it) }, onDismiss = { pausing = false })
     }
@@ -395,6 +403,40 @@ private fun NextMorning(
             SecondaryButton("Next time only…", onMove, Modifier.testTag("move-next"), small = true, contentPadding = compact)
         }
     }
+}
+
+/** Skip next asks first, naming the morning it will skip. */
+@Composable
+private fun SkipDialog(rings: List<Instant>, onSkip: () -> Unit, onDismiss: () -> Unit) {
+    val c = cascadeColors
+    val is24Hour = is24HourClock()
+    val zone = ZoneId.systemDefault()
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = c.surface,
+        title = {
+            Text(
+                if (rings.isEmpty()) "Nothing to skip" else NextMorningText.skipQuestion(rings, is24Hour, zone),
+                style = CascadeType.screenTitle,
+                modifier = Modifier.testTag("skip-question"),
+            )
+        },
+        text = {
+            Text(
+                if (rings.isEmpty()) "No alarm in this group is on." else NextMorningText.skipDetail(rings.size),
+                style = CascadeType.body,
+                color = c.textSecondary,
+            )
+        },
+        confirmButton = {
+            if (rings.isEmpty()) {
+                TextButton(onClick = onDismiss) { Text("OK") }
+            } else {
+                TextButton(onClick = onSkip, modifier = Modifier.testTag("skip-confirm")) { Text(if (rings.size == 1) "Skip it" else "Skip them") }
+            }
+        },
+        dismissButton = { if (rings.isNotEmpty()) TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }
 
 /** Pick the first day the group rings again; only days after today. */

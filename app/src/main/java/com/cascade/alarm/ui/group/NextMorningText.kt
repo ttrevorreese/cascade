@@ -49,6 +49,18 @@ object NextMorningText {
         }
     }
 
+    /** "Skip Tue 6:00 AM – 6:35 AM?" for Skip next's confirmation; [rings] in order, not empty. */
+    fun skipQuestion(rings: List<Instant>, is24Hour: Boolean, zone: ZoneId): String {
+        val first = TimeText.nextRing(rings.first(), is24Hour, zone)
+        if (rings.size == 1) return "Skip $first?"
+        val last = rings.last().atZone(zone)
+        return "Skip $first – ${TimeText.time(last.hour, last.minute, is24Hour)}?"
+    }
+
+    fun skipDetail(count: Int): String =
+        (if (count == 1) "That alarm won't ring." else "Those $count alarms won't ring.") +
+            " The morning after rings as normal, and Back to normal undoes this."
+
     /** The word Home's card puts first, or null. */
     fun cardWord(group: AlarmGroupEntity, now: Instant, zone: ZoneId): String? = when (change(group, now, zone)) {
         Change.NONE -> null
