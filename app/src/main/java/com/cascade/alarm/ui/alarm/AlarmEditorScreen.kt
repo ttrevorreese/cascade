@@ -38,6 +38,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.cascade.alarm.data.AlarmRepository
 import com.cascade.alarm.data.AlarmRules
+import com.cascade.alarm.data.DaysFormat
+import com.cascade.alarm.ui.components.DayPicker
 import com.cascade.alarm.data.NewAlarmDefaultsPreferences
 import com.cascade.alarm.data.Snooze
 import com.cascade.alarm.data.db.time
@@ -236,21 +238,12 @@ fun AlarmEditorContent(
                 )
             }
 
-            Text("Repeat (none = ring once)", style = CascadeType.rowLabel, color = c.textPrimary)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                DayOfWeek.entries.forEach { day ->
-                    val selected = day in draft.daysOfWeek
-                    FilterChip(
-                        selected = selected,
-                        // Toggle against the current draft rather than the value captured at composition.
-                        onClick = {
-                            onEdit { it.copy(daysOfWeek = if (day in it.daysOfWeek) it.daysOfWeek - day else it.daysOfWeek + day) }
-                        },
-                        label = { Text(day.getDisplayName(TextStyle.SHORT, locale)) },
-                        modifier = Modifier.testTag("day-$day"),
-                    )
-                }
-            }
+            Text(
+                if (draft.daysOfWeek.isEmpty()) "Repeat: none, rings once" else "Repeat: ${DaysFormat.describe(draft.daysOfWeek, locale)}",
+                style = CascadeType.rowLabel,
+                color = c.textPrimary,
+            )
+            DayPicker(draft.daysOfWeek, { days -> onEdit { it.copy(daysOfWeek = days) } }, locale)
 
             OutlinedTextField(
                 value = draft.label.orEmpty(),

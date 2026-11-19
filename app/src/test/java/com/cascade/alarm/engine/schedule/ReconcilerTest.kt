@@ -144,12 +144,13 @@ class ReconcilerTest {
     }
 
     @Test
-    fun `one-shot alarm disables itself after firing`() = runBlocking {
+    fun `one-shot alarm stays on after firing and is not scheduled again`() = runBlocking {
         insert(days = emptySet())
         reconciler.reconcileAll("app_start")
         time.now = sevenAm
         reconciler.recordFire("a", sevenAm)
-        assertFalse(alarm().isEnabled)
+        assertTrue(alarm().isEnabled)
+        assertTrue(alarm().onceRang)
         assertFalse(scheduler.scheduled.containsKey("a"))
     }
 

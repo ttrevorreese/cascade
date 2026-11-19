@@ -320,7 +320,9 @@ class RingCoordinatorTest {
         store.alarms["a"] = alarm().copy(challengeOverride = ChallengeConfig.Math())
         coordinator.onFire("a", scheduled)
         coordinator.dismiss(misses = 2)
-        assertEquals(listOf("a"), store.snoozesCleared)
+        // afterDismiss resets the count, after any wake-up check is booked.
+        assertTrue(store.snoozesCleared.isEmpty())
+        assertTrue("a" in store.dismissed)
         val dismissed = store.events.last { it.first == EventType.DISMISSED }.second
         assertEquals("Math", dismissed["challenge"])
         assertEquals(2, dismissed["misses"])

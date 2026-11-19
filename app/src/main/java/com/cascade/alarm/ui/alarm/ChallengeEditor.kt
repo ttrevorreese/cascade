@@ -47,6 +47,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.cascade.alarm.data.challenge.ChallengeConfig
 import com.cascade.alarm.data.challenge.Difficulty
+import com.cascade.alarm.data.challenge.MathProblems
 import com.cascade.alarm.ui.camera.BarcodeScanner
 import com.cascade.alarm.ui.camera.hasCameraPermission
 import com.cascade.alarm.ui.components.PrimaryButton
@@ -133,6 +134,18 @@ fun ChallengeEditor(challenge: ChallengeConfig, onChange: (ChallengeConfig) -> U
                             shape = CascadeShapes.small,
                         )
                     }
+                }
+                // A sum of the chosen level, so the difficulty can be judged before a morning (2026-11-18).
+                var sampleSeed by remember { mutableStateOf(System.nanoTime()) }
+                val sample = remember(challenge.difficulty, sampleSeed) { MathProblems.sample(challenge.difficulty, sampleSeed) }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(CascadeSpace.s)) {
+                    Text(
+                        "For example: ${sample.text} = ${sample.answer}",
+                        style = CascadeType.body,
+                        color = c.textSecondary,
+                        modifier = Modifier.weight(1f).testTag("math-sample"),
+                    )
+                    SecondaryButton("Another", { sampleSeed++ }, Modifier.testTag("math-sample-another"), small = true)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(CascadeSpace.s)) {
                     Text(

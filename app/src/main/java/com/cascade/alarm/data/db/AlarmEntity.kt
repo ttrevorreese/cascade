@@ -69,6 +69,16 @@ data class AlarmEntity(
     /** Say the time and [label] aloud while it rings (owner request, 2026-10-23); the voice is app-wide. */
     @ColumnInfo(defaultValue = "0")
     val readLabelAloud: Boolean = false,
+    /**
+     * A one-shot alarm ([daysOfWeek] empty) that has rung since its group was last turned on. It
+     * stays switched on but does not ring again until the group is turned back on; once every
+     * alarm that is on has rung, the group turns itself off (owner request, 2026-11-18).
+     */
+    @ColumnInfo(defaultValue = "0")
+    val onceRang: Boolean = false,
 )
+
+/** Rings on its regular schedule: switched on, and not a one-shot that is done for this arming. */
+val AlarmEntity.ringsRegularly: Boolean get() = isEnabled && !(daysOfWeek.isEmpty() && onceRang)
 
 val AlarmEntity.time: LocalTime get() = LocalTime.of(hour, minute)

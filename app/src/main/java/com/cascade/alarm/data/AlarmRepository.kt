@@ -5,6 +5,7 @@ import com.cascade.alarm.data.db.AlarmEntity
 import com.cascade.alarm.data.db.AlarmGroupDefaults
 import com.cascade.alarm.data.db.AlarmGroupEntity
 import com.cascade.alarm.data.db.CascadeDatabase
+import com.cascade.alarm.data.db.EscalationPresetEntity
 import com.cascade.alarm.data.db.time
 import com.cascade.alarm.data.sound.SoundConfig
 import com.cascade.alarm.data.sound.SoundFiles
@@ -90,9 +91,47 @@ class AlarmRepository @Inject constructor(
         groups.get(id)?.let { groups.upsert(it.copy(name = groupName(name), updatedAt = time.now())) }
     }
 
-    /** The master toggle. Never touches the alarms' own isEnabled values (SPEC §5). */
+    /**
+     * The master toggle. Never touches the alarms' own isEnabled values (SPEC §5). Turning it on
+     * sets one-shot alarms that already rang again (2026-11-18).
+     */
     suspend fun setGroupArmed(id: String, armed: Boolean) = reconciler.mutate("group_armed_$armed") {
         groups.get(id)?.let { groups.upsert(it.copy(isArmed = armed)) }
+        if (armed) alarms.upsertAll(alarms.inGroup(id).filter { it.onceRang }.map { it.copy(onceRang = false) })
+    }
+
+    /**
+     * Every alarm in the group repeats on [days] (empty: rings once). Alarms the sequence carries
+     * past midnight get the following days, so 23:50 Mon, 00:10 Tue stays one morning.
+     */
+    suspend fun setGroupDays(id: String, days: Set<java.time.DayOfWeek>) = reconciler.mutate("group_days") {
+        val ordered = AlarmRules.ringOrder(alarms.inGroup(id))
+        if (ordered.isEmpty()) return@mutate
+        alarms.upsertAll(AlarmRules.withGroupDays(ordered, days).map { it.copy(onceRang = false) })
+        dropOneOffMove(id)
+        groups.touch(id, time.now())
+    }
+
+    /**
+     * A copy of the alarm [minutes] later, with all its settings (owner request, 2026-11-18), placed
+     * in ring order. Returns the copy's id, or null if [alarmId] is gone.
+     */
+    suspend fun copyAlarmLater(alarmId: String, minutes: Long = 5): String? = reconciler.mutate("alarm_copy") {
+        val source = alarms.get(alarmId) ?: return@mutate null
+        val copy = AlarmRules.shifted(source, minutes).copy(
+            id = UUID.randomUUID().toString(),
+            positionInGroup = Int.MAX_VALUE,
+            nextTriggerAt = null,
+            oneTimeTriggerAt = null,
+            lastFiredFor = null,
+            wakeCheckAt = null,
+            snoozesUsed = 0,
+            onceRang = false,
+        )
+        alarms.upsert(copy)
+        renumber(AlarmRules.ringOrder(alarms.inGroup(source.groupId)))
+        groups.touch(source.groupId, time.now())
+        copy.id
     }
 
     suspend fun setShiftWithFirst(id: String, enabled: Boolean) = reconciler.mutate("group_shift_setting") {
@@ -113,6 +152,27 @@ class AlarmRepository @Inject constructor(
             group.copy(escalationPolicy = EscalationPolicy(policy.steps.mapNotNull(AlarmRules::normalizeChallenge)), updatedAt = time.now()),
         )
     }
+
+    // --- Escalation presets (2026-11-18) ---
+
+    fun observeEscalationPresets(): Flow<List<EscalationPresetEntity>> = db.escalationPresetDao().observeAll()
+
+    /** Saves [policy] as a preset called [name]; a preset with that name already is replaced. */
+    suspend fun saveEscalationPreset(name: String, policy: EscalationPolicy) {
+        val dao = db.escalationPresetDao()
+        val trimmed = name.trim().ifEmpty { "Untitled ladder" }
+        val existing = dao.all().firstOrNull { it.name.equals(trimmed, ignoreCase = true) }
+        dao.upsert(
+            EscalationPresetEntity(
+                id = existing?.id ?: UUID.randomUUID().toString(),
+                name = trimmed,
+                policy = EscalationPolicy(policy.steps.mapNotNull(AlarmRules::normalizeChallenge)),
+                createdAt = existing?.createdAt ?: time.now(),
+            ),
+        )
+    }
+
+    suspend fun deleteEscalationPreset(id: String) = db.escalationPresetDao().delete(id)
 
     /** Sets what every alarm in the group plays, how it gets louder and how it vibrates; drops a replaced file. */
     suspend fun setGroupSound(
@@ -251,6 +311,7 @@ class AlarmRepository @Inject constructor(
                     lastFiredFor = null,
                     wakeCheckAt = null,
                     snoozesUsed = 0,
+                    onceRang = false,
                 )
             },
         )
@@ -290,7 +351,9 @@ class AlarmRepository @Inject constructor(
             snoozeLimit = Snooze.clampLimit(alarm.snoozeLimit),
             readLabelAloud = alarm.readLabelAloud,
         )
-        alarms.upsert(saved)
+        // A new time or days, or switching it on, means "ring then", even if it already rang this time.
+        val rearmed = existing != null && (existing.time != saved.time || existing.daysOfWeek != saved.daysOfWeek || (!existing.isEnabled && saved.isEnabled))
+        alarms.upsert(if (rearmed) saved.copy(onceRang = false) else saved)
         if (existing != null && existing.time != saved.time) dropOneOffMove(saved.groupId)
         if (existing != null && existing.positionInGroup == 0 && groups.get(saved.groupId)?.shiftWithFirst == true) {
             val minutes = AlarmRules.shiftMinutes(existing.time, saved.time)
@@ -307,7 +370,7 @@ class AlarmRepository @Inject constructor(
     suspend fun setAlarmEnabled(id: String, enabled: Boolean) = reconciler.mutate("alarm_enabled_$enabled") {
         alarms.get(id)?.let {
             alarms.upsert(
-                if (enabled) it.copy(isEnabled = true) else it.copy(isEnabled = false, oneTimeTriggerAt = null, wakeCheckAt = null),
+                if (enabled) it.copy(isEnabled = true, onceRang = false) else it.copy(isEnabled = false, oneTimeTriggerAt = null, wakeCheckAt = null),
             )
             groups.touch(it.groupId, time.now())
         }

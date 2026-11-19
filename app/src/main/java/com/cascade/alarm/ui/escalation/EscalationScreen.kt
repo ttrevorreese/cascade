@@ -3,6 +3,13 @@ package com.cascade.alarm.ui.escalation
 import android.Manifest
 import android.os.Build
 import androidx.compose.foundation.BorderStroke
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.SharingStarted
+import com.cascade.alarm.ui.home.NameDialog
+import com.cascade.alarm.data.db.EscalationPresetEntity
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material3.AlertDialog
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -96,6 +103,13 @@ class EscalationViewModel @Inject constructor(
         mutable.value = mutable.value.copy(draft = policy)
     }
 
+    /** Saved ladders, for the Presets row (owner request, 2026-11-18). */
+    val presets: StateFlow<List<EscalationPresetEntity>> =
+        repository.observeEscalationPresets().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun savePreset(name: String) = viewModelScope.launch { repository.saveEscalationPreset(name, state.value.draft) }
+    fun deletePreset(id: String) = viewModelScope.launch { repository.deleteEscalationPreset(id) }
+
     fun save(onDone: () -> Unit) = viewModelScope.launch {
         repository.setEscalationPolicy(groupId, state.value.draft)
         onDone()
@@ -105,8 +119,12 @@ class EscalationViewModel @Inject constructor(
 @Composable
 fun EscalationScreen(onDone: () -> Unit, viewModel: EscalationViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val presets by viewModel.presets.collectAsStateWithLifecycle()
     val group = state.group ?: return
     EscalationContent(
+        presets = presets,
+        onSavePreset = viewModel::savePreset,
+        onDeletePreset = viewModel::deletePreset,
         groupName = group.name,
         alarmsOn = state.alarmsOn,
         policy = state.draft,
@@ -129,9 +147,14 @@ fun EscalationContent(
     onChange: (EscalationPolicy) -> Unit,
     onSave: () -> Unit,
     onCancel: () -> Unit,
+    presets: List<EscalationPresetEntity> = emptyList(),
+    onSavePreset: (name: String) -> Unit = {},
+    onDeletePreset: (id: String) -> Unit = {},
 ) {
     val c = cascadeColors
     val context = LocalContext.current
+    var namingPreset by remember { mutableStateOf(false) }
+    var choosingPreset by remember { mutableStateOf(false) }
     val rungs = policy.steps
     var selected by rememberSaveable { mutableStateOf<Int?>(null) }
     fun update(steps: List<ChallengeConfig>) = onChange(EscalationPolicy(steps))
@@ -169,6 +192,19 @@ fun EscalationContent(
                     color = c.textSecondary,
                     modifier = Modifier.padding(top = CascadeSpace.xs, bottom = CascadeSpace.l),
                 )
+            }
+            if (presets.isNotEmpty() || rungs.isNotEmpty()) {
+                item {
+                    Row(
+                        Modifier.fillMaxWidth().padding(bottom = CascadeSpace.l),
+                        horizontalArrangement = Arrangement.spacedBy(CascadeSpace.s),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("Presets", style = CascadeType.rowLabel, color = c.textPrimary, modifier = Modifier.weight(1f))
+                        if (presets.isNotEmpty()) SecondaryButton("Load…", { choosingPreset = true }, Modifier.testTag("load-preset"), small = true)
+                        if (rungs.isNotEmpty()) SecondaryButton("Save as preset", { namingPreset = true }, Modifier.testTag("save-preset"), small = true)
+                    }
+                }
             }
             if (rungs.isEmpty()) {
                 item {
@@ -239,6 +275,67 @@ fun EscalationContent(
             }
         }
     }
+    if (namingPreset) {
+        NameDialog(
+            "Save as preset", presets.firstOrNull { it.policy == policy }?.name ?: "", confirmLabel = "Save preset",
+            onConfirm = { namingPreset = false; onSavePreset(it) }, onDismiss = { namingPreset = false },
+            detail = "Load it into any group's escalation later. A preset with the same name is replaced.",
+        )
+    }
+    if (choosingPreset) {
+        PresetDialog(
+            presets,
+            onLoad = { preset -> choosingPreset = false; update(preset.policy.steps); selected = null },
+            onDelete = onDeletePreset,
+            onDismiss = { choosingPreset = false },
+        )
+    }
+}
+
+/** Saved ladders: tap one to load it in place of this ladder (Save escalation still applies it). */
+@Composable
+private fun PresetDialog(
+    presets: List<EscalationPresetEntity>,
+    onLoad: (EscalationPresetEntity) -> Unit,
+    onDelete: (id: String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val c = cascadeColors
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = c.surface,
+        title = { Text("Load a preset", style = CascadeType.screenTitle) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(CascadeSpace.s)) {
+                Text("It replaces the rungs on this screen. Nothing changes until you save.", style = CascadeType.body, color = c.textSecondary)
+                if (presets.isEmpty()) Text("No presets left.", style = CascadeType.body, color = c.textSecondary)
+                presets.forEach { preset ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Surface(
+                            onClick = { onLoad(preset) },
+                            shape = CascadeShapes.medium,
+                            color = c.ground,
+                            modifier = Modifier.weight(1f).testTag("preset-${preset.name}"),
+                        ) {
+                            Column(Modifier.padding(12.dp)) {
+                                Text(preset.name, style = CascadeType.rowLabel, color = c.textPrimary)
+                                Text(
+                                    preset.policy.steps.joinToString(" → ") { ChallengeText.full(it) },
+                                    style = CascadeType.caption,
+                                    color = c.textSecondary,
+                                )
+                            }
+                        }
+                        TextButton(
+                            onClick = { onDelete(preset.id) },
+                            modifier = Modifier.semantics { contentDescription = "Delete preset ${preset.name}" },
+                        ) { Text("Delete", color = c.textSecondary) }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Close") } },
+    )
 }
 
 @Composable

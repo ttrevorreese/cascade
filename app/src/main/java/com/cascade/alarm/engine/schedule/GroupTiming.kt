@@ -3,6 +3,7 @@ package com.cascade.alarm.engine.schedule
 import com.cascade.alarm.data.AlarmRules
 import com.cascade.alarm.data.challenge.Escalation
 import com.cascade.alarm.data.db.AlarmEntity
+import com.cascade.alarm.data.db.ringsRegularly
 import com.cascade.alarm.data.db.AlarmGroupEntity
 import com.cascade.alarm.data.db.time
 import java.time.DayOfWeek
@@ -98,7 +99,7 @@ data class GroupTiming(
          * within the cascade window of the first, in ring order.
          */
         fun nextCascade(alarms: List<AlarmEntity>, timing: GroupTiming, now: Instant, zone: ZoneId): List<Ring> {
-            val rings = alarms.filter { it.isEnabled }.map { alarm ->
+            val rings = alarms.filter { it.ringsRegularly }.map { alarm ->
                 val (occurrence, at) = timing.nextWithOccurrence(alarm.time, alarm.daysOfWeek, now, zone)
                 Ring(alarm, occurrence, at)
             }

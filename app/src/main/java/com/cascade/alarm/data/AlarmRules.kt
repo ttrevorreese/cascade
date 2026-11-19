@@ -111,6 +111,27 @@ object AlarmRules {
         return byClock.drop(start) + byClock.take(start)
     }
 
+    /**
+     * [ordered] (ring order) all set to [days]: the first alarm gets them, and each alarm the
+     * sequence has carried past midnight since gets them a day later.
+     */
+    fun withGroupDays(ordered: List<AlarmEntity>, days: Set<DayOfWeek>): List<AlarmEntity> {
+        var dayShift = 0L
+        var previous: Int? = null
+        return ordered.map { alarm ->
+            val minutes = alarm.hour * 60 + alarm.minute
+            previous?.let { if (minutes < it) dayShift++ }
+            previous = minutes
+            alarm.copy(daysOfWeek = days.mapTo(mutableSetOf()) { it.plus(dayShift) })
+        }
+    }
+
+    /** The days the group repeats on (its first alarm's), and whether every alarm agrees with them. */
+    fun groupDays(ordered: List<AlarmEntity>): Pair<Set<DayOfWeek>, Boolean> {
+        val days = ordered.firstOrNull()?.daysOfWeek.orEmpty()
+        return days to (withGroupDays(ordered, days).map { it.daysOfWeek } == ordered.map { it.daysOfWeek })
+    }
+
     /** "Gym Day copy", or "Gym Day copy 2" (3, …) when that name is taken. A copy of a copy stays "… copy N". */
     fun copyName(name: String, taken: Collection<String>): String {
         val base = COPY_SUFFIX.replace(name, "")

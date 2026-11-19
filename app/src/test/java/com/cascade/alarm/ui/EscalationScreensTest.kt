@@ -11,6 +11,7 @@ import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performClick
 import com.cascade.alarm.data.challenge.ChallengeConfig
 import com.cascade.alarm.data.challenge.Difficulty
@@ -96,6 +97,8 @@ class EscalationScreensTest {
         }
         compose.onNodeWithTag("challenge-a", useUnmergedTree = true).assertExists()
         compose.onNodeWithText("Type a phrase", useUnmergedTree = true).assertExists()
+        // Below the alarms and the group's repeat days.
+        compose.onNode(androidx.compose.ui.test.hasScrollAction()).performScrollToNode(androidx.compose.ui.test.hasText("3 rungs, from 2 easy sums to walk 30 steps"))
         compose.onNodeWithText("3 rungs, from 2 easy sums to walk 30 steps").assertExists()
         // The clock sets the order (SPEC §7.2), so there is nothing to move by hand.
         compose.onNodeWithContentDescription("Move alarm 1 later in the sequence").assertDoesNotExist()

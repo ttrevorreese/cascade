@@ -97,4 +97,30 @@ class ChallengeRulesTest {
         assertEquals(ChallengeConfig.FALLBACK, ChallengeConfig.decode("""{"type":"teleport"}"""))
         assertEquals(ChallengeConfig.FALLBACK, ChallengeConfig.decode("not json"))
     }
+
+    @Test
+    fun `no sum comes to 0 or repeats within a ring, and medium subtractions leave at least 10`() {
+        for (s in 0L until 2000L) {
+            Difficulty.entries.forEach { d ->
+                val problems = MathProblems.generate(challengeSeed("alarm-$s", at.plusSeconds(s * 86_400)), d, 5)
+                problems.forEach { assertTrue(it.answer >= 1, it.text) }
+                assertEquals(problems.size, problems.map { it.text }.toSet().size, problems.toString())
+                if (d == Difficulty.MEDIUM) problems.filter { '−' in it.text }.forEach { assertTrue(it.answer >= 10, it.text) }
+            }
+        }
+    }
+
+    @Test
+    fun `the editor's sample is a sum of the chosen level`() {
+        assertTrue('×' in MathProblems.sample(Difficulty.HARD, 3).text)
+        assertTrue(MathProblems.sample(Difficulty.EASY, 3).answer <= 18)
+    }
+
+    @Test
+    fun `generated phrases never use a word twice`() {
+        for (s in 0L until 500L) {
+            val words = Phrases.generated(s).split(" ")
+            assertEquals(words.size, words.toSet().size, words.toString())
+        }
+    }
 }

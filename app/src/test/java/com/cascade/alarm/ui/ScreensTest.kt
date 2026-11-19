@@ -392,4 +392,25 @@ class ScreensTest {
 
     private fun androidx.compose.ui.test.junit4.ComposeContentTestRule.onAllNodesWithTextCount(text: String) =
         onAllNodes(androidx.compose.ui.test.hasText(text)).fetchSemanticsNodes().size
+
+    @Test
+    fun groupDaysAreTappedOrSetInOneGoAndEachAlarmCopiesFiveMinutesLater() {
+        val picked = mutableListOf<Set<DayOfWeek>>()
+        val copied = mutableListOf<String>()
+        compose.setContent {
+            GroupContent(
+                group = group, alarms = listOf(alarm("a", 0, 6), alarm("b", 1, 7)),
+                onBack = {}, onOpenAlarm = {}, onArmedChange = {}, onRename = {}, onDelete = {},
+                onAlarmEnabledChange = { _, _ -> }, onShiftWithFirstChange = {}, onShift = {}, onWakeCheckChange = { _, _ -> },
+                onDaysChange = { picked += it }, onCopyAlarm = { copied += it },
+            )
+        }
+        compose.onNodeWithContentDescription("Copy alarm 1, 5 minutes later").performClick()
+        assertEquals(listOf("a"), copied)
+        compose.onNode(hasScrollAction()).performScrollToNode(hasTestTag("group-day-weekends"))
+        compose.onNodeWithTag("group-days-summary").assertTextContains("Repeats: Weekdays")
+        compose.onNodeWithTag("group-day-weekends").performClick()
+        compose.onNodeWithTag("group-day-SATURDAY").performClick()
+        assertEquals(listOf(setOf(DayOfWeek.SATURDAY, DayOfWeek.SUNDAY), DayOfWeek.entries.take(6).toSet()), picked)
+    }
 }

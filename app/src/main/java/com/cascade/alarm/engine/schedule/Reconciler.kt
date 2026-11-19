@@ -1,8 +1,10 @@
 package com.cascade.alarm.engine.schedule
 
 import androidx.room.withTransaction
+import com.cascade.alarm.data.SystemTestAlarm
 import com.cascade.alarm.data.challenge.Escalation
 import com.cascade.alarm.data.db.AlarmEntity
+import com.cascade.alarm.data.db.AlarmGroupEntity
 import com.cascade.alarm.data.db.CascadeDatabase
 import com.cascade.alarm.data.db.EventType
 import com.cascade.alarm.engine.EngineLog
@@ -36,7 +38,7 @@ class Reconciler @Inject constructor(
     sealed interface FireResult {
         /**
          * Ring. [alarm] is the row as saved after this fire (snoozes reset for a regular ring, a
-         * one-shot switched off), or null if it could not be loaded; ring with defaults anyway.
+         * one-shot marked as rung), or null if it could not be loaded; ring with defaults anyway.
          * [wakeCheck] means this trigger is the alarm's wake-up check, not the alarm itself.
          */
         data class Ring(val alarm: AlarmEntity?, val wakeCheck: Boolean = false) : FireResult
@@ -45,18 +47,29 @@ class Reconciler @Inject constructor(
         data object Deleted : FireResult
     }
 
-    suspend fun reconcileAll(reason: String) = mutate(reason) {}
+    /** Which groups a pass may turn off once done ([turnOffDoneGroups]). */
+    private sealed interface Settle {
+        data object None : Settle
+        /** The group of an alarm whose ring just ended. */
+        data class GroupOf(val alarmId: String) : Settle
+        /** Every group, unless something is ringing (it may be covering another group's alarm). */
+        data object AllIfIdle : Settle
+    }
+
+    suspend fun reconcileAll(reason: String) = mutate(reason, Settle.AllIfIdle) {}
 
     /**
      * Runs [block] (database edits) and a full reconciliation in one transaction under the
      * scheduling lock, then updates AlarmManager, including cancelling alarms [block] deleted.
      */
-    suspend fun <T> mutate(reason: String, block: suspend (CascadeDatabase) -> T): T = mutex.withLock {
+    suspend fun <T> mutate(reason: String, block: suspend (CascadeDatabase) -> T): T = mutate(reason, Settle.None, block)
+
+    private suspend fun <T> mutate(reason: String, settle: Settle, block: suspend (CascadeDatabase) -> T): T = mutex.withLock {
         EngineLog.i("reconcile reason=$reason")
         val (result, before, plans) = db.withTransaction {
             val before = db.alarmDao().all().map { it.id }.toSet()
             val result = block(db)
-            Triple(result, before, planAll(reason))
+            Triple(result, before, planAll(reason, settle))
         }
         (before - plans.map { it.alarm.id }.toSet()).forEach(scheduler::cancel)
         plans.forEach(::apply)
@@ -110,7 +123,7 @@ class Reconciler @Inject constructor(
     }
 
     /** A ring ended other than by snoozing; its count starts again next time. */
-    suspend fun clearSnoozes(alarmId: String) = mutate("snooze_reset") { db ->
+    suspend fun clearSnoozes(alarmId: String) = mutate("snooze_reset", Settle.GroupOf(alarmId)) { db ->
         val alarm = db.alarmDao().get(alarmId) ?: return@mutate
         if (alarm.snoozesUsed != 0) db.alarmDao().upsert(alarm.copy(snoozesUsed = 0))
     }
@@ -119,10 +132,11 @@ class Reconciler @Inject constructor(
      * Called when the user dismisses [alarmId]. Earlier alarms' pending snoozes are dropped: the
      * user is past them, and they would only ring an easier alarm again (one landing after the
      * hardest was solved would undo the ladder). If it was the last alarm of its cascade, the
-     * wake-up check is scheduled.
+     * wake-up check is scheduled. The alarm's snooze count starts again, as after any ring.
      */
-    suspend fun afterDismiss(alarmId: String) = mutate("dismissed") { db ->
-        val alarm = db.alarmDao().get(alarmId) ?: return@mutate
+    suspend fun afterDismiss(alarmId: String) = mutate("dismissed", Settle.GroupOf(alarmId)) { db ->
+        val alarm = db.alarmDao().get(alarmId)?.let { if (it.snoozesUsed != 0) it.copy(snoozesUsed = 0).also { reset -> db.alarmDao().upsert(reset) } else it }
+            ?: return@mutate
         val group = db.alarmGroupDao().get(alarm.groupId) ?: return@mutate
         val groupAlarms = db.alarmDao().inGroup(alarm.groupId)
         val snoozed = groupAlarms.filter { it.id != alarm.id && it.oneTimeTriggerAt != null && it.positionInGroup < alarm.positionInGroup }
@@ -135,7 +149,7 @@ class Reconciler @Inject constructor(
         db.alarmDao().upsert(alarm.copy(wakeCheckAt = at))
     }
 
-    private suspend fun planAll(reason: String): List<Plan> {
+    private suspend fun planAll(reason: String, settle: Settle = Settle.None): List<Plan> {
         val groups = db.alarmGroupDao().all().map { group ->
             // A skip or one-off move that is over is dropped, so it can never catch a later morning.
             val timing = GroupTiming.of(group)
@@ -147,10 +161,36 @@ class Reconciler @Inject constructor(
                     .also { db.alarmGroupDao().upsert(it) }
             }
         }.associateBy { it.id }
-        return db.alarmDao().all().map { alarm ->
+        val plans = db.alarmDao().all().map { alarm ->
             val group = groups[alarm.groupId]
             planAndPersist(alarm, alarm, group?.isArmed ?: false, reason, group?.let(GroupTiming::of) ?: GroupTiming.NONE)
         }
+        val settled = when (settle) {
+            Settle.None -> emptySet()
+            is Settle.GroupOf -> setOfNotNull(db.alarmDao().get(settle.alarmId)?.groupId)
+            Settle.AllIfIdle -> if (db.activeRingDao().get() == null) groups.keys else emptySet()
+        }
+        return turnOffDoneGroups(groups.filterKeys { it in settled }, plans)
+    }
+
+    /**
+     * A group of one-shot alarms that have all rung turns itself off, keeping its alarms on, so
+     * turning it back on sets them all again (owner request, 2026-11-18). Its plans are all Cancel
+     * already: nothing in it has a trigger left. Only checked as a ring ends (after its wake-up
+     * check is booked) and on full passes with nothing ringing: a ring in progress can be covering
+     * another group's alarm, whose wake-up check is booked only when that ring is answered.
+     */
+    private suspend fun turnOffDoneGroups(groups: Map<String, AlarmGroupEntity>, plans: List<Plan>): List<Plan> {
+        val ringing = db.activeRingDao().get()?.alarmId
+        if (groups.isEmpty()) return plans
+        plans.groupBy { it.alarm.groupId }.forEach { (groupId, groupPlans) ->
+            val group = groups[groupId] ?: return@forEach
+            if (!group.isArmed || group.id == SystemTestAlarm.GROUP_ID) return@forEach
+            if (!ReconcilePlanner.groupDone(groupPlans.map { it.alarm }, ringing)) return@forEach
+            EngineLog.i("group=$groupId done: every one-shot alarm rang; turning it off")
+            db.alarmGroupDao().upsert(group.copy(isArmed = false))
+        }
+        return plans
     }
 
     private suspend fun planAndPersist(

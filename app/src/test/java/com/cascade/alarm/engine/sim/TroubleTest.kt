@@ -90,10 +90,10 @@ class TroubleTest {
     }
 
     @Test
-    fun `a one-shot alarm that switched itself off still comes back from its snooze`() = sim {
+    fun `a one-shot alarm that already rang still comes back from its snooze`() = sim {
         val (_, ids) = group("Morning", "06:00", "07:00")
         advanceTo(day(19, 6, 0)); snooze()
-        assertFalse(alarm(ids[0]).isEnabled)
+        assertTrue(alarm(ids[0]).onceRang)
         advanceTo(day(19, 6, 5))
         assertEquals("A", ringing?.label)
         dismiss()

@@ -154,7 +154,9 @@ class RingCoordinator(
         val challenge = current?.challenge?.let { it::class.simpleName }
         val type = if (gaveUp) EventType.GAVE_UP else EventType.DISMISSED
         val alsoAnswered = coveredNow().filter { it != active?.first }
-        finish(type, "reason" to "user", "challenge" to challenge, "misses" to misses.takeIf { challenge != null })
+        // afterDismiss resets the snooze count itself, after booking any wake-up check: resetting
+        // it first would let a group of one-shots that is now done turn off before the check is set.
+        finish(type, "reason" to "user", "challenge" to challenge, "misses" to misses.takeIf { challenge != null }, resetSnoozes = active == null)
         if (active != null) bestEffort { store.afterDismiss(active.first) }
         alsoAnswered.forEach { id -> bestEffort { store.afterDismiss(id) } }
     }
@@ -326,6 +328,7 @@ class RingCoordinator(
         type: EventType,
         vararg metadata: Pair<String, Any?>,
         ring: ActiveRingEntity? = null,
+        resetSnoozes: Boolean = true,
     ) {
         sound.stop()
         speaker.stop()
@@ -342,7 +345,7 @@ class RingCoordinator(
             bestEffort { store.clearActiveRing() }
             if (alarmId != null) bestEffort { store.log(alarmId, type, *metadata) }
             // Any end but a snooze: the next ring of this alarm starts with all its snoozes.
-            if (alarmId != null && type != EventType.SNOOZED) bestEffort { store.clearSnoozes(alarmId) }
+            if (alarmId != null && type != EventType.SNOOZED && resetSnoozes) bestEffort { store.clearSnoozes(alarmId) }
         } finally {
             state.set(null)
             finishIdle()

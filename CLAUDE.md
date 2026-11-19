@@ -83,6 +83,15 @@ under conventions). It is how the next session knows where to pick up.
   (`widget/NextAlarmWidget`, two-tap Skip); feedback form plumbing (`Feedback.FORM_URL`, empty until the owner makes
   the form: `docs/feedback-form.md`; REMIND the owner). The reconciler tells a `ScheduleObserver`
   (`ScheduleSideEffects`: bedtime + widget, own scope) after every change. Sim tests: `ScheduleChangesTest`.
+- **Fifth round (2026-11-18, schema v13):** one-shot alarms stay on after ringing (`AlarmEntity.onceRang`,
+  `ringsRegularly`); a group whose alarms that are on have all rung once turns itself off, and arming it clears
+  `onceRang` (spec §4.2b; `Reconciler.Settle` decides when that check may run, never mid-ring). Dismissal now resets
+  snoozes inside `afterDismiss`, after the wake-up check is booked. Group screen: Repeats (`DayPicker`, sets every
+  alarm, `AlarmRules.withGroupDays`) and "+5" per alarm (`copyAlarmLater`). Escalation presets
+  (`EscalationPresetEntity`, Save as preset / Load…). Sums never come to 0 or repeat; the challenge editor shows a
+  sample sum; generated phrases never repeat a word. Checked on the emulator (MigrationTest 12→13, e2e
+  `--wake-check` passed, screenshots of the group screen, presets dialog, sample sum). Open question for the owner:
+  one-shots in a group that also has repeating alarms ring once and wait for the group to be turned off and on.
 - Before starting a milestone: give the owner a short plan and wait for approval (their kickoff
   notes in `design/CLAUDE_CODE_PROMPT.md`), unless they have said to go ahead.
 
@@ -192,6 +201,9 @@ under conventions). It is how the next session knows where to pick up.
 - Alarm order is the clock's (2026-10-25): saving re-sorts with `AlarmRules.ringOrder`; there is no manual reorder.
   Background animations and the 46 pack themes are Cascade Plus. Debug builds bind `TestPlusStore` (Unlock is free
   and Play is never asked); release builds bind `PlayPlusStore`.
+- One-shot "done" is `onceRang`, not `isEnabled = false`: use `ringsRegularly` wherever "will it ring on its schedule"
+  matters. Never turn a group off from a plain `mutate`; only `Settle.GroupOf` (a ring of that group ended) or
+  `Settle.AllIfIdle` (full pass, nothing ringing).
 - Vibration is the group's too (`VibrationSetting`, RingSound.vibration). Fail open: a group set to Off still
   vibrates when no sound can play, and its wake-up check plays the sound at its start level instead.
 - Skip/pause/move are wall-clock (`LocalDateTime`), like alarm times; never store them as instants. Nothing that

@@ -1,6 +1,7 @@
 package com.cascade.alarm.engine.schedule
 
 import com.cascade.alarm.data.db.AlarmEntity
+import com.cascade.alarm.data.db.ringsRegularly
 import com.cascade.alarm.data.db.time
 import java.time.Duration
 import java.time.Instant
@@ -27,10 +28,11 @@ object ReconcilePlanner {
     data class Plan(val alarm: AlarmEntity, val action: Action, val missed: Instant? = null)
 
     /**
-     * The regular schedule rings only if [groupArmed] and [AlarmEntity.isEnabled] (SPEC §5).
+     * The regular schedule rings only if [groupArmed] and the alarm [ringsRegularly] (SPEC §5): on,
+     * and not a one-shot that already rang since the group was turned on ([AlarmEntity.onceRang]).
      *
-     * The one-time trigger rings regardless of [AlarmEntity.isEnabled]: a one-shot alarm disables
-     * itself when it rings, yet its snooze must still fire. Disarming the group cancels everything
+     * The one-time trigger rings regardless of [AlarmEntity.isEnabled], so a snooze or test ring
+     * still fires. Disarming the group cancels everything
      * in it, one-time triggers included. A pending wake-up check works the same way. [timing] (the
      * group's skip, pause or one-off move) only changes the regular schedule.
      */
@@ -53,13 +55,13 @@ object ReconcilePlanner {
             } else if (pending == alarm.wakeCheckAt) {
                 current = current.copy(wakeCheckAt = null)
             } else if (alarm.daysOfWeek.isEmpty()) {
-                current = current.copy(isEnabled = false)
+                current = current.copy(onceRang = true)
             }
         }
 
         val oneTime = current.oneTimeTriggerAt?.takeIf { it.isAfter(now) }
         val wakeCheck = current.wakeCheckAt?.takeIf { it.isAfter(now) }
-        val regular = if (current.isEnabled) timing.next(current.time, current.daysOfWeek, now, zone) else null
+        val regular = if (current.ringsRegularly) timing.next(current.time, current.daysOfWeek, now, zone) else null
         val next = listOfNotNull(oneTime, wakeCheck, regular).minOrNull()
         val action = if (next != null) Action.Schedule(next) else Action.Cancel
         return Plan(current.copy(nextTriggerAt = next, oneTimeTriggerAt = oneTime, wakeCheckAt = wakeCheck), action, missed)
@@ -73,7 +75,20 @@ object ReconcilePlanner {
     fun afterFiring(alarm: AlarmEntity, scheduledFor: Instant): AlarmEntity = when {
         scheduledFor == alarm.oneTimeTriggerAt -> alarm.copy(lastFiredFor = scheduledFor, oneTimeTriggerAt = null)
         scheduledFor == alarm.wakeCheckAt -> alarm.copy(lastFiredFor = scheduledFor, wakeCheckAt = null)
-        alarm.daysOfWeek.isEmpty() -> alarm.copy(lastFiredFor = scheduledFor, isEnabled = false, snoozesUsed = 0)
+        // A one-shot stays on (2026-11-18): it is done until its group is turned on again.
+        alarm.daysOfWeek.isEmpty() -> alarm.copy(lastFiredFor = scheduledFor, onceRang = true, snoozesUsed = 0)
         else -> alarm.copy(lastFiredFor = scheduledFor, snoozesUsed = 0)
+    }
+
+    /**
+     * Whether a group is done (2026-11-18): it has alarms that are on, every one is a one-shot that
+     * has rung, and none has anything left to ring (a snooze, a wake-up check, a ring in progress).
+     * The group then turns itself off; turning it back on makes its alarms ring again.
+     */
+    fun groupDone(alarms: List<AlarmEntity>, ringingAlarmId: String?): Boolean {
+        val on = alarms.filter { it.isEnabled }
+        if (on.isEmpty()) return false
+        if (on.any { it.daysOfWeek.isNotEmpty() || !it.onceRang }) return false
+        return alarms.none { it.nextTriggerAt != null || it.id == ringingAlarmId }
     }
 }

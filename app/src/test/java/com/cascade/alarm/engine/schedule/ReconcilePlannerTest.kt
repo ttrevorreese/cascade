@@ -122,11 +122,12 @@ class ReconcilePlannerTest {
     }
 
     @Test
-    fun `missed one-shot alarm is disabled`() {
+    fun `missed one-shot alarm counts as rung and stays on`() {
         val p = plan(alarm(days = emptySet(), next = sevenAm), sevenAm.plus(Duration.ofHours(2)))
         assertEquals(sevenAm, p.missed)
         assertEquals(Cancel, p.action)
-        assertFalse(p.alarm.isEnabled)
+        assertTrue(p.alarm.isEnabled)
+        assertTrue(p.alarm.onceRang)
         assertNull(p.alarm.nextTriggerAt)
     }
 
@@ -181,9 +182,10 @@ class ReconcilePlannerTest {
     }
 
     @Test
-    fun `firing a one-shot alarm disables it`() {
+    fun `firing a one-shot alarm marks it as rung, keeps it on, and schedules nothing more`() {
         val fired = ReconcilePlanner.afterFiring(alarm(days = emptySet(), next = sevenAm), sevenAm)
-        assertFalse(fired.isEnabled)
+        assertTrue(fired.isEnabled)
+        assertTrue(fired.onceRang)
         assertEquals(Cancel, plan(fired, sevenAm.plusSeconds(1)).action)
     }
 

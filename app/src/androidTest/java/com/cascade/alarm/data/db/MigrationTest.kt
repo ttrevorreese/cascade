@@ -276,4 +276,29 @@ class MigrationTest {
             }
         }
     }
+
+    @Test
+    fun v12AlarmsHaveNotRungAndThereAreNoPresets() {
+        helper.createDatabase(db, 12).use { v12 ->
+            v12.execSQL(
+                "INSERT INTO alarm_groups (id, name, colorHex, iconKey, isArmed, sortOrder, createdAt) " +
+                    "VALUES ('g', 'Workday', '#000000', 'default', 1, 0, 1234)",
+            )
+            v12.execSQL(
+                "INSERT INTO alarms (id, groupId, positionInGroup, hour, minute, daysOfWeek, isEnabled, volumeRampSeconds, timeoutMinutes) " +
+                    "VALUES ('a', 'g', 0, 7, 0, 0, 1, 30, 10)",
+            )
+        }
+        helper.runMigrationsAndValidate(db, 13, true, Migrations.MIGRATION_12_13).use { v13 ->
+            v13.query("SELECT onceRang, isEnabled FROM alarms WHERE id = 'a'").use { c ->
+                c.moveToFirst()
+                assertEquals(0, c.getInt(0))
+                assertEquals(1, c.getInt(1))
+            }
+            v13.query("SELECT COUNT(*) FROM escalation_presets").use { c ->
+                c.moveToFirst()
+                assertEquals(0, c.getInt(0))
+            }
+        }
+    }
 }

@@ -52,7 +52,7 @@ class SoakTest {
         val sim = EngineSim(this as TestScope, start, zone)
         val random = Random(seed)
         try {
-            val (_, workIds) = sim.group(
+            val (workGroupId, workIds) = sim.group(
                 "Work", *work.toTypedArray(), days = if (oneShot) emptySet() else weekdays, ladder = ladder, wakeCheckMinutes = 3,
                 snoozeMinutes = 5, snoozeLimit = 2, labels = listOf("W1", "W2", "W3", "W4"),
             )
@@ -79,7 +79,7 @@ class SoakTest {
                 val evening = sim.local().toLocalDate().atTime(21, 0).let { if (it.isAfter(sim.local())) it else it.plusDays(1) }.atZone(zone).toInstant()
                 if (oneShot && evening.isBefore(next)) {
                     sim.advanceTo(evening)
-                    if (sim.local().toLocalDate().plusDays(1).dayOfWeek in weekdays) workIds.forEach { sim.repo.setAlarmEnabled(it, true) }
+                    if (sim.local().toLocalDate().plusDays(1).dayOfWeek in weekdays) sim.repo.setGroupArmed(workGroupId, true)
                     continue
                 }
                 if (trouble && random.nextInt(100) < 4 && Duration.between(sim.now(), next) > Duration.ofMinutes(3)) {

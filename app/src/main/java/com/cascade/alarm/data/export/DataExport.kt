@@ -8,6 +8,7 @@ import com.cascade.alarm.data.challenge.EscalationPolicy
 import com.cascade.alarm.data.db.AlarmEntity
 import com.cascade.alarm.data.db.AlarmEventEntity
 import com.cascade.alarm.data.db.AlarmGroupEntity
+import com.cascade.alarm.data.db.EscalationPresetEntity
 import com.cascade.alarm.data.db.CascadeDatabase
 import com.cascade.alarm.data.sound.SoundConfig
 import com.cascade.alarm.engine.EngineLog
@@ -35,7 +36,13 @@ object DataExport {
     const val FORMAT_VERSION = 1
     private val pretty = Json { prettyPrint = true }
 
-    fun toJson(groups: List<AlarmGroupEntity>, alarms: List<AlarmEntity>, events: List<AlarmEventEntity>, exportedAt: Instant): String {
+    fun toJson(
+        groups: List<AlarmGroupEntity>,
+        alarms: List<AlarmEntity>,
+        events: List<AlarmEventEntity>,
+        exportedAt: Instant,
+        presets: List<EscalationPresetEntity> = emptyList(),
+    ): String {
         val byGroup = alarms.groupBy { it.groupId }
         val root = buildJsonObject {
             put("app", "Cascade")
@@ -46,6 +53,17 @@ object DataExport {
                 JsonArray(
                     groups.filter { it.id != SystemTestAlarm.GROUP_ID }.sortedBy { it.sortOrder }.map { group ->
                         group(group, byGroup[group.id].orEmpty().sortedBy { it.positionInGroup })
+                    },
+                ),
+            )
+            put(
+                "escalationPresets",
+                JsonArray(
+                    presets.map { preset ->
+                        buildJsonObject {
+                            put("name", preset.name)
+                            put("escalation", parsed(EscalationPolicy.encode(preset.policy)))
+                        }
                     },
                 ),
             )
@@ -117,7 +135,7 @@ class DataExporter @Inject constructor(
 ) {
     suspend fun export(resolver: ContentResolver, target: Uri): Boolean = withContext(Dispatchers.IO) {
         try {
-            val json = DataExport.toJson(db.alarmGroupDao().all(), db.alarmDao().all(), db.alarmEventDao().since(Instant.EPOCH), time.now())
+            val json = DataExport.toJson(db.alarmGroupDao().all(), db.alarmDao().all(), db.alarmEventDao().since(Instant.EPOCH), time.now(), db.escalationPresetDao().all())
             resolver.openOutputStream(target, "wt")?.use { it.write(json.toByteArray()) } != null
         } catch (e: Exception) {
             EngineLog.e("export failed", e)

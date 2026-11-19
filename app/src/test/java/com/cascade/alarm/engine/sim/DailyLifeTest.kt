@@ -3,6 +3,7 @@ package com.cascade.alarm.engine.sim
 import com.cascade.alarm.data.SnoozeState
 import com.cascade.alarm.data.challenge.ChallengeConfig
 import com.cascade.alarm.data.challenge.Difficulty
+import com.cascade.alarm.data.db.ringsRegularly
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -72,12 +73,13 @@ class DailyLifeTest {
     }
 
     @Test
-    fun `a one-shot alarm rings once, switches itself off, and never rings again`() = sim {
-        val (_, ids) = group("Once", "06:00")
+    fun `a one-shot alarm rings once, its group turns off, the alarm stays on, and it never rings again`() = sim {
+        val (groupId, ids) = group("Once", "06:00")
         advanceTo(day(19, 6, 0))
         assertEquals("A", ringing?.label)
         dismiss()
-        assertEquals(false, alarm(ids[0]).isEnabled)
+        assertEquals(true, alarm(ids[0]).isEnabled)
+        assertEquals(false, db.alarmGroupDao().get(groupId)!!.isArmed)
         assertTrue(alarmManager.pending.isEmpty())
         advanceTo(day(26, 12, 0))
         assertEquals(1, rings.size)
@@ -147,9 +149,12 @@ class DailyLifeTest {
         advanceTo(day(19, 6, 0)); dismiss()
         advanceTo(day(19, 6, 10)); dismiss()
         advanceTo(day(19, 6, 20)); dismiss()
-        // That evening the user switches the three back on for Tuesday.
+        // The group turned itself off after the last; the alarms stayed on.
+        assertEquals(false, db.alarmGroupDao().get(groupId)!!.isArmed)
+        assertTrue(ids.all { alarm(it).isEnabled })
+        // That evening the user turns the group back on for Tuesday, which sets all three.
         advanceTo(day(19, 21, 0))
-        ids.forEach { repo.setAlarmEnabled(it, true) }
+        repo.setGroupArmed(groupId, true)
         advanceTo(day(20, 6, 0)); dismiss()
         advanceTo(day(20, 6, 10)); dismiss()
         advanceTo(day(20, 6, 20)); dismiss()
@@ -285,5 +290,38 @@ class DailyLifeTest {
         advanceTo(day(19, 6, 7))
         assertEquals(true, ringing?.isWakeCheck)
         assertTrue("A GAVE_UP user" in story())
+    }
+
+    // --- One-shot groups (owner request, 2026-11-18) ---
+
+    @Test
+    fun `a one-shot group waits for its wake-up check before turning off, and turning it on sets every alarm again`() = sim {
+        val (groupId, ids) = group("Once", "06:00", "06:10", wakeCheckMinutes = 3)
+        advanceTo(day(19, 6, 0)); dismiss()
+        assertEquals("on until the last has rung", true, db.alarmGroupDao().get(groupId)!!.isArmed)
+        advanceTo(day(19, 6, 10)); dismiss()
+        assertEquals("on while the wake-up check is due", true, db.alarmGroupDao().get(groupId)!!.isArmed)
+        advanceTo(day(19, 6, 13))
+        assertEquals(true, ringing?.isWakeCheck)
+        dismiss()
+        assertEquals(false, db.alarmGroupDao().get(groupId)!!.isArmed)
+        assertTrue(ids.all { alarm(it).isEnabled })
+        advanceTo(day(20, 12, 0))
+        assertEquals(3, rings.size)
+        repo.setGroupArmed(groupId, true)
+        advanceTo(day(21, 6, 11))
+        assertEquals(listOf("06:00 A", "06:10 B"), ringLog(from = 3))
+    }
+
+    @Test
+    fun `a one-shot in a group with repeating alarms rings once and the group stays on`() = sim {
+        val (groupId, ids) = group("Mixed", "06:00", "06:10", days = weekdays)
+        repo.saveAlarm(alarm(ids[1]).copy(daysOfWeek = emptySet()))
+        advanceTo(day(19, 6, 0)); dismiss()
+        advanceTo(day(19, 6, 10)); dismiss()
+        advanceTo(day(20, 6, 11))
+        assertEquals(listOf("06:00 A", "06:10 B", "06:00 A"), ringLog())
+        assertEquals(true, db.alarmGroupDao().get(groupId)!!.isArmed)
+        assertTrue(alarm(ids[1]).isEnabled && !alarm(ids[1]).ringsRegularly)
     }
 }

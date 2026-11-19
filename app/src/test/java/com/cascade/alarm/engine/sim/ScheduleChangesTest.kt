@@ -117,7 +117,8 @@ class ScheduleChangesTest {
         repo.skipNext(groupId)
         assertEquals(emptyList<String>(), morning(day(19, 12, 0)))
         assertEquals(listOf("07:00 A"), morning(day(20, 12, 0)))
-        assertFalse(alarmByLabel("A").isEnabled)
+        assertFalse("the group turned itself off", db.alarmGroupDao().get(groupId)!!.isArmed)
+        assertTrue("the alarm stayed on", alarmByLabel("A").isEnabled)
         assertEquals(emptyList<String>(), morning(day(25, 12, 0)))
     }
 

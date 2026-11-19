@@ -67,6 +67,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.cascade.alarm.data.AlarmRepository
 import com.cascade.alarm.data.DaysFormat
+import androidx.compose.ui.semantics.contentDescription
+import java.time.DayOfWeek
+import com.cascade.alarm.ui.components.DayPicker
+import com.cascade.alarm.data.db.ringsRegularly
+import com.cascade.alarm.data.AlarmRules
 import com.cascade.alarm.data.db.AlarmEntity
 import com.cascade.alarm.data.db.AlarmGroupEntity
 import com.cascade.alarm.engine.schedule.WakeCheck
@@ -94,6 +99,8 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 private const val SHIFT_STEP_MINUTES = 5L
+/** "+5": a copy of one alarm this much later (owner request, 2026-11-18). */
+private const val COPY_STEP_MINUTES = 5L
 
 /** Width of the spine's column; the node sits centred in it. */
 private val SPINE_COLUMN = 30.dp
@@ -135,6 +142,8 @@ class GroupViewModel @Inject constructor(
     fun setAlarmEnabled(alarmId: String, enabled: Boolean) = launch { repository.setAlarmEnabled(alarmId, enabled); ringsIn.show(groupId) }
     fun setShiftWithFirst(enabled: Boolean) = launch { repository.setShiftWithFirst(groupId, enabled) }
     fun shift(minutes: Long) = launch { repository.shiftGroup(groupId, minutes) }
+    fun setDays(days: Set<DayOfWeek>) = launch { repository.setGroupDays(groupId, days); ringsIn.show(groupId) }
+    fun copyAlarmLater(alarmId: String) = launch { repository.copyAlarmLater(alarmId, COPY_STEP_MINUTES) }
     fun setWakeCheck(enabled: Boolean, delayMinutes: Int) = launch { repository.setWakeCheck(groupId, enabled, delayMinutes) }
 
     private fun launch(block: suspend () -> Unit) {
@@ -169,6 +178,8 @@ fun GroupScreen(
         onAlarmEnabledChange = viewModel::setAlarmEnabled,
         onShiftWithFirstChange = viewModel::setShiftWithFirst,
         onShift = viewModel::shift,
+        onDaysChange = viewModel::setDays,
+        onCopyAlarm = viewModel::copyAlarmLater,
         onWakeCheckChange = viewModel::setWakeCheck,
         onSkipNext = viewModel::skipNext,
         onPreviewSkip = viewModel::previewSkip,
@@ -207,6 +218,10 @@ fun GroupContent(
     onPauseUntil: (LocalDate) -> Unit = {},
     onMoveNext: (LocalTime, onResult: (GroupTiming.MoveResult) -> Unit) -> Unit = { _, _ -> },
     onResumeSchedule: () -> Unit = {},
+    /** Every alarm in the group repeats on these days. */
+    onDaysChange: (Set<DayOfWeek>) -> Unit = {},
+    /** A copy of the alarm [COPY_STEP_MINUTES] later. */
+    onCopyAlarm: (alarmId: String) -> Unit = {},
     now: Instant = Instant.now(),
 ) {
     val c = cascadeColors
@@ -300,9 +315,11 @@ fun GroupContent(
                     challenge = resolvedIn(alarms, alarm),
                     onClick = { onOpenAlarm(alarm.id) },
                     onEnabledChange = { onAlarmEnabledChange(alarm.id, it) },
+                    onCopy = { onCopyAlarm(alarm.id) },
                 )
             }
             if (alarms.isNotEmpty()) {
+                item { GroupDays(alarms, onDaysChange) }
                 item { EscalationSummary(policy, onOpenEscalation) }
                 item { SoundSummary(group, onOpenSound) }
                 item { ThemeSummary(group, onOpenTheme) }
@@ -624,6 +641,7 @@ private fun AlarmRow(
     challenge: ChallengeConfig?,
     onClick: () -> Unit,
     onEnabledChange: (Boolean) -> Unit,
+    onCopy: () -> Unit = {},
 ) {
     val c = cascadeColors
     val is24Hour = is24HourClock()
@@ -674,8 +692,17 @@ private fun AlarmRow(
             }
             if (!groupArmed && alarm.isEnabled) {
                 Text("Group is off", style = CascadeType.caption, color = c.textQuiet)
+            } else if (alarm.isEnabled && !alarm.ringsRegularly) {
+                // A one-shot in a group that still has repeating alarms, so the group stays on.
+                Text("Rang. Rings again when the group is turned off and on", style = CascadeType.caption, color = c.textQuiet, modifier = Modifier.testTag("rang-${alarm.id}"))
             }
         }
+        TextButton(
+            onClick = onCopy,
+            modifier = Modifier.testTag("copy-${alarm.id}").semantics {
+                contentDescription = "Copy alarm ${position + 1}, $COPY_STEP_MINUTES minutes later"
+            },
+        ) { Text("+$COPY_STEP_MINUTES", style = CascadeType.button, color = c.textSecondary) }
         // Shows the alarm's own switch even while the group is disarmed (SPEC §5).
         CascadeSwitch(
             alarm.isEnabled,
@@ -683,5 +710,30 @@ private fun AlarmRow(
             Modifier.testTag("alarm-enabled-${alarm.id}"),
             label = "Alarm ${position + 1}, ${TimeText.time(alarm.hour, alarm.minute, is24Hour)}",
         )
+    }
+}
+
+/**
+ * The days the whole group repeats on (owner request, 2026-11-18): picking sets every alarm, the
+ * ones past midnight a day later. Says so when the alarms do not all agree yet.
+ */
+@Composable
+private fun GroupDays(alarms: List<AlarmEntity>, onChange: (Set<DayOfWeek>) -> Unit) {
+    val c = cascadeColors
+    val locale = currentLocale()
+    val (days, uniform) = AlarmRules.groupDays(AlarmRules.ringOrder(alarms))
+    Column(Modifier.fillMaxWidth().padding(top = CascadeSpace.l, bottom = CascadeSpace.l), verticalArrangement = Arrangement.spacedBy(CascadeSpace.s)) {
+        Text(
+            if (days.isEmpty()) "Repeats: never, rings once" else "Repeats: ${DaysFormat.describe(days, locale)}",
+            style = CascadeType.rowLabel,
+            color = c.textPrimary,
+            modifier = Modifier.testTag("group-days-summary"),
+        )
+        if (!uniform) {
+            Text("The alarms repeat on different days. Picking days here sets them all.", style = CascadeType.body, color = c.textSecondary)
+        } else if (days.isEmpty()) {
+            Text("After the last alarm rings, the group turns itself off. Turn it on to set them all again.", style = CascadeType.body, color = c.textSecondary)
+        }
+        DayPicker(days, onChange, locale, tag = "group-day")
     }
 }

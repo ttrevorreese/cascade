@@ -21,6 +21,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -507,13 +508,13 @@ class AlarmRepositoryTest {
     }
 
     @Test
-    fun `a snoozed one-shot alarm rings again although it switched itself off`() = runBlocking {
+    fun `a snoozed one-shot alarm rings again although it already rang`() = runBlocking {
         val groupId = repo.createGroup("Once")
         val draft = repo.newAlarmDraft(groupId).copy(hour = 6, minute = 0, daysOfWeek = emptySet())
         repo.saveAlarm(draft)
         val due = repo.alarm(draft.id)!!.nextTriggerAt!!
         reconciler.recordFire(draft.id, due)
-        assertFalse("a one-shot switches itself off as it rings", repo.alarm(draft.id)!!.isEnabled)
+        assertTrue("a one-shot is marked as rung and stays on", repo.alarm(draft.id)!!.let { it.onceRang && it.isEnabled })
         val at = due.plusSeconds(300)
         reconciler.snooze(draft.id, at)
         assertEquals(at, scheduler.scheduled[draft.id])
@@ -531,5 +532,59 @@ class AlarmRepositoryTest {
         val next = repo.newAlarmDraft(groupId)
         assertEquals(false, next.snoozeEnabled)
         assertEquals(30, next.snoozeMinutes)
+    }
+
+    // --- Owner requests, 2026-11-18 ---
+
+    @Test
+    fun `turning a group on sets its one-shot alarms that already rang again`() = runBlocking {
+        val groupId = repo.createGroup("Once")
+        val draft = repo.newAlarmDraft(groupId).copy(hour = 6, minute = 0, daysOfWeek = emptySet())
+        repo.saveAlarm(draft)
+        reconciler.recordFire(draft.id, repo.alarm(draft.id)!!.nextTriggerAt!!)
+        assertNull(repo.alarm(draft.id)!!.nextTriggerAt)
+        repo.setGroupArmed(groupId, false)
+        repo.setGroupArmed(groupId, true)
+        val alarm = repo.alarm(draft.id)!!
+        assertFalse(alarm.onceRang)
+        assertNotNull(alarm.nextTriggerAt)
+    }
+
+    @Test
+    fun `group days set every alarm, a day later past midnight`() = runBlocking {
+        val (groupId, ids) = sequence("Late", 23 to 50, 0 to 10)
+        repo.setGroupDays(groupId, setOf(DayOfWeek.MONDAY, DayOfWeek.FRIDAY))
+        assertEquals(setOf(DayOfWeek.MONDAY, DayOfWeek.FRIDAY), repo.alarm(ids[0])!!.daysOfWeek)
+        assertEquals(setOf(DayOfWeek.TUESDAY, DayOfWeek.SATURDAY), repo.alarm(ids[1])!!.daysOfWeek)
+        assertEquals(setOf(DayOfWeek.MONDAY, DayOfWeek.FRIDAY) to true, AlarmRules.groupDays(AlarmRules.ringOrder(db.alarmDao().inGroup(groupId))))
+    }
+
+    @Test
+    fun `copying an alarm five minutes later keeps its settings and takes its place in the sequence`() = runBlocking {
+        val (groupId, ids) = sequence("Workday", 6 to 0, 6 to 20)
+        repo.saveAlarm(repo.alarm(ids[0])!!.copy(label = "Up", challengeOverride = com.cascade.alarm.data.challenge.ChallengeConfig.TypePhrase("up"), snoozeMinutes = 9))
+        val copyId = repo.copyAlarmLater(ids[0], 5)!!
+        val ordered = db.alarmDao().inGroup(groupId)
+        assertEquals(listOf(ids[0], copyId, ids[1]), ordered.map { it.id })
+        val copy = ordered[1]
+        assertEquals(6 to 5, copy.hour to copy.minute)
+        assertEquals("Up", copy.label)
+        assertEquals(9, copy.snoozeMinutes)
+        assertEquals(com.cascade.alarm.data.challenge.ChallengeConfig.TypePhrase("up"), copy.challengeOverride)
+        assertNotNull(copy.nextTriggerAt)
+    }
+
+    @Test
+    fun `escalation presets save, replace by name, and delete`() = runBlocking {
+        val easy = com.cascade.alarm.data.challenge.EscalationPolicy(listOf(com.cascade.alarm.data.challenge.ChallengeConfig.Math()))
+        val hard = com.cascade.alarm.data.challenge.EscalationPolicy(listOf(com.cascade.alarm.data.challenge.ChallengeConfig.Steps(40)))
+        repo.saveEscalationPreset(" Workday ", easy)
+        repo.saveEscalationPreset("workday", hard)
+        val saved = db.escalationPresetDao().all()
+        assertEquals(1, saved.size)
+        assertEquals("workday", saved[0].name)
+        assertEquals(hard, saved[0].policy)
+        repo.deleteEscalationPreset(saved[0].id)
+        assertTrue(db.escalationPresetDao().all().isEmpty())
     }
 }

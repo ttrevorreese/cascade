@@ -7,9 +7,9 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 
 @Database(
-    entities = [AlarmGroupEntity::class, AlarmEntity::class, ActiveRingEntity::class, AlarmEventEntity::class],
+    entities = [AlarmGroupEntity::class, AlarmEntity::class, ActiveRingEntity::class, AlarmEventEntity::class, EscalationPresetEntity::class],
     // Every version bump needs an entry in Migrations.ALL and a MigrationTest case.
-    version = 12,
+    version = 13,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -18,6 +18,7 @@ abstract class CascadeDatabase : RoomDatabase() {
     abstract fun alarmGroupDao(): AlarmGroupDao
     abstract fun activeRingDao(): ActiveRingDao
     abstract fun alarmEventDao(): AlarmEventDao
+    abstract fun escalationPresetDao(): EscalationPresetDao
 
     companion object {
         const val NAME = "cascade.db"

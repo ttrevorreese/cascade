@@ -13,31 +13,61 @@ fun challengeSeed(alarmId: String, scheduledFor: Instant): Long =
 
 data class MathProblem(val text: String, val answer: Int)
 
-/** SPEC §6.1's three tiers. */
+/**
+ * SPEC §6.1's three tiers. Every answer is at least 1, subtractions leave at least 10 (hard: 2),
+ * and no sum repeats within a ring (owner report, 2026-11-18: three medium sums in a row came to 0).
+ */
 object MathProblems {
     fun generate(seed: Long, difficulty: Difficulty, count: Int): List<MathProblem> {
-        val random = Random(seed)
-        return List(count.coerceIn(ChallengeConfig.MIN_PROBLEMS, ChallengeConfig.MAX_PROBLEMS)) { one(random, difficulty) }
+        val random = Random(mix(seed))
+        val problems = mutableListOf<MathProblem>()
+        repeat(count.coerceIn(ChallengeConfig.MIN_PROBLEMS, ChallengeConfig.MAX_PROBLEMS)) {
+            var problem = one(random, difficulty)
+            // The tiers have hundreds of sums each, so a few tries always find a new one.
+            var tries = 0
+            while (problems.any { it.text == problem.text || it.answer == problem.answer } && tries++ < 20) problem = one(random, difficulty)
+            problems += problem
+        }
+        return problems
     }
+
+    /** One sum of [difficulty] for the editor to show what it is like. */
+    fun sample(difficulty: Difficulty, seed: Long): MathProblem = generate(seed, difficulty, 1).first()
 
     private fun one(r: Random, difficulty: Difficulty): MathProblem = when (difficulty) {
         // Single-digit addition.
         Difficulty.EASY -> {
-            val (a, b) = r.nextInt(1, 10) to r.nextInt(1, 10)
+            val (a, b) = r.nextInt(2, 10) to r.nextInt(2, 10)
             MathProblem("$a + $b", a + b)
         }
-        // Two-digit addition or subtraction, never negative.
-        Difficulty.MEDIUM -> {
-            val (a, b) = r.nextInt(10, 100) to r.nextInt(10, 100)
-            if (r.nextBoolean()) MathProblem("$a + $b", a + b)
-            else MathProblem("${maxOf(a, b)} − ${minOf(a, b)}", maxOf(a, b) - minOf(a, b))
+        // Two-digit addition, or subtraction leaving at least 10.
+        Difficulty.MEDIUM -> if (r.nextBoolean()) {
+            val (a, b) = r.nextInt(11, 100) to r.nextInt(11, 100)
+            MathProblem("$a + $b", a + b)
+        } else {
+            val a = r.nextInt(31, 100)
+            val b = r.nextInt(11, a - 9)
+            MathProblem("$a − $b", a - b)
         }
-        // Multi-step with multiplication, never negative.
+        // Multi-step with multiplication; the subtraction always leaves something.
         Difficulty.HARD -> {
-            val (a, b, c) = Triple(r.nextInt(3, 13), r.nextInt(3, 13), r.nextInt(10, 100))
-            if (r.nextBoolean()) MathProblem("$a × $b + $c", a * b + c)
-            else MathProblem("$a × $b − ${minOf(c, a * b)}", a * b - minOf(c, a * b))
+            val (a, b) = r.nextInt(3, 13) to r.nextInt(3, 13)
+            if (r.nextBoolean() || a * b < 14) {
+                val c = r.nextInt(11, 100)
+                MathProblem("$a × $b + $c", a * b + c)
+            } else {
+                val c = r.nextInt(11, a * b - 1)
+                MathProblem("$a × $b − $c", a * b - c)
+            }
         }
+    }
+
+    /** Spreads seeds that differ in a few bits (same alarm, next day) across the whole range. */
+    private fun mix(seed: Long): Long {
+        var z = seed + -0x61c8864680b583ebL
+        z = (z xor (z ushr 30)) * -0x40a7b892e31b1a47L
+        z = (z xor (z ushr 27)) * -0x6b2fb644ecceee15L
+        return z xor (z ushr 31)
     }
 }
 
@@ -47,11 +77,9 @@ object Phrases {
         "harbour", "copper", "meadow", "tunnel", "violet", "saddle", "marble", "cactus", "anchor", "candle",
     )
 
-    /** A short phrase for a TypePhrase challenge with no phrase of its own. */
-    fun generated(seed: Long, words: Int = 4): String {
-        val random = Random(seed)
-        return List(words) { WORDS[random.nextInt(WORDS.size)] }.joinToString(" ")
-    }
+    /** A short phrase for a TypePhrase challenge with no phrase of its own; no word twice (2026-11-18). */
+    fun generated(seed: Long, words: Int = 4): String =
+        WORDS.shuffled(Random(seed)).take(words.coerceIn(1, WORDS.size)).joinToString(" ")
 
     /** Case-insensitive and whitespace-normalised (SPEC §6.5). */
     fun normalize(text: String): String = text.trim().lowercase().replace(Regex("\\s+"), " ")
