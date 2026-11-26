@@ -43,14 +43,14 @@ android {
     }
 
     buildTypes {
+        // Spotify is "coming soon" in every build (owner, 2026-11-25): developer mode allows only five
+        // listed people. -Pcascade.spotify=true builds one with it for those people.
+        val spotify = providers.gradleProperty("cascade.spotify").getOrElse("false")
         debug {
-            buildConfigField("boolean", "SPOTIFY_ENABLED", "true")
+            buildConfigField("boolean", "SPOTIFY_ENABLED", spotify)
             buildConfigField("boolean", "PLUS_FOR_SALE", "true")
         }
         release {
-            // Spotify's developer mode allows the owner plus four listed users, so a public build ships
-            // without it; -Pcascade.spotifyInRelease=true builds one for those people.
-            val spotify = providers.gradleProperty("cascade.spotifyInRelease").getOrElse("false")
             buildConfigField("boolean", "SPOTIFY_ENABLED", spotify)
             // Cascade launches without Cascade Plus (owner, 2026-10-24): a free app with no purchases
             // keeps the developer's address off the Play listing. -Pcascade.plusForSale=true sells it.

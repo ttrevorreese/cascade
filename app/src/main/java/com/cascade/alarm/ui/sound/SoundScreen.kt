@@ -261,7 +261,7 @@ fun SoundScreen(onDone: () -> Unit, viewModel: SoundViewModel = hiltViewModel())
     )
 }
 
-/** The Spotify part of the page; null in builds without Spotify (SPEC §9). */
+/** The Spotify part of the page; null in builds without Spotify (SPEC §9), which show "Coming soon". */
 class SpotifySection(
     val on: Boolean,
     val link: String,
@@ -392,9 +392,18 @@ fun SoundContent(
                     if (problem != null) Problem(problem)
                 }
             }
+            item { SectionLabel("Spotify") }
             if (spotify != null) {
-                item { SectionLabel("Spotify") }
                 item { SpotifySetting(spotify, draft.sound as? SoundConfig.SpotifyPlaylist) }
+            } else {
+                item {
+                    Text(
+                        "Coming soon: wake up to a playlist from Spotify.",
+                        style = CascadeType.body,
+                        color = c.textSecondary,
+                        modifier = Modifier.testTag("spotify-coming-soon"),
+                    )
+                }
             }
             item { SectionLabel("Getting louder") }
             item {

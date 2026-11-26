@@ -152,7 +152,7 @@ under conventions). It is how the next session knows where to pick up.
 - End-to-end alarm path on a device: `bash scripts/e2e-alarm.sh --wake-check` (about 6 min);
   `--all` adds timeout, reboot and power-off (about 14 min). Run before calling engine work done.
 - Spotify: App Remote SDK calls stay in `engine/ring/SpotifyAppRemote.kt`; logic in `SpotifyHandoff`
-  (tested with fakes). A release build with Spotify: `./gradlew assembleRelease -Pcascade.spotifyInRelease=true`.
+  (tested with fakes). Spotify is off in every build by default and the Sound page says "Coming soon" (owner, 2026-11-25); `-Pcascade.spotify=true` builds it in (debug or release).
   A release key needs its SHA-1 added on Spotify's dashboard (M8).
 - No INTERNET permission (removed with `tools:node="remove"` in the manifest). Never add a library that
   needs the network; check the merged manifest after adding any dependency.

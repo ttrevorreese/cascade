@@ -31,7 +31,7 @@ If the upload key is ever lost, Play Console can reset it; the app's real signin
 ```sh
 ./gradlew testDebugUnitTest lintDebug          # what CI runs
 ./gradlew bundleRelease                        # app/build/outputs/bundle/release/app-release.aab
-./gradlew bundleRelease -Pcascade.spotifyInRelease=true   # the testers' build, with Spotify
+./gradlew bundleRelease -Pcascade.spotify=true           # only if testers should get Spotify (off by default, "Coming soon")
 ```
 
 Bump `versionCode` (every upload) and `versionName` (every release) in `app/build.gradle.kts` first.

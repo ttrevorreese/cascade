@@ -170,7 +170,15 @@ class SoundScreensTest {
         assertEquals(1 to 1, previews to saves)
     }
 
-    private val playlist = "https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M?si=abc"
+    @Test
+    fun withoutSpotifyThePageSaysItIsComingSoon() {
+        content({ RingSound() })
+        scrollTo("spotify-coming-soon")
+        compose.onNodeWithTag("spotify-coming-soon").assertExists()
+        compose.onNodeWithTag("spotify-on").assertDoesNotExist()
+    }
+
+    private val playlist ="https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M?si=abc"
 
     private fun spotifyContent(draft: () -> RingSound, section: () -> SpotifySection, onChange: (RingSound) -> Unit = {}) = compose.setContent {
         SoundContent(
